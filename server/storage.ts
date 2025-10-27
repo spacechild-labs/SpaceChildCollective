@@ -225,6 +225,30 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return updated;
   }
+
+  // Helper methods for simplified frontend API
+  async getAllTasks(): Promise<AgentTask[]> {
+    return await db
+      .select()
+      .from(agentTasks)
+      .orderBy(desc(agentTasks.createdAt));
+  }
+
+  async getTask(id: string): Promise<AgentTask | null> {
+    const [task] = await db
+      .select()
+      .from(agentTasks)
+      .where(eq(agentTasks.id, id))
+      .limit(1);
+    return task || null;
+  }
+
+  async getAllMcpCommunications(): Promise<McpCommunication[]> {
+    return await db
+      .select()
+      .from(mcpCommunications)
+      .orderBy(desc(mcpCommunications.createdAt));
+  }
 }
 
 export const storage = new DatabaseStorage();

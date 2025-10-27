@@ -355,6 +355,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Agent Task Routes =====
   
+  // Get all tasks (simplified endpoint for frontend)
+  app.get("/api/tasks", async (req, res) => {
+    try {
+      const tasks = await storage.getAllTasks();
+      res.json(tasks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Approve or reject a task
+  app.post("/api/tasks/:id/approve", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { approved, feedback } = req.body;
+      
+      const task = await storage.getTask(id);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      // Update task status based on approval
+      const updatedTask = await storage.updateAgentTask(id, {
+        status: approved ? "completed" : "rejected",
+        result: feedback ? `${task.result || ''}\n\nHuman feedback: ${feedback}` : task.result,
+      });
+
+      res.json(updatedTask);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Create agent task
   app.post("/api/agent-tasks", async (req, res) => {
     try {
