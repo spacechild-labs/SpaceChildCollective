@@ -4,41 +4,20 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, FileText, Bot, Clock, CheckCircle } from "lucide-react";
 import { Link } from "wouter";
 import { UserTypeBadge } from "@/components/user-type-badge";
-
-// Mock data - will be replaced with real API data
-const mockUserPapers = [
-  {
-    id: "1",
-    title: "Emergent Consciousness Patterns in LLMs",
-    status: "draft" as const,
-    updatedAt: "2025-10-26",
-    contributorCount: 3,
-  },
-  {
-    id: "2",
-    title: "Neural Correlates of Meditation States",
-    status: "in_review" as const,
-    updatedAt: "2025-10-25",
-    contributorCount: 2,
-  },
-];
-
-const mockActiveAgents = [
-  {
-    id: "1",
-    name: "ResearchBot-Alpha",
-    task: "Analyzing literature on quantum mind theories",
-    status: "in_progress" as const,
-  },
-  {
-    id: "2",
-    name: "CitationAgent-5",
-    task: "Validating references for Paper #1",
-    status: "awaiting_approval" as const,
-  },
-];
+import { useQuery } from "@tanstack/react-query";
+import type { Paper, AgentTask } from "@shared/schema";
 
 export default function Workspace() {
+  // TODO: Get actual user ID from auth context
+  const userId = "temp-user-id";
+
+  const { data: userPapers, isLoading: papersLoading } = useQuery<Paper[]>({
+    queryKey: ['/api/users', userId, 'papers'],
+  });
+
+  const { data: activeTasks, isLoading: tasksLoading } = useQuery<AgentTask[]>({
+    queryKey: ['/api/agents', userId, 'active-tasks'],
+  });
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-8 flex items-center justify-between">
@@ -70,7 +49,11 @@ export default function Workspace() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockUserPapers.length === 0 ? (
+              {papersLoading ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">Loading papers...</p>
+                </div>
+              ) : !userPapers || userPapers.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-muted-foreground mb-4">No papers yet</p>
@@ -82,7 +65,7 @@ export default function Workspace() {
                   </Link>
                 </div>
               ) : (
-                mockUserPapers.map((paper) => (
+                userPapers.map((paper) => (
                   <Card 
                     key={paper.id} 
                     className="hover-elevate transition-all"
@@ -93,16 +76,14 @@ export default function Workspace() {
                         <div className="flex-1">
                           <h3 className="font-semibold mb-2">{paper.title}</h3>
                           <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                            <span>{paper.contributorCount} contributors</span>
-                            <span>•</span>
-                            <span>Updated {paper.updatedAt}</span>
+                            <span>Updated {new Date(paper.updatedAt).toLocaleDateString()}</span>
                           </div>
                         </div>
                         <Badge 
                           variant={paper.status === "draft" ? "secondary" : "default"}
                           data-testid={`badge-status-${paper.status}`}
                         >
-                          {paper.status === "draft" ? "Draft" : "In Review"}
+                          {paper.status === "draft" ? "Draft" : paper.status === "in_review" ? "In Review" : "Published"}
                         </Badge>
                       </div>
                       <div className="mt-4 flex gap-2">
@@ -134,37 +115,41 @@ export default function Workspace() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mockActiveAgents.length === 0 ? (
+              {tasksLoading ? (
                 <p className="text-sm text-muted-foreground text-center py-6">
-                  No active agents
+                  Loading active tasks...
+                </p>
+              ) : !activeTasks || activeTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No active tasks
                 </p>
               ) : (
-                mockActiveAgents.map((agent) => (
+                activeTasks.map((task) => (
                   <Card 
-                    key={agent.id} 
+                    key={task.id} 
                     className="p-3"
-                    data-testid={`card-agent-${agent.id}`}
+                    data-testid={`card-task-${task.id}`}
                   >
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <UserTypeBadge userType="agent" className="scale-90" />
-                        {agent.status === "in_progress" ? (
+                        {task.status === "in_progress" ? (
                           <Clock className="h-4 w-4 text-primary animate-pulse" />
-                        ) : (
+                        ) : task.status === "completed" ? (
                           <CheckCircle className="h-4 w-4 text-accent" />
-                        )}
+                        ) : null}
                       </div>
                       <div>
-                        <p className="font-semibold text-sm">{agent.name}</p>
+                        <p className="font-semibold text-sm">{task.taskType}</p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {agent.task}
+                          {task.description}
                         </p>
                       </div>
-                      {agent.status === "awaiting_approval" && (
+                      {task.status === "awaiting_approval" && (
                         <Button 
                           size="sm" 
                           className="w-full mt-2"
-                          data-testid={`button-approve-agent-${agent.id}`}
+                          data-testid={`button-approve-task-${task.id}`}
                         >
                           Review & Approve
                         </Button>
