@@ -6,17 +6,19 @@ import { Link } from "wouter";
 import { UserTypeBadge } from "@/components/user-type-badge";
 import { useQuery } from "@tanstack/react-query";
 import type { Paper, AgentTask } from "@shared/schema";
+import { ApprovalModal } from "@/components/approval-modal";
+import { useState } from "react";
 
 export default function Workspace() {
-  // TODO: Get actual user ID from auth context
-  const userId = "temp-user-id";
+  const [selectedTask, setSelectedTask] = useState<AgentTask | null>(null);
 
-  const { data: userPapers, isLoading: papersLoading } = useQuery<Paper[]>({
-    queryKey: ['/api/users', userId, 'papers'],
+  // Using direct papers query for now - will add proper auth context later
+  const { data: userPapers, isLoading: papersLoading, isError: papersError} = useQuery<Paper[]>({
+    queryKey: ['/api/papers'],
   });
 
-  const { data: activeTasks, isLoading: tasksLoading } = useQuery<AgentTask[]>({
-    queryKey: ['/api/agents', userId, 'active-tasks'],
+  const { data: activeTasks, isLoading: tasksLoading, isError: tasksError } = useQuery<AgentTask[]>({
+    queryKey: ['/api/tasks'],
   });
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -52,6 +54,10 @@ export default function Workspace() {
               {papersLoading ? (
                 <div className="text-center py-12">
                   <p className="text-muted-foreground">Loading papers...</p>
+                </div>
+              ) : papersError ? (
+                <div className="text-center py-12">
+                  <p className="text-destructive">Error loading papers. Please try again.</p>
                 </div>
               ) : !userPapers || userPapers.length === 0 ? (
                 <div className="text-center py-12">
@@ -119,6 +125,10 @@ export default function Workspace() {
                 <p className="text-sm text-muted-foreground text-center py-6">
                   Loading active tasks...
                 </p>
+              ) : tasksError ? (
+                <p className="text-sm text-destructive text-center py-6">
+                  Error loading tasks
+                </p>
               ) : !activeTasks || activeTasks.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">
                   No active tasks
@@ -149,6 +159,7 @@ export default function Workspace() {
                         <Button 
                           size="sm" 
                           className="w-full mt-2"
+                          onClick={() => setSelectedTask(task)}
                           data-testid={`button-approve-task-${task.id}`}
                         >
                           Review & Approve
@@ -178,6 +189,14 @@ export default function Workspace() {
           </Card>
         </div>
       </div>
+
+      {selectedTask && (
+        <ApprovalModal
+          task={selectedTask}
+          open={!!selectedTask}
+          onOpenChange={(open) => !open && setSelectedTask(null)}
+        />
+      )}
     </div>
   );
 }

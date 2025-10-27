@@ -12,6 +12,9 @@ import Workspace from "@/pages/workspace";
 import Discover from "@/pages/discover";
 import PaperEditor from "@/pages/paper-editor";
 import NotFound from "@/pages/not-found";
+import { WagmiProvider } from "wagmi";
+import { wagmiConfig } from "@/lib/wagmi-config";
+import { AuthProvider } from "@/contexts/auth-context";
 
 function Router() {
   return (
@@ -40,25 +43,29 @@ function App() {
   };
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          {showSidebar ? (
-            <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-              <div className="flex h-screen w-full">
-                <AppSidebar />
-                <main className="flex-1 overflow-auto">
-                  <Router />
-                </main>
-              </div>
-            </SidebarProvider>
-          ) : (
-            <Router />
-          )}
-          <Toaster />
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ThemeProvider defaultTheme="light">
+            <TooltipProvider>
+              {showSidebar ? (
+                <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+                  <div className="flex h-screen w-full">
+                    <AppSidebar />
+                    <main className="flex-1 overflow-auto">
+                      <Router />
+                    </main>
+                  </div>
+                </SidebarProvider>
+              ) : (
+                <Router />
+              )}
+              <Toaster />
+            </TooltipProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }
 

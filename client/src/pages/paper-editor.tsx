@@ -13,6 +13,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Paper } from "@shared/schema";
+import { WalletConnect } from "@/components/wallet-connect";
 
 export default function PaperEditor() {
   const { toast } = useToast();
@@ -50,9 +51,9 @@ export default function PaperEditor() {
     },
   });
 
-  // Mock contributors
+  // Contributors will be managed through backend after auth is added
   const contributors = [
-    { id: "1", displayName: "You", userType: "human" as const },
+    { id: "current-user", displayName: "You", userType: "human" as const },
     { id: "2", displayName: "ResearchBot-Alpha", userType: "agent" as const },
   ];
 
@@ -80,9 +81,14 @@ export default function PaperEditor() {
               <Save className="mr-2 h-4 w-4" />
               {createPaperMutation.isPending ? "Saving..." : "Save Draft"}
             </Button>
-            <Button size="sm" data-testid="button-publish">
+            <Button 
+              size="sm" 
+              variant="default"
+              disabled
+              data-testid="button-publish"
+            >
               <Database className="mr-2 h-4 w-4" />
-              Publish to Blockchain
+              Save Draft First
             </Button>
           </div>
         </div>
@@ -192,37 +198,7 @@ export default function PaperEditor() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              Blockchain Publishing
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              When ready, publish to both NEO X and Base for immutable proof-of-discovery.
-            </p>
-            <Separator className="my-4" />
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status:</span>
-                <span className="font-medium">Not Published</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Wallet:</span>
-                <span className="font-medium">Not Connected</span>
-              </div>
-            </div>
-            <Button 
-              className="w-full mt-4" 
-              variant="outline"
-              data-testid="button-connect-wallet"
-            >
-              Connect Wallet
-            </Button>
-          </CardContent>
-        </Card>
+        <WalletConnect />
       </div>
     </div>
   );

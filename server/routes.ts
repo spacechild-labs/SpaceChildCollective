@@ -43,6 +43,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // ===== Auth Routes =====
+  
+  // Register with ZKP (creates user and sets session)
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { displayName, userType, zkProof } = req.body;
+      
+      if (!displayName || !userType || !zkProof) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Check if user already exists with this ZKP
+      const existingUser = await storage.getUserByZkProof(zkProof);
+      if (existingUser) {
+        return res.status(400).json({ error: "User already exists" });
+      }
+
+      // Create user
+      const user = await storage.createUser({
+        displayName,
+        userType,
+        zkProof,
+        researchInterests: [],
+        contributionCount: 0,
+      });
+
+      // Set session
+      (req.session as any).userId = user.id;
+      
+      res.json({ user });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Login with ZKP
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { zkProof } = req.body;
+      
+      if (!zkProof) {
+        return res.status(400).json({ error: "ZKP required" });
+      }
+
+      const user = await storage.getUserByZkProof(zkProof);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      // Set session
+      (req.session as any).userId = user.id;
+      
+      res.json({ user });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get current user from session
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      const userId = (req.session as any).userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({ user });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Logout
+  app.post("/api/auth/logout", async (req, res) => {
+    req.session.destroy(() => {
+      res.json({ success: true });
+    });
+  });
+
   // ===== User & Auth Routes =====
   
   // Create user (ZKP auth registration)
