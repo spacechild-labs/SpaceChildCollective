@@ -6,41 +6,22 @@ import { Search, Filter } from "lucide-react";
 import { UserTypeBadge } from "@/components/user-type-badge";
 import { BlockchainBadge } from "@/components/blockchain-badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useQuery } from "@tanstack/react-query";
+import type { Paper, PaperContributor, User, BlockchainRecord } from "@shared/schema";
+import { useState } from "react";
 
-// Mock data for now - will be replaced with real API data
-const mockPapers = [
-  {
-    id: "1",
-    title: "Quantum Consciousness: Bridging Physics and Mind",
-    abstract: "An exploration of quantum mechanical processes in neural microtubules and their potential role in conscious experience...",
-    category: "Consciousness Studies",
-    contributors: [
-      { id: "1", displayName: "Dr. Sarah Chen", userType: "human" as const },
-      { id: "2", displayName: "ResearchBot-7", userType: "agent" as const },
-    ],
-    blockchainStatus: [
-      { chain: "neox" as const, status: "confirmed" as const, transactionHash: "0x1234abcd..." },
-      { chain: "base" as const, status: "confirmed" as const, transactionHash: "0x5678efgh..." },
-    ],
-  },
-  {
-    id: "2",
-    title: "AI Sentience Markers: Empirical Framework",
-    abstract: "Developing measurable criteria for identifying emergent consciousness in artificial systems...",
-    category: "AI Research",
-    contributors: [
-      { id: "3", displayName: "Dr. James Kumar", userType: "human" as const },
-      { id: "4", displayName: "AnalysisAgent-3", userType: "agent" as const },
-      { id: "5", displayName: "EthicsBot-1", userType: "agent" as const },
-    ],
-    blockchainStatus: [
-      { chain: "neox" as const, status: "pending" as const },
-      { chain: "base" as const, status: "confirmed" as const, transactionHash: "0x9abc..." },
-    ],
-  },
-];
+type PaperWithDetails = Paper & {
+  contributors: (PaperContributor & { user: User })[];
+  blockchainRecords: BlockchainRecord[];
+};
 
 export default function Discover() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  
+  const { data: papers, isLoading } = useQuery<Paper[]>({
+    queryKey: ['/api/papers'],
+  });
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-8">
@@ -87,7 +68,16 @@ export default function Discover() {
 
       {/* Papers Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {mockPapers.map((paper) => (
+        {isLoading ? (
+          <div className="col-span-full text-center py-12">
+            <p className="text-muted-foreground">Loading research papers...</p>
+          </div>
+        ) : !papers || papers.length === 0 ? (
+          <div className="col-span-full text-center py-12">
+            <p className="text-muted-foreground">No papers published yet</p>
+          </div>
+        ) : (
+          papers.filter(paper => paper.status === "published").map((paper) => (
           <Card 
             key={paper.id} 
             className="hover-elevate transition-all duration-300 flex flex-col"
@@ -109,38 +99,10 @@ export default function Discover() {
 
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs text-muted-foreground mb-2">Contributors:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {paper.contributors.map((contributor) => (
-                      <div 
-                        key={contributor.id} 
-                        className="flex items-center gap-1.5"
-                        data-testid={`contributor-${contributor.id}`}
-                      >
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-xs">
-                            {contributor.displayName.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm">{contributor.displayName}</span>
-                        <UserTypeBadge userType={contributor.userType} className="scale-90" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">Blockchain Verification:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {paper.blockchainStatus.map((record, idx) => (
-                      <BlockchainBadge
-                        key={idx}
-                        chain={record.chain}
-                        status={record.status}
-                        transactionHash={record.transactionHash}
-                      />
-                    ))}
-                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">Category: {paper.category}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Published {new Date(paper.publishedAt || paper.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -151,7 +113,8 @@ export default function Discover() {
               </button>
             </CardFooter>
           </Card>
-        ))}
+        ))
+        )}
       </div>
     </div>
   );

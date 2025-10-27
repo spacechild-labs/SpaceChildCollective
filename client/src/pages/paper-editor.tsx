@@ -9,10 +9,46 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Save, Send, Users, Bot, Database } from "lucide-react";
 import { UserTypeBadge } from "@/components/user-type-badge";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import type { Paper } from "@shared/schema";
 
 export default function PaperEditor() {
+  const { toast } = useToast();
   const [title, setTitle] = useState("Untitled Research Paper");
   const [content, setContent] = useState("# Introduction\n\nBegin writing your research...");
+  const [abstract, setAbstract] = useState("");
+  const [category, setCategory] = useState("consciousness");
+
+  const createPaperMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest<Paper>('/api/papers', {
+        method: 'POST',
+        body: JSON.stringify({
+          title,
+          abstract: abstract || "No abstract provided",
+          content,
+          status: "draft",
+          category,
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/papers'] });
+      toast({
+        title: "Paper saved",
+        description: "Your research paper has been saved as a draft.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error saving paper",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   // Mock contributors
   const contributors = [
@@ -34,9 +70,15 @@ export default function PaperEditor() {
             data-testid="input-paper-title"
           />
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" data-testid="button-save-draft">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => createPaperMutation.mutate()}
+              disabled={createPaperMutation.isPending}
+              data-testid="button-save-draft"
+            >
               <Save className="mr-2 h-4 w-4" />
-              Save Draft
+              {createPaperMutation.isPending ? "Saving..." : "Save Draft"}
             </Button>
             <Button size="sm" data-testid="button-publish">
               <Database className="mr-2 h-4 w-4" />
@@ -123,7 +165,7 @@ export default function PaperEditor() {
           <CardContent className="space-y-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Category</label>
-              <Select defaultValue="consciousness">
+              <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger data-testid="select-paper-category">
                   <SelectValue />
                 </SelectTrigger>
@@ -139,6 +181,8 @@ export default function PaperEditor() {
             <div>
               <label className="text-sm font-medium mb-2 block">Abstract</label>
               <Textarea
+                value={abstract}
+                onChange={(e) => setAbstract(e.target.value)}
                 placeholder="Brief summary of your research..."
                 rows={4}
                 className="resize-none"
