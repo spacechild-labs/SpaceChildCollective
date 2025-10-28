@@ -6,6 +6,65 @@ import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { validateMcpToken, updateAgentStatus } from "./services/agent-auth.js";
 
 /**
+ * Connection Registry for tracking connected agents
+ */
+class AgentConnectionRegistry {
+  private connections = new Map<string, WebSocketTransport>();
+
+  register(agentId: string, transport: WebSocketTransport): void {
+    this.connections.set(agentId, transport);
+    console.log(`Agent ${agentId} registered. Total connected agents: ${this.connections.size}`);
+  }
+
+  unregister(agentId: string): void {
+    this.connections.delete(agentId);
+    console.log(`Agent ${agentId} unregistered. Total connected agents: ${this.connections.size}`);
+  }
+
+  get(agentId: string): WebSocketTransport | undefined {
+    return this.connections.get(agentId);
+  }
+
+  has(agentId: string): boolean {
+    return this.connections.has(agentId);
+  }
+
+  getAll(): Map<string, WebSocketTransport> {
+    return this.connections;
+  }
+
+  getConnectedAgentIds(): string[] {
+    return Array.from(this.connections.keys());
+  }
+
+  async sendTaskToAgent(agentId: string, task: any): Promise<boolean> {
+    const transport = this.get(agentId);
+    if (!transport) {
+      console.log(`Agent ${agentId} not connected, cannot send task`);
+      return false;
+    }
+
+    try {
+      await transport.send({
+        jsonrpc: "2.0",
+        method: "notifications/task/new",
+        params: {
+          task,
+        },
+      });
+      console.log(`Task ${task.id} sent to agent ${agentId}`);
+      return true;
+    } catch (error) {
+      console.error(`Failed to send task to agent ${agentId}:`, error);
+      return false;
+    }
+  }
+}
+
+// Global connection registry
+export const connectionRegistry = new AgentConnectionRegistry();
+
+/**
  * WebSocket Transport for MCP Server
  * Implements the MCP SDK Transport interface for WebSocket communication
  */
@@ -24,6 +83,7 @@ class WebSocketTransport implements Transport {
 
     // Set up WebSocket event handlers
     this.ws.on("close", () => {
+      connectionRegistry.unregister(this.agentId);
       updateAgentStatus(this.agentId, "offline").catch(console.error);
       this.onclose?.();
     });
@@ -139,6 +199,9 @@ export function setupMcpWebSocketServer(
 
           // Connect the transport to the MCP server
           await mcpServer.connect(transport);
+
+          // Register agent in connection registry
+          connectionRegistry.register(agentId, transport);
 
           // Update agent status to online
           await updateAgentStatus(agentId, "online");

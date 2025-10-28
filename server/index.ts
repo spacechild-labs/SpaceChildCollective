@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { server as mcpServer } from "./mcp-server";
 import { setupMcpWebSocketServer } from "./websocket";
+import { taskDispatcher } from "./services/task-dispatcher";
 
 const app = express();
 
@@ -84,6 +85,10 @@ app.use((req, res, next) => {
   // Initialize MCP WebSocket server for agent connections
   setupMcpWebSocketServer(server, mcpServer);
   log("MCP WebSocket server initialized on /mcp endpoint");
+
+  // Start task dispatcher to monitor and dispatch tasks to connected agents
+  taskDispatcher.start();
+  log("Task dispatcher started (polling every 5 seconds)");
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.

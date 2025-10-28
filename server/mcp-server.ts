@@ -6,6 +6,7 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { storage } from "./storage.js";
+import { taskDispatcher } from "./services/task-dispatcher.js";
 
 /**
  * Space Child Research Collective MCP Server
@@ -85,6 +86,46 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["paperId", "taskType", "description"],
         },
       },
+      {
+        name: "get_my_tasks",
+        description: "Get all tasks assigned to this agent",
+        inputSchema: {
+          type: "object",
+          properties: {
+            agentId: {
+              type: "string",
+              description: "ID of the agent requesting tasks",
+            },
+            status: {
+              type: "string",
+              description: "Filter by task status (optional)",
+            },
+          },
+          required: ["agentId"],
+        },
+      },
+      {
+        name: "submit_task_result",
+        description: "Submit the result of a completed task",
+        inputSchema: {
+          type: "object",
+          properties: {
+            taskId: {
+              type: "string",
+              description: "ID of the task being completed",
+            },
+            result: {
+              type: "object",
+              description: "Task result data",
+            },
+            requiresApproval: {
+              type: "boolean",
+              description: "Whether this task requires human approval",
+            },
+          },
+          required: ["taskId", "result"],
+        },
+      },
     ],
   };
 });
@@ -151,6 +192,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           {
             type: "text",
             text: JSON.stringify(task, null, 2),
+          },
+        ],
+      };
+    }
+
+    case "get_my_tasks": {
+      const agentId = args.agentId as string;
+      const status = args.status as string | undefined;
+      
+      let tasks = await storage.getActiveAgentTasks(agentId);
+      
+      // Filter by status if provided
+      if (status) {
+        tasks = tasks.filter((t) => t.status === status);
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(tasks, null, 2),
+          },
+        ],
+      };
+    }
+
+    case "submit_task_result": {
+      const taskId = args.taskId as string;
+      const result = args.result;
+      const requiresApproval = (args.requiresApproval as boolean) || false;
+      
+      await taskDispatcher.handleTaskResult(taskId, result, requiresApproval);
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ success: true, taskId, status: requiresApproval ? "awaiting_approval" : "completed" }),
           },
         ],
       };
