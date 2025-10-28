@@ -1,5 +1,6 @@
-import { Home, FileText, Search, User, Settings, Bot, Network } from "lucide-react";
+import { Home, FileText, Search, User, Settings, Bot, Network, CheckCircle2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
   SidebarContent,
@@ -12,7 +13,9 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "./theme-toggle";
+import type { AgentTask } from "@shared/schema";
 
 const menuItems = [
   {
@@ -40,6 +43,13 @@ const menuItems = [
     testId: "nav-agents",
   },
   {
+    title: "Approvals",
+    url: "/approvals",
+    icon: CheckCircle2,
+    testId: "nav-approvals",
+    showBadge: true,
+  },
+  {
     title: "MCP Status",
     url: "/mcp",
     icon: Network,
@@ -65,6 +75,14 @@ const bottomItems = [
 export function AppSidebar() {
   const [location] = useLocation();
 
+  // Get count of pending approvals
+  const { data: pendingTasks } = useQuery<AgentTask[]>({
+    queryKey: ["/api/tasks/pending-approvals"],
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  const pendingCount = pendingTasks?.length || 0;
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
@@ -85,6 +103,15 @@ export function AppSidebar() {
                     <Link href={item.url} data-testid={item.testId}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
+                      {item.showBadge && pendingCount > 0 && (
+                        <Badge 
+                          variant="default" 
+                          className="ml-auto h-5 px-1.5 text-xs"
+                          data-testid="badge-pending-approvals"
+                        >
+                          {pendingCount}
+                        </Badge>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

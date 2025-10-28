@@ -14,6 +14,7 @@ import PaperEditor from "@/pages/paper-editor";
 import McpStatus from "@/pages/mcp-status";
 import Papers from "@/pages/papers";
 import Agents from "@/pages/agents";
+import Approvals from "@/pages/approvals";
 import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/papers/:id/edit" component={PaperEditor} />
       <Route path="/papers" component={Papers} />
       <Route path="/agents" component={Agents} />
+      <Route path="/approvals" component={Approvals} />
       <Route path="/profile" component={Profile} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
@@ -41,7 +43,7 @@ function Router() {
 }
 
 // Routes that should show sidebar (authenticated routes only)
-const sidebarRoutes = ["/workspace", "/discover", "/papers", "/profile", "/settings", "/agents", "/mcp"];
+const sidebarRoutes = ["/workspace", "/discover", "/papers", "/profile", "/settings", "/agents", "/mcp", "/approvals"];
 
 function AppContent() {
   const [location] = useLocation();

@@ -61,6 +61,7 @@ export interface IStorage {
   updateAgentTask(id: string, updates: Partial<InsertAgentTask>): Promise<AgentTask>;
   getAllTasks(): Promise<AgentTask[]>;
   getTask(id: string): Promise<AgentTask | null>;
+  getTasksAwaitingApproval(): Promise<(AgentTask & { agent: User; paper?: Paper })[]>;
   getAllMcpCommunications(): Promise<McpCommunication[]>;
 }
 
@@ -271,6 +272,22 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(mcpCommunications)
       .orderBy(desc(mcpCommunications.createdAt));
+  }
+
+  async getTasksAwaitingApproval(): Promise<(AgentTask & { agent: User; paper?: Paper })[]> {
+    const tasks = await db
+      .select()
+      .from(agentTasks)
+      .leftJoin(users, eq(agentTasks.agentId, users.id))
+      .leftJoin(papers, eq(agentTasks.paperId, papers.id))
+      .where(eq(agentTasks.status, "awaiting_approval"))
+      .orderBy(desc(agentTasks.createdAt));
+
+    return tasks.map(t => ({
+      ...t.agent_tasks,
+      agent: t.users!,
+      paper: t.papers || undefined,
+    }));
   }
 }
 

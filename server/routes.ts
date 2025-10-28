@@ -360,26 +360,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Approve or reject a task
+  // Get tasks awaiting approval (with agent and paper details)
+  app.get("/api/tasks/pending-approvals", async (req, res) => {
+    try {
+      const tasks = await storage.getTasksAwaitingApproval();
+      res.json(tasks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Approve a task
   app.post("/api/tasks/:id/approve", async (req, res) => {
     try {
       const { id } = req.params;
-      const { approved, feedback } = req.body;
       
       const task = await storage.getTask(id);
       if (!task) {
         return res.status(404).json({ error: "Task not found" });
       }
 
-      // Update task status based on approval
-      const resultData = feedback ? { 
-        ...((task.result as Record<string, unknown>) || {}), 
-        humanFeedback: feedback 
-      } : task.result;
-      
       const updatedTask = await storage.updateAgentTask(id, {
-        status: approved ? "completed" : "rejected",
-        result: resultData as any,
+        status: "completed",
+        completedAt: new Date(),
+      });
+
+      res.json(updatedTask);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Reject a task
+  app.post("/api/tasks/:id/reject", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { feedback } = req.body;
+
+      if (!feedback || typeof feedback !== "string" || !feedback.trim()) {
+        return res.status(400).json({ error: "Rejection feedback is required" });
+      }
+      
+      const task = await storage.getTask(id);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      const updatedTask = await storage.updateAgentTask(id, {
+        status: "cancelled",
+        result: { rejection_feedback: feedback, rejected_at: new Date().toISOString() },
       });
 
       res.json(updatedTask);
