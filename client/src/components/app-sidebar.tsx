@@ -17,7 +17,7 @@ import { ThemeToggle } from "./theme-toggle";
 const menuItems = [
   {
     title: "Home",
-    url: "/",
+    url: "/workspace",
     icon: Home,
     testId: "nav-home",
   },

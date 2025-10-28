@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -40,12 +40,14 @@ function Router() {
   );
 }
 
-// Routes that should show sidebar
+// Routes that should show sidebar (authenticated routes only)
 const sidebarRoutes = ["/workspace", "/discover", "/papers", "/profile", "/settings", "/agents", "/mcp"];
 
-function App() {
-  // Simple route check - in real app, use proper route matching
-  const showSidebar = sidebarRoutes.some(route => window.location.pathname.startsWith(route));
+function AppContent() {
+  const [location] = useLocation();
+  
+  // Check if current route should show sidebar
+  const showSidebar = sidebarRoutes.some(route => location.startsWith(route));
 
   const sidebarStyle = {
     "--sidebar-width": "16rem",
@@ -53,24 +55,32 @@ function App() {
   };
 
   return (
+    <>
+      {showSidebar ? (
+        <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+          <div className="flex h-screen w-full">
+            <AppSidebar />
+            <main className="flex-1 overflow-auto">
+              <Router />
+            </main>
+          </div>
+        </SidebarProvider>
+      ) : (
+        <Router />
+      )}
+      <Toaster />
+    </>
+  );
+}
+
+function App() {
+  return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ThemeProvider defaultTheme="light">
             <TooltipProvider>
-              {showSidebar ? (
-                <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-                  <div className="flex h-screen w-full">
-                    <AppSidebar />
-                    <main className="flex-1 overflow-auto">
-                      <Router />
-                    </main>
-                  </div>
-                </SidebarProvider>
-              ) : (
-                <Router />
-              )}
-              <Toaster />
+              <AppContent />
             </TooltipProvider>
           </ThemeProvider>
         </AuthProvider>
