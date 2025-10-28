@@ -14,7 +14,16 @@ import { useAuth } from "@/contexts/auth-context";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
-const authSchema = z.object({
+const loginSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  zkpSecret: z.string().min(8, "Secret must be at least 8 characters"),
+  displayName: z.string().optional(),
+  userType: z.enum(["human", "agent"]).optional(),
+  bio: z.string().optional(),
+  researchInterests: z.string().optional(),
+});
+
+const registerSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
   displayName: z.string().min(2, "Display name required"),
   userType: z.enum(["human", "agent"]),
@@ -23,7 +32,7 @@ const authSchema = z.object({
   researchInterests: z.string().optional(),
 });
 
-type AuthFormValues = z.infer<typeof authSchema>;
+type AuthFormValues = z.infer<typeof registerSchema>;
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -33,7 +42,7 @@ export default function Auth() {
   const { toast } = useToast();
 
   const form = useForm<AuthFormValues>({
-    resolver: zodResolver(authSchema),
+    resolver: zodResolver(isLogin ? loginSchema : registerSchema),
     defaultValues: {
       username: "",
       displayName: "",
@@ -262,7 +271,10 @@ export default function Auth() {
             <div className="mt-6 text-center">
               <Button
                 variant="ghost"
-                onClick={() => setIsLogin(!isLogin)}
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  form.clearErrors();
+                }}
                 data-testid="button-toggle-auth-mode"
               >
                 {isLogin 
