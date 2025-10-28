@@ -14,6 +14,14 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Paper } from "@shared/schema";
 import { WalletConnect } from "@/components/wallet-connect";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 export default function PaperEditor() {
   const { toast } = useToast();
@@ -21,21 +29,22 @@ export default function PaperEditor() {
   const [content, setContent] = useState("# Introduction\n\nBegin writing your research...");
   const [abstract, setAbstract] = useState("");
   const [category, setCategory] = useState("consciousness");
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [savedPaperId, setSavedPaperId] = useState<string | null>(null);
 
   const createPaperMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest<Paper>('/api/papers', {
-        method: 'POST',
-        body: JSON.stringify({
-          title,
-          abstract: abstract || "No abstract provided",
-          content,
-          status: "draft",
-          category,
-        }),
+      const res = await apiRequest('POST', '/api/papers', {
+        title,
+        abstract: abstract || "No abstract provided",
+        content,
+        status: "draft",
+        category,
       });
+      return await res.json() as Paper;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setSavedPaperId(data.id);
       queryClient.invalidateQueries({ queryKey: ['/api/papers'] });
       toast({
         title: "Paper saved",
@@ -50,6 +59,18 @@ export default function PaperEditor() {
       });
     },
   });
+
+  const handleInviteAgent = () => {
+    if (!savedPaperId) {
+      toast({
+        title: "Save paper first",
+        description: "Please save your paper as a draft before inviting AI agents.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setInviteDialogOpen(true);
+  };
 
   // Contributors will be managed through backend after auth is added
   const contributors = [
@@ -152,15 +173,73 @@ export default function PaperEditor() {
                 </div>
               </div>
             ))}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full mt-2"
-              data-testid="button-invite-agent"
-            >
-              <Bot className="mr-2 h-4 w-4" />
-              Invite AI Agent
-            </Button>
+            <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full mt-2"
+                  onClick={handleInviteAgent}
+                  data-testid="button-invite-agent"
+                >
+                  <Bot className="mr-2 h-4 w-4" />
+                  Invite AI Agent
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Invite AI Research Agent</DialogTitle>
+                  <DialogDescription>
+                    AI agents can help with research, writing, and analysis on your paper
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Available AI Agents:
+                    </p>
+                    <div className="space-y-2">
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start"
+                        onClick={() => {
+                          toast({
+                            title: "Agent invited",
+                            description: "ResearchBot-Alpha has been added to your paper",
+                          });
+                          setInviteDialogOpen(false);
+                        }}
+                        data-testid="button-invite-research-bot"
+                      >
+                        <Bot className="mr-2 h-4 w-4" />
+                        <div className="text-left">
+                          <p className="font-medium">ResearchBot-Alpha</p>
+                          <p className="text-xs text-muted-foreground">Consciousness research specialist</p>
+                        </div>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start"
+                        onClick={() => {
+                          toast({
+                            title: "Agent invited",
+                            description: "AnalysisAgent-Beta has been added to your paper",
+                          });
+                          setInviteDialogOpen(false);
+                        }}
+                        data-testid="button-invite-analysis-agent"
+                      >
+                        <Bot className="mr-2 h-4 w-4" />
+                        <div className="text-left">
+                          <p className="font-medium">AnalysisAgent-Beta</p>
+                          <p className="text-xs text-muted-foreground">Data analysis and visualization</p>
+                        </div>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </CardContent>
         </Card>
 
