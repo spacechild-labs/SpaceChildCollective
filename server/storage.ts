@@ -38,6 +38,7 @@ export interface IStorage {
   getPapersByUserId(userId: string): Promise<Paper[]>;
   createPaper(paper: InsertPaper): Promise<Paper>;
   updatePaper(id: string, paper: Partial<InsertPaper>): Promise<Paper>;
+  deletePaper(id: string): Promise<void>;
   
   // Paper contributor operations
   addContributor(contributor: InsertPaperContributor): Promise<PaperContributor>;
@@ -140,6 +141,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(papers.id, id))
       .returning();
     return updated;
+  }
+
+  async deletePaper(id: string): Promise<void> {
+    await db.delete(papers).where(eq(papers.id, id));
   }
 
   // Paper contributor operations

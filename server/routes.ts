@@ -218,6 +218,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a paper
+  app.delete("/api/papers/:id", async (req, res) => {
+    try {
+      await storage.deletePaper(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Add contributor to paper
   app.post("/api/papers/:paperId/contributors", async (req, res) => {
     try {
@@ -300,14 +310,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const commData = insertMcpCommunicationSchema.parse(req.body);
       const comm = await storage.createMcpCommunication(commData);
-      
-      // Broadcast to WebSocket clients if needed
-      wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({ type: 'new_communication', data: comm }));
-        }
-      });
-      
       res.json(comm);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -382,7 +384,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updatedTask = await storage.updateAgentTask(id, {
         status: "completed",
-        completedAt: new Date(),
       });
 
       res.json(updatedTask);

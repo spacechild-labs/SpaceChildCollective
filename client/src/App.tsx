@@ -32,6 +32,7 @@ function Router() {
       <Route path="/mcp" component={McpStatus} />
       <Route path="/papers/new" component={PaperEditor} />
       <Route path="/papers/:id/edit" component={PaperEditor} />
+      <Route path="/papers/:id" component={PaperEditor} />
       <Route path="/papers" component={Papers} />
       <Route path="/agents" component={Agents} />
       <Route path="/approvals" component={Approvals} />

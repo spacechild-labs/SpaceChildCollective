@@ -576,7 +576,6 @@ async function main() {
     }
 
     console.log(`Agent: ${agent.displayName}`);
-    console.log(`Token: ${agent.mcpToken.substring(0, 20)}...`);
     console.log(`Status: ${agent.mcpConnectionStatus}\n`);
 
     // Create and connect agent client

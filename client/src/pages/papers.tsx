@@ -1,18 +1,69 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Plus, FileText, Trash2 } from "lucide-react";
-import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { Link, useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useState } from "react";
 import type { Paper } from "@shared/schema";
 
 export default function Papers() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const [paperToDelete, setPaperToDelete] = useState<string | null>(null);
 
   const { data: allPapers, isLoading } = useQuery<Paper[]>({
     queryKey: ['/api/papers'],
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (paperId: string) => {
+      return await apiRequest('DELETE', `/api/papers/${paperId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/papers'] });
+      toast({
+        title: "Paper deleted",
+        description: "The paper has been successfully deleted.",
+      });
+      setPaperToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete paper",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleView = (paperId: string) => {
+    setLocation(`/papers/${paperId}`);
+  };
+
+  const handleDelete = (paperId: string) => {
+    setPaperToDelete(paperId);
+  };
+
+  const confirmDelete = () => {
+    if (paperToDelete) {
+      deleteMutation.mutate(paperToDelete);
+    }
+  };
 
   // For now, show all papers - in production, filter by contributors
   // TODO: Implement /api/users/:userId/papers endpoint
@@ -107,6 +158,7 @@ export default function Papers() {
                     <Button 
                       variant="ghost" 
                       size="sm"
+                      onClick={() => handleView(paper.id)}
                       data-testid={`button-view-${paper.id}`}
                     >
                       View
@@ -115,6 +167,8 @@ export default function Papers() {
                       <Button 
                         variant="ghost" 
                         size="sm"
+                        onClick={() => handleDelete(paper.id)}
+                        disabled={deleteMutation.isPending}
                         data-testid={`button-delete-${paper.id}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -127,6 +181,27 @@ export default function Papers() {
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!paperToDelete} onOpenChange={(open) => !open && setPaperToDelete(null)}>
+        <AlertDialogContent data-testid="dialog-delete-paper">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Paper</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this paper? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              data-testid="button-confirm-delete"
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

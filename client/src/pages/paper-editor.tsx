@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,13 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Save, Send, Users, Bot, Database } from "lucide-react";
+import { Save, Send, Users, Bot, Database, Edit } from "lucide-react";
 import { UserTypeBadge } from "@/components/user-type-badge";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Paper } from "@shared/schema";
 import { WalletConnect } from "@/components/wallet-connect";
+import { useRoute, Link } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,16 @@ import {
 } from "@/components/ui/dialog";
 
 export default function PaperEditor() {
+  // Detect if we're in view mode (route is /papers/:id without /edit)
+  const [, viewParams] = useRoute("/papers/:id");
+  const [, editParams] = useRoute("/papers/:id/edit");
+  const [, newParams] = useRoute("/papers/new");
+  
+  // View mode only if we have a valid UUID (not "new") and not in edit mode
+  const paperId = viewParams?.id || editParams?.id;
+  const isNewPaper = !!newParams || paperId === "new";
+  const isViewMode = !!(viewParams && !editParams && !isNewPaper);
+  
   const { toast } = useToast();
   const [title, setTitle] = useState("Untitled Research Paper");
   const [content, setContent] = useState("# Introduction\n\nBegin writing your research...");
@@ -31,6 +42,29 @@ export default function PaperEditor() {
   const [category, setCategory] = useState("consciousness");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [savedPaperId, setSavedPaperId] = useState<string | null>(null);
+
+  // Fetch paper data if we have a valid paperId (not "new")
+  const { data: paper, isLoading } = useQuery<Paper>({
+    queryKey: ['/api/papers', paperId],
+    queryFn: async () => {
+      if (!paperId || paperId === "new") return null;
+      const res = await fetch(`/api/papers/${paperId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load paper');
+      return res.json();
+    },
+    enabled: !!paperId && paperId !== "new",
+  });
+
+  // Populate form when paper data loads
+  useEffect(() => {
+    if (paper) {
+      setTitle(paper.title);
+      setContent(paper.content);
+      setAbstract(paper.abstract);
+      setCategory(paper.category);
+      setSavedPaperId(paper.id);
+    }
+  }, [paper]);
 
   const createPaperMutation = useMutation({
     mutationFn: async () => {
@@ -78,71 +112,115 @@ export default function PaperEditor() {
     { id: "2", displayName: "ResearchBot-Alpha", userType: "agent" as const },
   ];
 
+  // Show loading state while fetching paper
+  if (isLoading && paperId) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">Loading paper...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen">
       {/* Main Editor */}
       <div className="flex-1 flex flex-col">
         {/* Top Bar */}
         <div className="border-b p-4 flex items-center justify-between gap-4">
-          <Input 
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="text-2xl font-semibold border-none shadow-none focus-visible:ring-0 px-0"
-            placeholder="Paper Title"
-            data-testid="input-paper-title"
-          />
+          {isViewMode ? (
+            <div className="flex items-center gap-3 flex-1">
+              <h1 className="text-2xl font-semibold">{title}</h1>
+              <Badge variant="outline">Read-Only</Badge>
+            </div>
+          ) : (
+            <Input 
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="text-2xl font-semibold border-none shadow-none focus-visible:ring-0 px-0"
+              placeholder="Paper Title"
+              data-testid="input-paper-title"
+            />
+          )}
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => createPaperMutation.mutate()}
-              disabled={createPaperMutation.isPending}
-              data-testid="button-save-draft"
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {createPaperMutation.isPending ? "Saving..." : "Save Draft"}
-            </Button>
-            <Button 
-              size="sm" 
-              variant="default"
-              disabled
-              data-testid="button-publish"
-            >
-              <Database className="mr-2 h-4 w-4" />
-              Save Draft First
-            </Button>
+            {isViewMode ? (
+              viewParams && (
+                <Link href={`/papers/${viewParams.id}/edit`}>
+                  <Button variant="default" size="sm" data-testid="button-edit-mode">
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit Paper
+                  </Button>
+                </Link>
+              )
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => createPaperMutation.mutate()}
+                  disabled={createPaperMutation.isPending}
+                  data-testid="button-save-draft"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {createPaperMutation.isPending ? "Saving..." : "Save Draft"}
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="default"
+                  disabled
+                  data-testid="button-publish"
+                >
+                  <Database className="mr-2 h-4 w-4" />
+                  Save Draft First
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
         {/* Editor Area */}
-        <div className="flex-1 grid md:grid-cols-2 gap-4 p-4 overflow-hidden">
-          {/* Markdown Input */}
-          <div className="flex flex-col">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-muted-foreground">MARKDOWN EDITOR</h3>
-              <Badge variant="secondary">Draft</Badge>
-            </div>
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="flex-1 font-mono text-sm resize-none"
-              placeholder="Write your research in Markdown..."
-              data-testid="textarea-paper-content"
-            />
-          </div>
-
-          {/* Preview */}
-          <div className="flex flex-col">
-            <div className="mb-2">
-              <h3 className="text-sm font-semibold text-muted-foreground">PREVIEW</h3>
-            </div>
-            <Card className="flex-1 overflow-auto">
-              <CardContent className="p-6 prose dark:prose-invert max-w-none">
+        <div className="flex-1 overflow-hidden p-4">
+          {isViewMode ? (
+            /* Read-Only View */
+            <Card className="h-full overflow-auto">
+              <CardContent className="p-8 prose dark:prose-invert max-w-none">
                 <h1>{title}</h1>
                 <div className="whitespace-pre-wrap">{content}</div>
               </CardContent>
             </Card>
-          </div>
+          ) : (
+            /* Edit Mode - Split View */
+            <div className="grid md:grid-cols-2 gap-4 h-full">
+              {/* Markdown Input */}
+              <div className="flex flex-col">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-muted-foreground">MARKDOWN EDITOR</h3>
+                  <Badge variant="secondary">Draft</Badge>
+                </div>
+                <Textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="flex-1 font-mono text-sm resize-none"
+                  placeholder="Write your research in Markdown..."
+                  data-testid="textarea-paper-content"
+                />
+              </div>
+
+              {/* Preview */}
+              <div className="flex flex-col">
+                <div className="mb-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground">PREVIEW</h3>
+                </div>
+                <Card className="flex-1 overflow-auto">
+                  <CardContent className="p-6 prose dark:prose-invert max-w-none">
+                    <h1>{title}</h1>
+                    <div className="whitespace-pre-wrap">{content}</div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
