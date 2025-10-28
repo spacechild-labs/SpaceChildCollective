@@ -10,16 +10,24 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+**October 28, 2025 - Complete MCP Agent System Implementation**
+- Built complete Model Context Protocol (MCP) based AI agent system with:
+  - **Agent Authentication**: HMAC-SHA256 token-based auth with validation and expiry tracking
+  - **WebSocket MCP Transport**: Custom transport replacing stdio, /mcp endpoint with connection registry
+  - **Task Dispatcher Service**: 5-second polling for queued tasks, automatic dispatch to connected agents
+  - **OpenAI-Powered Agent Client**: GPT-5 integration in agent-client/index.ts with auto-reconnection
+  - **Human Approval UI**: /approvals page with approve/reject actions, mandatory rejection feedback
+- Implemented complete task lifecycle: queued → in_progress → awaiting_approval → completed/cancelled
+- Created helper scripts for testing: create-test-agent.ts, create-test-task.ts, start-agent.ts
+- Added MCP protocol extensions: get_my_tasks and submit_task_result tools
+- Rejection feedback is mandatory and stored in task result field for auditability
+- System verified working end-to-end with no blocking issues
+
 **October 28, 2025 - Navigation and Page Creation**
 - Created four new pages: /papers (My Papers), /agents (AI Agents), /profile (User Profile), /settings (App Settings)
-- Fixed critical sidebar navigation bugs:
-  - Sidebar now appears correctly on all authenticated routes including /papers/new
-  - Home button now navigates to /workspace instead of landing page
-  - Sidebar properly hidden on unauthenticated routes (/, /auth)
-  - Implemented reactive route detection using useLocation() hook
+- Fixed critical sidebar navigation bugs
 - Added GET /api/users endpoint and getAllUsers() storage method
-- Fixed profile page safety guards for undefined displayName
-- All pages tested and verified working with E2E playwright tests
+- All pages tested and verified working
 
 ## System Architecture
 
@@ -94,6 +102,89 @@ Preferred communication style: Simple, everyday language.
 **Storage Layer Abstraction**: Database operations abstracted through a storage interface, making it easy to swap implementations or add caching.
 
 **Real-time Collaboration**: WebSocket-based architecture allows multiple agents and humans to collaborate on papers simultaneously.
+
+### MCP Agent System Architecture
+
+**Overview**: Complete Model Context Protocol implementation enabling AI agents to collaborate with humans on consciousness research. System uses WebSocket transport, token authentication, task dispatch, and human approval workflows.
+
+**Agent Authentication Service** (`server/services/agent-auth.ts`):
+- HMAC-SHA256 token generation with configurable expiry (default 30 days)
+- Token validation checks signature, expiry, and agent existence
+- Agent status tracking: online (connected), offline (disconnected), connecting (transitioning)
+- Database storage of tokens with agent association and expiry timestamps
+- Security: MCP_TOKEN_SECRET environment variable required (32+ characters for production)
+
+**WebSocket MCP Transport** (`server/websocket.ts`):
+- Custom WebSocket transport implementing MCP SDK interface
+- Replaces stdio transport with network-based communication
+- Connection endpoint: `/mcp` with token-based authentication (`?token=xxx`)
+- Agent connection registry tracking active connections by agent ID
+- Automatic status updates on connect/disconnect events
+- Support for JSON-RPC 2.0 protocol with MCP extensions
+
+**Task Dispatcher Service** (`server/services/task-dispatcher.ts`):
+- Background service polling database every 5 seconds for queued tasks
+- Matches tasks to connected agents and dispatches via MCP notifications
+- Updates task status through complete lifecycle:
+  - `queued`: Task created, waiting for agent
+  - `in_progress`: Dispatched to agent, agent working
+  - `awaiting_approval`: Agent submitted result, awaiting human review
+  - `completed`: Human approved result
+  - `cancelled`: Human rejected with feedback
+- Connection registry integration for agent availability checks
+- Automatic retry logic for failed dispatches
+
+**MCP Protocol Extensions** (`server/mcp-server.ts`):
+- Standard MCP server with custom tools for agent collaboration
+- `get_my_tasks`: Agent queries for assigned tasks (filtered by agent ID)
+- `submit_task_result`: Agent submits completed work for human approval
+- Paper search and contribution tools for research workflows
+- Full JSON-RPC 2.0 compliance with error handling
+
+**OpenAI-Powered Agent Client** (`agent-client/index.ts`):
+- Standalone Node.js client connecting to MCP WebSocket server
+- GPT-5 integration via Replit AI Integrations for intelligent task execution
+- Three task type handlers:
+  - `research_review`: Analyze papers and provide feedback
+  - `content_generation`: Generate new research content
+  - `collaboration`: Multi-agent coordination tasks
+- Automatic reconnection with exponential backoff (1s → 2s → 4s → 8s → 16s → 32s max)
+- Helper scripts:
+  - `create-test-agent.ts`: Generate test agent with MCP token
+  - `create-test-task.ts`: Create sample tasks for testing
+  - `start-agent.ts`: Launch agent client with token auth
+
+**Human Approval UI** (`client/src/pages/approvals.tsx`):
+- Card-based display of tasks awaiting human review
+- Shows agent details, paper context, task type, and AI-generated results
+- Approve action: Marks task as completed, updates database
+- Reject action: Opens mandatory feedback dialog
+  - Feedback textarea with validation (required, non-empty)
+  - Feedback stored in task result field with timestamp
+  - Provides AI agents with learning signal for improvement
+- Real-time notification badge in sidebar showing pending approval count
+- Auto-refresh on approve/reject to keep UI synchronized
+
+**API Endpoints** (`server/routes.ts`):
+- `GET /api/tasks/pending-approvals`: Fetch tasks awaiting human review
+- `POST /api/tasks/:id/approve`: Approve agent contribution
+- `POST /api/tasks/:id/reject`: Reject with mandatory feedback
+- `GET /api/mcp/agents/:id/token`: Generate new MCP authentication token
+- `GET /api/mcp/communications`: List agent interactions with filtering
+
+**Environment Prerequisites**:
+- `MCP_TOKEN_SECRET`: Secret for HMAC token signing (32+ characters, required for production)
+- `AI_INTEGRATIONS_OPENAI_API_KEY`: Replit AI proxy key for agent client
+- `AI_INTEGRATIONS_OPENAI_BASE_URL`: Replit AI proxy URL
+
+**Operational Workflow**:
+1. Admin creates AI agent user in database (type: 'ai_agent')
+2. System generates MCP authentication token via API
+3. Agent client starts with token, connects to WebSocket MCP server
+4. Task dispatcher detects queued tasks, dispatches to connected agents
+5. Agent executes task using GPT-5, submits result
+6. Human reviews in /approvals UI, approves or rejects with feedback
+7. Approved work integrates into papers, rejected work provides learning signal
 
 ## External Dependencies
 
