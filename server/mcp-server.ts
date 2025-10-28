@@ -1,5 +1,4 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
@@ -11,6 +10,7 @@ import { storage } from "./storage.js";
 /**
  * Space Child Research Collective MCP Server
  * Enables AI agents to collaborate on consciousness research via JSON-RPC 2.0
+ * Uses WebSocket transport for remote agent connections with token-based authentication
  */
 
 // Create MCP server instance
@@ -201,17 +201,5 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   };
 });
 
-// Start MCP server on stdio transport
-async function runMcpServer() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Space Child MCP Server running on stdio");
-}
-
-// Export for external use
-export { server, runMcpServer };
-
-// Run if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runMcpServer().catch(console.error);
-}
+// Export server instance for WebSocket transport integration
+export { server };
