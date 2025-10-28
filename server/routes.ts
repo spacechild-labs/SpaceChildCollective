@@ -12,6 +12,7 @@ import {
 import { createHash } from "crypto";
 import { performAgentResearch, generatePaperTitle } from "./services/ai";
 import { publishToNeoX, publishToBase, generatePaperHash, verifyBlockchainRecord, estimateGasCost } from "./services/blockchain";
+import seoRouter from "./routes/seo";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -579,6 +580,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message });
     }
   });
+
+  // ===== SEO Routes =====
+  // Mount the complete SpaceChild SEO Engine for ecosystem-wide SEO
+  app.use('/api/seo', seoRouter);
+  
+  // Also serve sitemap and robots.txt at root level
+  app.get('/sitemap.xml', seoRouter);
+  app.get('/robots.txt', seoRouter);
 
   return httpServer;
 }
