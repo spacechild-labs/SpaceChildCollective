@@ -1,5 +1,5 @@
 import { Home, FileText, Search, User, Settings, Bot, Network, CheckCircle2, LogOut } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
@@ -75,7 +75,7 @@ const bottomItems = [
 ];
 
 export function AppSidebar() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { logout } = useAuth();
   const { toast } = useToast();
 
@@ -93,6 +93,7 @@ export function AppSidebar() {
       title: "Logged out",
       description: "You have been successfully logged out.",
     });
+    setLocation("/");
   };
 
   return (

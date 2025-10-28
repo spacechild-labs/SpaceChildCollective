@@ -6,10 +6,12 @@ import { Settings as SettingsIcon, Bell, Shield, Database, LogOut } from "lucide
 import { useAuth } from "@/contexts/auth-context";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 export default function Settings() {
   const { user, logout } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [agentNotifications, setAgentNotifications] = useState(true);
   const [autoApprove, setAutoApprove] = useState(false);
@@ -20,6 +22,7 @@ export default function Settings() {
       title: "Logged out",
       description: "You have been successfully logged out.",
     });
+    setLocation("/");
   };
 
   return (
