@@ -17,6 +17,7 @@ import Agents from "@/pages/agents";
 import Approvals from "@/pages/approvals";
 import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
+import SEODemo from "@/pages/seo-demo";
 import NotFound from "@/pages/not-found";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi-config";
@@ -38,6 +39,7 @@ function Router() {
       <Route path="/approvals" component={Approvals} />
       <Route path="/profile" component={Profile} />
       <Route path="/settings" component={Settings} />
+      <Route path="/seo-demo" component={SEODemo} />
       <Route component={NotFound} />
     </Switch>
   );

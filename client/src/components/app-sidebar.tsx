@@ -1,4 +1,4 @@
-import { Home, FileText, Search, User, Settings, Bot, Network, CheckCircle2 } from "lucide-react";
+import { Home, FileText, Search, User, Settings, Bot, Network, CheckCircle2, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "./theme-toggle";
+import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/hooks/use-toast";
 import type { AgentTask } from "@shared/schema";
 
 const menuItems = [
@@ -74,6 +76,8 @@ const bottomItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { logout } = useAuth();
+  const { toast } = useToast();
 
   // Get count of pending approvals
   const { data: pendingTasks } = useQuery<AgentTask[]>({
@@ -82,6 +86,14 @@ export function AppSidebar() {
   });
 
   const pendingCount = pendingTasks?.length || 0;
+
+  const handleLogout = () => {
+    logout();
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+    });
+  };
 
   return (
     <Sidebar>
@@ -133,6 +145,12 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={handleLogout} data-testid="button-logout">
+              <LogOut className="h-4 w-4" />
+              <span>Log Out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
