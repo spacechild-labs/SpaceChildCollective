@@ -93,6 +93,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
+  if (!args) {
+    throw new Error("Missing arguments for tool call");
+  }
+
   switch (name) {
     case "search_papers": {
       const papers = await storage.getAllPapers();
@@ -138,7 +142,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const task = await storage.createAgentTask({
         paperId: args.paperId as string,
         agentId: "mcp-agent", // Default MCP agent ID
-        taskType: args.taskType as string,
+        taskType: args.taskType as "research" | "writing" | "analysis" | "review",
         description: args.description as string,
         status: "awaiting_approval",
       });

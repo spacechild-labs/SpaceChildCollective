@@ -396,9 +396,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update task status based on approval
+      const resultData = feedback ? { 
+        ...((task.result as Record<string, unknown>) || {}), 
+        humanFeedback: feedback 
+      } : task.result;
+      
       const updatedTask = await storage.updateAgentTask(id, {
         status: approved ? "completed" : "rejected",
-        result: feedback ? `${task.result || ''}\n\nHuman feedback: ${feedback}` : task.result,
+        result: resultData as any,
       });
 
       res.json(updatedTask);
