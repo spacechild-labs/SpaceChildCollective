@@ -138,6 +138,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== User & Auth Routes =====
   
+  // Get all users
+  app.get("/api/users", async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Create user (ZKP auth registration)
   app.post("/api/users", async (req, res) => {
     try {
