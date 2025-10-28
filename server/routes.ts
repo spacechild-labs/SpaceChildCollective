@@ -48,11 +48,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register with ZKP (creates user and sets session)
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { displayName, userType, zkProof } = req.body;
+      const { username, displayName, userType, zkProof, bio, researchInterests } = req.body;
       
       if (!displayName || !userType || !zkProof) {
         return res.status(400).json({ error: "Missing required fields" });
       }
+
+      // Generate username if not provided
+      const finalUsername = username || `user_${Date.now()}`;
 
       // Check if user already exists with this ZKP
       const existingUser = await storage.getUserByZkProof(zkProof);
@@ -60,13 +63,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "User already exists" });
       }
 
-      // Create user
+      // Parse research interests from comma-separated string to array
+      const interestsArray = researchInterests 
+        ? researchInterests.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+
+      // Create user with correct field names
       const user = await storage.createUser({
-        displayName,
+        username: finalUsername,
+        zkpCommitment: zkProof,
         userType,
-        zkProof,
-        researchInterests: [],
-        contributionCount: 0,
+        displayName,
+        bio: bio || null,
+        researchInterests: interestsArray,
       });
 
       // Set session

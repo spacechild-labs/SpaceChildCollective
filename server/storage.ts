@@ -26,6 +26,7 @@ export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByZkProof(zkProof: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
   // Paper operations
@@ -56,6 +57,9 @@ export interface IStorage {
   getAgentTasksByPaperId(paperId: string): Promise<AgentTask[]>;
   getActiveAgentTasks(agentId: string): Promise<AgentTask[]>;
   updateAgentTask(id: string, updates: Partial<InsertAgentTask>): Promise<AgentTask>;
+  getAllTasks(): Promise<AgentTask[]>;
+  getTask(id: string): Promise<AgentTask | null>;
+  getAllMcpCommunications(): Promise<McpCommunication[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -67,6 +71,11 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async getUserByZkProof(zkProof: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.zkpCommitment, zkProof));
     return user || undefined;
   }
 
