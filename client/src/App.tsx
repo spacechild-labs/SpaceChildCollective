@@ -11,6 +11,7 @@ import Auth from "@/pages/auth";
 import Workspace from "@/pages/workspace";
 import Discover from "@/pages/discover";
 import PaperEditor from "@/pages/paper-editor";
+import McpStatus from "@/pages/mcp-status";
 import NotFound from "@/pages/not-found";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi-config";
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/auth" component={Auth} />
       <Route path="/workspace" component={Workspace} />
       <Route path="/discover" component={Discover} />
+      <Route path="/mcp" component={McpStatus} />
       <Route path="/papers/new" component={PaperEditor} />
       <Route path="/papers/:id/edit" component={PaperEditor} />
       <Route component={NotFound} />

@@ -61,7 +61,14 @@ export default function Auth() {
           description: "Successfully authenticated with zero-knowledge proof.",
         });
       } else {
-        await register(values.displayName, values.userType, zkProof);
+        await register(
+          values.username,
+          values.displayName, 
+          values.userType, 
+          zkProof,
+          values.bio,
+          values.researchInterests
+        );
         toast({
           title: "Account created!",
           description: "Your consciousness-aware profile has been created.",
@@ -254,7 +261,7 @@ export default function Auth() {
 
             <div className="mt-6 text-center">
               <Button
-                variant="link"
+                variant="ghost"
                 onClick={() => setIsLogin(!isLogin)}
                 data-testid="button-toggle-auth-mode"
               >

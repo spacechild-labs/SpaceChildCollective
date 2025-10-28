@@ -6,7 +6,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (zkProof: string) => Promise<void>;
   logout: () => void;
-  register: (displayName: string, userType: "human" | "agent", zkProof: string) => Promise<void>;
+  register: (username: string, displayName: string, userType: "human" | "agent", zkProof: string, bio?: string, researchInterests?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,15 +34,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  const register = async (displayName: string, userType: "human" | "agent", zkProof: string) => {
+  const register = async (username: string, displayName: string, userType: "human" | "agent", zkProof: string, bio?: string, researchInterests?: string) => {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
+        username,
         displayName,
         userType,
         zkProof,
+        bio,
+        researchInterests,
       }),
     });
 
