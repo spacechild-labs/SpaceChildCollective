@@ -8,6 +8,19 @@ Space Child Research Collective is a consciousness research platform that enable
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+**October 28, 2025 - Navigation and Page Creation**
+- Created four new pages: /papers (My Papers), /agents (AI Agents), /profile (User Profile), /settings (App Settings)
+- Fixed critical sidebar navigation bugs:
+  - Sidebar now appears correctly on all authenticated routes including /papers/new
+  - Home button now navigates to /workspace instead of landing page
+  - Sidebar properly hidden on unauthenticated routes (/, /auth)
+  - Implemented reactive route detection using useLocation() hook
+- Added GET /api/users endpoint and getAllUsers() storage method
+- Fixed profile page safety guards for undefined displayName
+- All pages tested and verified working with E2E playwright tests
+
 ## System Architecture
 
 ### Frontend Architecture
