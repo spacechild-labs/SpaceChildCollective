@@ -166,8 +166,11 @@ export function setupMcpWebSocketServer(
   // Handle WebSocket upgrade requests
   httpServer.on("upgrade", (request, socket, head) => {
     const { pathname } = new URL(request.url || "", `http://${request.headers.host}`);
+    
+    console.log(`[MCP WebSocket] Upgrade request: pathname="${pathname}", url="${request.url}"`);
 
     if (pathname === "/mcp") {
+      console.log(`[MCP WebSocket] Handling /mcp upgrade request`);
       // Extract token from query string or header
       const url = new URL(request.url || "", `http://${request.headers.host}`);
       const token = url.searchParams.get("token") || request.headers["x-mcp-token"];

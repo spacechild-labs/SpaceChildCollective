@@ -9,7 +9,6 @@ import {
   insertMcpCommunicationSchema,
   insertAgentTaskSchema,
 } from "@shared/schema";
-import { WebSocketServer, WebSocket } from "ws";
 import { createHash } from "crypto";
 import { performAgentResearch, generatePaperTitle } from "./services/ai";
 import { publishToNeoX, publishToBase, generatePaperHash, verifyBlockchainRecord, estimateGasCost } from "./services/blockchain";
@@ -17,31 +16,8 @@ import { publishToNeoX, publishToBase, generatePaperHash, verifyBlockchainRecord
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
-  // WebSocket server for MCP real-time communications (using blueprint: javascript_websocket)
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-  
-  wss.on('connection', (ws) => {
-    console.log('MCP WebSocket client connected');
-    
-    ws.on('message', async (message) => {
-      try {
-        const data = JSON.parse(message.toString());
-        // Handle MCP JSON-RPC messages here
-        console.log('Received MCP message:', data);
-        
-        // Echo back for now - real MCP server will handle this
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ success: true, data }));
-        }
-      } catch (error) {
-        console.error('WebSocket message error:', error);
-      }
-    });
-    
-    ws.on('close', () => {
-      console.log('MCP WebSocket client disconnected');
-    });
-  });
+  // Note: MCP WebSocket server is set up separately in server/index.ts
+  // using setupMcpWebSocketServer() with path '/mcp'
 
   // ===== Auth Routes =====
   
