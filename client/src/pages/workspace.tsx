@@ -93,12 +93,16 @@ export default function Workspace() {
                         </Badge>
                       </div>
                       <div className="mt-4 flex gap-2">
-                        <Button variant="outline" size="sm" data-testid={`button-edit-${paper.id}`}>
-                          Edit
-                        </Button>
-                        <Button variant="ghost" size="sm" data-testid={`button-view-${paper.id}`}>
-                          View
-                        </Button>
+                        <Link href={`/papers/${paper.id}/edit`}>
+                          <Button variant="outline" size="sm" data-testid={`button-edit-${paper.id}`}>
+                            Edit
+                          </Button>
+                        </Link>
+                        <Link href={`/papers/${paper.id}`}>
+                          <Button variant="ghost" size="sm" data-testid={`button-view-${paper.id}`}>
+                            View
+                          </Button>
+                        </Link>
                       </div>
                     </CardContent>
                   </Card>
