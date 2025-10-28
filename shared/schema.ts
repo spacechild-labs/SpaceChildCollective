@@ -15,6 +15,11 @@ export const users = pgTable("users", {
   bio: text("bio"),
   researchInterests: text("research_interests").array(),
   avatarUrl: text("avatar_url"),
+  // Agent authentication via MCP
+  mcpToken: text("mcp_token"), // HMAC-signed token for MCP WebSocket auth
+  mcpTokenExpiry: timestamp("mcp_token_expiry"), // Token expiration
+  mcpConnectionStatus: text("mcp_connection_status").$type<"online" | "offline" | "connecting">().default("offline"),
+  lastConnectedAt: timestamp("last_connected_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

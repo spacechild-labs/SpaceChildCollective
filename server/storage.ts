@@ -28,6 +28,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByZkProof(zkProof: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User>;
   getAllUsers(): Promise<User[]>;
   
   // Paper operations
@@ -87,6 +88,14 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  async updateUser(id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User> {
+    const [updated] = await db.update(users).set(updates as any).where(eq(users.id, id)).returning();
+    if (!updated) {
+      throw new Error("User not found");
+    }
+    return updated;
   }
 
   // Paper operations
