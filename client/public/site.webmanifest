@@ -10,6 +10,8 @@
   "scope": "/",
   "lang": "en",
   "categories": ["education", "productivity", "research", "technology"],
+  "prefer_related_applications": false,
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "icons": [
     {
       "src": "/favicon-16x16.png",
