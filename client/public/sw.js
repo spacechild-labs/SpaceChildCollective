@@ -1,0 +1,251 @@
+/**
+ * SpaceChild Research Collective - Service Worker
+ * Enables PWA functionality, offline support, and reliable installation
+ */
+
+const CACHE_NAME = 'spacechild-collective-v1.0.0';
+const OFFLINE_URL = '/';
+
+// Assets to cache for offline functionality
+const STATIC_ASSETS = [
+  '/',
+  '/index.html',
+  '/favicon.svg',
+  '/favicon-16x16.png',
+  '/favicon-32x32.png',
+  '/icon-72x72.png',
+  '/icon-96x96.png',
+  '/icon-128x128.png',
+  '/icon-144x144.png',
+  '/icon-152x152.png',
+  '/apple-touch-icon.png',
+  '/android-chrome-192x192.png',
+  '/android-chrome-512x512.png',
+  '/site.webmanifest',
+  '/robots.txt',
+  '/humans.txt',
+  '/security.txt',
+  '/browserconfig.xml'
+];
+
+// Install event - cache static assets
+self.addEventListener('install', (event) => {
+  console.log('[SW] Installing SpaceChild service worker');
+  
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        console.log('[SW] Caching static assets');
+        return cache.addAll(STATIC_ASSETS);
+      })
+      .then(() => {
+        console.log('[SW] Installation complete');
+        // Force the waiting service worker to become the active service worker
+        return self.skipWaiting();
+      })
+      .catch((error) => {
+        console.error('[SW] Installation failed:', error);
+      })
+  );
+});
+
+// Activate event - clean up old caches
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating service worker');
+  
+  event.waitUntil(
+    caches.keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheName !== CACHE_NAME) {
+              console.log('[SW] Deleting old cache:', cacheName);
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+      .then(() => {
+        console.log('[SW] Activation complete');
+        // Take control of all open clients
+        return self.clients.claim();
+      })
+      .catch((error) => {
+        console.error('[SW] Activation failed:', error);
+      })
+  );
+});
+
+// Fetch event - serve from cache when offline
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  
+  // Skip non-GET requests
+  if (request.method !== 'GET') {
+    return;
+  }
+  
+  // Skip external requests
+  if (!request.url.startsWith(self.location.origin)) {
+    return;
+  }
+  
+  event.respondWith(
+    caches.match(request)
+      .then((response) => {
+        // Return cached version if available
+        if (response) {
+          console.log('[SW] Serving from cache:', request.url);
+          return response;
+        }
+        
+        // Otherwise fetch from network
+        console.log('[SW] Fetching from network:', request.url);
+        return fetch(request)
+          .then((response) => {
+            // Don't cache non-successful responses
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
+            }
+            
+            // Clone the response since it can only be consumed once
+            const responseToCache = response.clone();
+            
+            // Cache the response for future use
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                console.log('[SW] Caching new response:', request.url);
+                cache.put(request, responseToCache);
+              });
+            
+            return response;
+          })
+          .catch((error) => {
+            console.error('[SW] Network request failed:', error);
+            
+            // Return offline page for navigation requests
+            if (request.mode === 'navigate') {
+              console.log('[SW] Serving offline page');
+              return caches.match(OFFLINE_URL);
+            }
+            
+            // Return a basic error response for other requests
+            return new Response('Offline - Please check your connection', {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: {
+                'Content-Type': 'text/plain'
+              }
+            });
+          });
+      })
+  );
+});
+
+// Push notification event
+self.addEventListener('push', (event) => {
+  console.log('[SW] Push notification received');
+  
+  const options = {
+    body: event.data ? event.data.text() : 'New research collaboration available',
+    icon: '/android-chrome-192x192.png',
+    badge: '/favicon-32x32.png',
+    vibrate: [100, 50, 100],
+    data: {
+      dateOfArrival: Date.now(),
+      primaryKey: '1'
+    },
+    actions: [
+      {
+        action: 'explore',
+        title: 'Explore Research',
+        icon: '/icon-96x96.png'
+      },
+      {
+        action: 'close',
+        title: 'Close',
+        icon: '/icon-96x96.png'
+      }
+    ]
+  };
+  
+  event.waitUntil(
+    self.registration.showNotification('SpaceChild Research Collective', options)
+  );
+});
+
+// Notification click event
+self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] Notification click received');
+  
+  event.notification.close();
+  
+  if (event.action === 'explore') {
+    event.waitUntil(
+      clients.openWindow('/dashboard')
+    );
+  } else if (event.action === 'close') {
+    // Notification already closed
+  } else {
+    // Default action - open the app
+    event.waitUntil(
+      clients.openWindow('/')
+    );
+  }
+});
+
+// Background sync event
+self.addEventListener('sync', (event) => {
+  console.log('[SW] Background sync event:', event.tag);
+  
+  if (event.tag === 'background-sync-research') {
+    event.waitUntil(
+      // Sync research data when back online
+      syncResearchData()
+    );
+  }
+});
+
+// Periodic background sync
+self.addEventListener('periodicsync', (event) => {
+  console.log('[SW] Periodic sync event:', event.tag);
+  
+  if (event.tag === 'periodic-sync-updates') {
+    event.waitUntil(
+      // Check for updates periodically
+      checkForUpdates()
+    );
+  }
+});
+
+// Helper functions
+async function syncResearchData() {
+  try {
+    // Sync any pending research data
+    console.log('[SW] Syncing research data');
+    // Implementation would go here
+  } catch (error) {
+    console.error('[SW] Research sync failed:', error);
+  }
+}
+
+async function checkForUpdates() {
+  try {
+    // Check for app updates
+    console.log('[SW] Checking for updates');
+    // Implementation would go here
+  } catch (error) {
+    console.error('[SW] Update check failed:', error);
+  }
+}
+
+// Message event for communication with the app
+self.addEventListener('message', (event) => {
+  console.log('[SW] Message received:', event.data);
+  
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+console.log('[SW] SpaceChild service worker loaded');

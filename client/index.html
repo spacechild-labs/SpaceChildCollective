@@ -192,6 +192,237 @@
         100% { transform: rotate(360deg); }
       }
     </style>
+    
+    <!-- PWA Installation Script -->
+    <script>
+      // Register service worker
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+              
+              // Check for updates
+              registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      // New content is available
+                      if (confirm('New version of SpaceChild is available. Reload to update?')) {
+                        window.location.reload();
+                      }
+                    }
+                  });
+                }
+              });
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+      
+      // PWA Installation Prompt
+      let deferredPrompt;
+      
+      window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent the mini-infobar from appearing on mobile
+        e.preventDefault();
+        // Stash the event so it can be triggered later
+        deferredPrompt = e;
+        
+        // Show custom install banner
+        showInstallBanner();
+      });
+      
+      function showInstallBanner() {
+        // Create install banner if it doesn't exist
+        if (!document.getElementById('install-banner')) {
+          const banner = document.createElement('div');
+          banner.id = 'install-banner';
+          banner.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: 'Inter', sans-serif;
+            animation: slideUp 0.3s ease-out;
+          `;
+          
+          banner.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                  <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+                </svg>
+              </div>
+              <div>
+                <div style="font-weight: 600; font-size: 14px;">Install SpaceChild</div>
+                <div style="font-size: 12px; opacity: 0.9;">Add to home screen for instant access</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button onclick="dismissInstallBanner()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px;">Not now</button>
+              <button onclick="installPWA()" style="background: white; color: #667eea; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px;">Install</button>
+            </div>
+          `;
+          
+          // Add animation
+          const style = document.createElement('style');
+          style.textContent = `
+            @keyframes slideUp {
+              from { transform: translateY(100px); opacity: 0; }
+              to { transform: translateY(0); opacity: 1; }
+            }
+          `;
+          document.head.appendChild(style);
+          
+          document.body.appendChild(banner);
+        }
+      }
+      
+      function installPWA() {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+              console.log('User accepted the A2HS prompt');
+              // Track installation event
+              if (typeof gtag !== 'undefined') {
+                gtag('event', 'pwa_install', {
+                  'event_category': 'PWA',
+                  'event_label': 'SpaceChild Install'
+                });
+              }
+            } else {
+              console.log('User dismissed the A2HS prompt');
+            }
+            deferredPrompt = null;
+            dismissInstallBanner();
+          });
+        }
+      }
+      
+      function dismissInstallBanner() {
+        const banner = document.getElementById('install-banner');
+        if (banner) {
+          banner.style.animation = 'slideUp 0.3s ease-out reverse';
+          setTimeout(() => {
+            banner.remove();
+          }, 300);
+        }
+      }
+      
+      // Handle app installed event
+      window.addEventListener('appinstalled', (evt) => {
+        console.log('SpaceChild was installed');
+        // Track successful installation
+        if (typeof gtag !== 'undefined') {
+          gtag('event', 'pwa_installed', {
+            'event_category': 'PWA',
+            'event_label': 'SpaceChild Installed Successfully'
+          });
+        }
+        // Hide any remaining install prompts
+        dismissInstallBanner();
+      });
+      
+      // Handle mobile-specific installation
+      function checkMobileInstall() {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+        
+        if (isMobile && !isStandalone) {
+          // Show mobile-specific install instructions after delay
+          setTimeout(() => {
+            if (!deferredPrompt) {
+              // No native install prompt available, show manual instructions
+              showMobileInstallInstructions();
+            }
+          }, 5000);
+        }
+      }
+      
+      function showMobileInstallInstructions() {
+        // Check if already showing instructions
+        if (document.getElementById('mobile-install-instructions')) return;
+        
+        const instructions = document.createElement('div');
+        instructions.id = 'mobile-install-instructions';
+        instructions.style.cssText = `
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          color: #333;
+          padding: 24px;
+          border-radius: 16px;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+          z-index: 10000;
+          max-width: 320px;
+          font-family: 'Inter', sans-serif;
+        `;
+        
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        
+        let instructionsHTML = '';
+        
+        if (isAndroid) {
+          instructionsHTML = `
+            <h3 style="margin: 0 0 16px 0; color: #667eea;">Install SpaceChild</h3>
+            <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.5;">To add SpaceChild to your home screen:</p>
+            <ol style="margin: 0 0 16px 0; padding-left: 20px; font-size: 14px;">
+              <li>Tap the menu button (⋮) in your browser</li>
+              <li>Select "Add to Home screen" or "Install app"</li>
+              <li>Tap "Add" to confirm</li>
+            </ol>
+            <div style="display: flex; gap: 8px;">
+              <button onclick="this.parentElement.parentElement.remove()" style="background: #f0f0f0; border: none; color: #333; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px;">Maybe later</button>
+              <button onclick="this.parentElement.parentElement.remove()" style="background: #667eea; border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px;">Got it</button>
+            </div>
+          `;
+        } else if (isIOS) {
+          instructionsHTML = `
+            <h3 style="margin: 0 0 16px 0; color: #667eea;">Install SpaceChild</h3>
+            <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.5;">To add SpaceChild to your home screen:</p>
+            <ol style="margin: 0 0 16px 0; padding-left: 20px; font-size: 14px;">
+              <li>Tap the Share button (⎙) at the bottom</li>
+              <li>Scroll down and tap "Add to Home Screen"</li>
+              <li>Tap "Add" to confirm</li>
+            </ol>
+            <div style="display: flex; gap: 8px;">
+              <button onclick="this.parentElement.parentElement.remove()" style="background: #f0f0f0; border: none; color: #333; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px;">Maybe later</button>
+              <button onclick="this.parentElement.parentElement.remove()" style="background: #667eea; border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px;">Got it</button>
+            </div>
+          `;
+        }
+        
+        instructions.innerHTML = instructionsHTML;
+        document.body.appendChild(instructions);
+        
+        // Auto-hide after 10 seconds
+        setTimeout(() => {
+          if (instructions.parentElement) {
+            instructions.remove();
+          }
+        }, 10000);
+      }
+      
+      // Check for mobile install when page loads
+      checkMobileInstall();
+    </script>
   </head>
   <body>
     <div id="root">

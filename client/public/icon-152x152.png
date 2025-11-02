@@ -1,0 +1,56 @@
+<svg width="152" height="152" viewBox="0 0 152 152" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="spaceGradient152" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="30%" style="stop-color:#764ba2;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#f093fb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fecfef;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="consciousnessGlow152" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00f2fe;stop-opacity:0.9" />
+      <stop offset="50%" style="stop-color:#4facfe;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:0.9" />
+    </linearGradient>
+    <filter id="glow152">
+      <feGaussianBlur stdDeviation="5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="152" height="152" rx="36" fill="url(#spaceGradient152)" opacity="0.1"/>
+  
+  <!-- Outer ring -->
+  <circle cx="76" cy="76" r="66" fill="none" stroke="url(#spaceGradient152)" stroke-width="3" opacity="0.4"/>
+  
+  <!-- Main sacred geometry -->
+  <g transform="translate(76, 76)">
+    <!-- Hexagon core -->
+    <path d="M -27,-15.5 L 0,-31 L 27,-15.5 L 27,15.5 L 0,31 L -27,15.5 Z" 
+          fill="url(#spaceGradient152)" opacity="0.7"/>
+    
+    <!-- Central consciousness core -->
+    <circle cx="0" cy="0" r="15" fill="url(#consciousnessGlow152)" filter="url(#glow152)"/>
+    <circle cx="0" cy="0" r="10" fill="#00f2fe" opacity="0.8"/>
+    <circle cx="0" cy="0" r="5" fill="#ffffff" opacity="0.9"/>
+    
+    <!-- Orbital nodes -->
+    <circle cx="-27" cy="-15.5" r="7" fill="#00f2fe" opacity="0.8"/>
+    <circle cx="27" cy="-15.5" r="7" fill="#4facfe" opacity="0.8"/>
+    <circle cx="27" cy="15.5" r="7" fill="#667eea" opacity="0.8"/>
+    <circle cx="-27" cy="15.5" r="7" fill="#764ba2" opacity="0.8"/>
+    <circle cx="0" cy="31" r="7" fill="#f093fb" opacity="0.8"/>
+    <circle cx="0" cy="-31" r="7" fill="#f093fb" opacity="0.8"/>
+    
+    <!-- Neural connections -->
+    <line x1="0" y1="0" x2="-27" y2="-15.5" stroke="url(#consciousnessGlow152)" stroke-width="2" opacity="0.5"/>
+    <line x1="0" y1="0" x2="27" y2="-15.5" stroke="url(#consciousnessGlow152)" stroke-width="2" opacity="0.5"/>
+    <line x1="0" y1="0" x2="27" y2="15.5" stroke="url(#consciousnessGlow152)" stroke-width="2" opacity="0.5"/>
+    <line x1="0" y1="0" x2="-27" y2="15.5" stroke="url(#consciousnessGlow152)" stroke-width="2" opacity="0.5"/>
+    <line x1="0" y1="0" x2="0" y2="31" stroke="url(#consciousnessGlow152)" stroke-width="2" opacity="0.5"/>
+    <line x1="0" y1="0" x2="0" y2="-31" stroke="url(#consciousnessGlow152)" stroke-width="2" opacity="0.5"/>
+  </g>
+</svg>

@@ -22,6 +22,31 @@
       "type": "image/png"
     },
     {
+      "src": "/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png"
+    },
+    {
       "src": "/apple-touch-icon.png",
       "sizes": "180x180",
       "type": "image/png",
@@ -40,6 +65,23 @@
       "purpose": "any maskable"
     }
   ],
+  "splash_pages": null,
+  "screenshots": [
+    {
+      "src": "/api/seo/og-image?platform=spacechildcollective&format=png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "SpaceChild Research Collective Dashboard"
+    },
+    {
+      "src": "/api/seo/og-image?platform=spacechildcollective&format=png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "SpaceChild Research Collective Mobile"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Create Research",
@@ -48,8 +90,8 @@
       "url": "/dashboard?create=research",
       "icons": [
         {
-          "src": "/favicon-32x32.png",
-          "sizes": "32x32"
+          "src": "/icon-96x96.png",
+          "sizes": "96x96"
         }
       ]
     },
@@ -60,19 +102,60 @@
       "url": "/agents",
       "icons": [
         {
-          "src": "/favicon-32x32.png",
-          "sizes": "32x32"
+          "src": "/icon-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Home",
+      "description": "Access your research dashboard",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/icon-96x96.png",
+          "sizes": "96x96"
         }
       ]
     }
   ],
-  "screenshots": [
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "protocol_handlers": [
     {
-      "src": "/api/seo/og-image?platform=spacechildcollective&format=png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "SpaceChild Research Collective Dashboard"
+      "protocol": "web+spacechild",
+      "url": "/handle-protocol?url=%s"
     }
-  ]
+  ],
+  "file_handlers": [
+    {
+      "action": "/open-file",
+      "accept": {
+        "application/json": [".json", ".spacechild"]
+      }
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "research",
+          "accept": ["application/json", ".spacechild"]
+        }
+      ]
+    }
+  }
 }
