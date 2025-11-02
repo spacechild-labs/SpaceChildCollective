@@ -1,0 +1,42 @@
+# SpaceChild Research Collective - Security Policy
+# Contact: security@spacechild.love
+
+# Our security team acknowledges and accepts reports from security researchers
+# following responsible disclosure principles.
+
+# Security Contact Information
+Contact: mailto:security@spacechild.love
+Contact: mailto:nick@spacechild.love
+Expires: 2025-12-31T23:59:59.000Z
+Encryption: https://spacechild.love/pgp-key.txt
+Acknowledgments: https://spacechild.love/security-acknowledgments
+Preferred-Languages: en
+
+# Security Policy
+# We welcome responsible security disclosures and will respond within 48 hours.
+# We offer bug bounties for critical vulnerabilities.
+# We maintain confidentiality for researchers who follow our policy.
+
+# Security Scope
+# In Scope:
+# - spacechild.love and all subdomains
+# - API endpoints and authentication systems
+# - Smart contracts on NEO X and Base chains
+# - IPFS content verification systems
+# - Zero-knowledge proof implementations
+
+# Out of Scope:
+# - Third-party services and dependencies
+# - Denial of service attacks
+# - Social engineering attacks
+# - Physical security vulnerabilities
+
+# Reward Structure
+# Critical: $5,000 - $10,000
+# High: $1,000 - $5,000
+# Medium: $200 - $1,000
+# Low: $50 - $200
+# Informational: Acknowledgment
+
+# We are committed to maintaining the security and privacy of our users'
+# research data and consciousness verification systems.

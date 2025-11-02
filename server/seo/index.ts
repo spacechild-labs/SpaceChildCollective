@@ -1,6 +1,7 @@
 /**
  * SpaceChild SEO Engine - Main Export
  * Universal SEO toolkit for the spacechild.love ecosystem
+ * Enhanced with consciousness-aware branding and advanced social media optimization
  */
 
 // Type exports
@@ -39,6 +40,32 @@ export {
   generatePlatformOGImage,
   type OGImageOptions,
 } from './og-image-generator';
+
+// Brand assets manager
+export {
+  BrandAssetsManager,
+  getBrandAssetUrl,
+  generateFaviconTags,
+  generateAppleTouchIconTags,
+  generateManifestLinks,
+} from './brand-assets';
+
+// Structured data generator
+export {
+  StructuredDataGenerator,
+  generateOrganizationSchema,
+  generateSoftwareApplicationSchema,
+  generateArticleSchema,
+  generateBreadcrumbSchema,
+} from './structured-data';
+
+// Social media optimization
+export {
+  SocialMediaOptimizer,
+  generateTwitterCard,
+  generateLinkedInCard,
+  generateFacebookCard,
+} from './social-optimizer';
 
 // Convenience function to get complete SEO setup for a platform
 import { createMetaGenerator } from './meta-generator';

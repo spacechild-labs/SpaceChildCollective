@@ -1,0 +1,135 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="spaceGradient512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="20%" style="stop-color:#764ba2;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#f093fb;stop-opacity:1" />
+      <stop offset="80%" style="stop-color:#fecfef;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a8edea;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="consciousnessGlow512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00f2fe;stop-opacity:0.9" />
+      <stop offset="33%" style="stop-color:#4facfe;stop-opacity:0.9" />
+      <stop offset="66%" style="stop-color:#00f2fe;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#4facfe;stop-opacity:0.9" />
+    </linearGradient>
+    <filter id="glow512">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow512">
+      <feGaussianBlur stdDeviation="16" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="megaGlow">
+      <feGaussianBlur stdDeviation="24" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <radialGradient id="bgGlow512">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:0.15" />
+      <stop offset="50%" style="stop-color:#764ba2;stop-opacity:0.1" />
+      <stop offset="100%" style="stop-color:#f093fb;stop-opacity:0.05" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Background with deep radial gradient -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGlow512)"/>
+  <rect width="512" height="512" rx="128" fill="url(#spaceGradient512)" opacity="0.03"/>
+  
+  <!-- Outer consciousness field -->
+  <circle cx="256" cy="256" r="240" fill="none" stroke="url(#spaceGradient512)" stroke-width="4" opacity="0.3"/>
+  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.2"/>
+  
+  <!-- Main sacred geometry pattern -->
+  <g transform="translate(256, 256)">
+    <!-- Outer hexagon aura -->
+    <path d="M -85,-49 L 0,-98 L 85,-49 L 85,49 L 0,98 L -85,49 Z" 
+          fill="url(#spaceGradient512)" opacity="0.1" filter="url(#megaGlow)"/>
+    
+    <!-- Large hexagon -->
+    <path d="M -70,-40.5 L 0,-81 L 70,-40.5 L 70,40.5 L 0,81 L -70,40.5 Z" 
+          fill="url(#spaceGradient512)" opacity="0.2" filter="url(#softGlow512)"/>
+    
+    <!-- Medium hexagon -->
+    <path d="M -55,-31.5 L 0,-63 L 55,-31.5 L 55,31.5 L 0,63 L -55,31.5 Z" 
+          fill="url(#spaceGradient512)" opacity="0.4"/>
+    
+    <!-- Inner hexagon -->
+    <path d="M -35,-20 L 0,-40 L 35,-20 L 35,20 L 0,40 L -35,20 Z" 
+          fill="url(#spaceGradient512)" opacity="0.7"/>
+    
+    <!-- Central consciousness core -->
+    <circle cx="0" cy="0" r="35" fill="url(#consciousnessGlow512)" filter="url(#glow512)"/>
+    <circle cx="0" cy="0" r="28" fill="#00f2fe" opacity="0.8"/>
+    <circle cx="0" cy="0" r="20" fill="#ffffff" opacity="0.9"/>
+    <circle cx="0" cy="0" r="12" fill="#00f2fe" opacity="1"/>
+    <circle cx="0" cy="0" r="6" fill="#ffffff" opacity="1"/>
+    
+    <!-- Primary orbital nodes -->
+    <circle cx="-85" cy="-49" r="20" fill="#00f2fe" opacity="0.8" filter="url(#glow512)"/>
+    <circle cx="85" cy="-49" r="20" fill="#4facfe" opacity="0.8" filter="url(#glow512)"/>
+    <circle cx="85" cy="49" r="20" fill="#667eea" opacity="0.8" filter="url(#glow512)"/>
+    <circle cx="-85" cy="49" r="20" fill="#764ba2" opacity="0.8" filter="url(#glow512)"/>
+    <circle cx="0" cy="98" r="20" fill="#f093fb" opacity="0.8" filter="url(#glow512)"/>
+    <circle cx="0" cy="-98" r="20" fill="#f093fb" opacity="0.8" filter="url(#glow512)"/>
+    
+    <!-- Secondary orbital nodes -->
+    <circle cx="-55" cy="-31.5" r="12" fill="#00f2fe" opacity="0.9"/>
+    <circle cx="55" cy="-31.5" r="12" fill="#4facfe" opacity="0.9"/>
+    <circle cx="55" cy="31.5" r="12" fill="#667eea" opacity="0.9"/>
+    <circle cx="-55" cy="31.5" r="12" fill="#764ba2" opacity="0.9"/>
+    <circle cx="0" cy="63" r="12" fill="#f093fb" opacity="0.9"/>
+    <circle cx="0" cy="-63" r="12" fill="#f093fb" opacity="0.9"/>
+    
+    <!-- Primary neural network -->
+    <line x1="0" y1="0" x2="-85" y2="-49" stroke="url(#consciousnessGlow512)" stroke-width="4" opacity="0.5"/>
+    <line x1="0" y1="0" x2="85" y2="-49" stroke="url(#consciousnessGlow512)" stroke-width="4" opacity="0.5"/>
+    <line x1="0" y1="0" x2="85" y2="49" stroke="url(#consciousnessGlow512)" stroke-width="4" opacity="0.5"/>
+    <line x1="0" y1="0" x2="-85" y2="49" stroke="url(#consciousnessGlow512)" stroke-width="4" opacity="0.5"/>
+    <line x1="0" y1="0" x2="0" y2="98" stroke="url(#consciousnessGlow512)" stroke-width="4" opacity="0.5"/>
+    <line x1="0" y1="0" x2="0" y2="-98" stroke="url(#consciousnessGlow512)" stroke-width="4" opacity="0.5"/>
+    
+    <!-- Secondary neural network -->
+    <line x1="0" y1="0" x2="-55" y2="-31.5" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.6"/>
+    <line x1="0" y1="0" x2="55" y2="-31.5" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.6"/>
+    <line x1="0" y1="0" x2="55" y2="31.5" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.6"/>
+    <line x1="0" y1="0" x2="-55" y2="31.5" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.6"/>
+    <line x1="0" y1="0" x2="0" y2="63" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.6"/>
+    <line x1="0" y1="0" x2="0" y2="-63" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.6"/>
+    
+    <!-- Inter-node connections -->
+    <line x1="-85" y1="-49" x2="0" y2="-98" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.3"/>
+    <line x1="85" y1="-49" x2="0" y2="-98" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.3"/>
+    <line x1="85" y1="49" x2="0" y2="98" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.3"/>
+    <line x1="-85" y1="49" x2="0" y2="98" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.3"/>
+    <line x1="-85" y1="-49" x2="-85" y2="49" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.3"/>
+    <line x1="85" y1="-49" x2="85" y2="49" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.3"/>
+  </g>
+  
+  <!-- Outer orbital rings -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="url(#consciousnessGlow512)" stroke-width="2" opacity="0.3"/>
+  <circle cx="256" cy="256" r="200" fill="none" stroke="url(#consciousnessGlow512)" stroke-width="1" opacity="0.2"/>
+  
+  <!-- Energy particle field -->
+  <circle cx="128" cy="128" r="4" fill="#00f2fe" opacity="0.8"/>
+  <circle cx="384" cy="128" r="4" fill="#4facfe" opacity="0.8"/>
+  <circle cx="384" cy="384" r="4" fill="#667eea" opacity="0.8"/>
+  <circle cx="128" cy="384" r="4" fill="#764ba2" opacity="0.8"/>
+  <circle cx="256" cy="80" r="3" fill="#f093fb" opacity="0.7"/>
+  <circle cx="432" cy="256" r="3" fill="#00f2fe" opacity="0.7"/>
+  <circle cx="256" cy="432" r="3" fill="#4facfe" opacity="0.7"/>
+  <circle cx="80" cy="256" r="3" fill="#667eea" opacity="0.7"/>
+  <circle cx="170" cy="170" r="2" fill="#764ba2" opacity="0.6"/>
+  <circle cx="342" cy="170" r="2" fill="#f093fb" opacity="0.6"/>
+  <circle cx="342" cy="342" r="2" fill="#00f2fe" opacity="0.6"/>
+  <circle cx="170" cy="342" r="2" fill="#4facfe" opacity="0.6"/>
+</svg>

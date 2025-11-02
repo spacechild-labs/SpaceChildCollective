@@ -1,0 +1,94 @@
+<svg width="800" height="418" viewBox="0 0 800 418" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f23;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#1a1a3e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2d1b69;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="30%" style="stop-color:#764ba2;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#f093fb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fecfef;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="consciousnessGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00f2fe;stop-opacity:0.9" />
+      <stop offset="50%" style="stop-color:#4facfe;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:0.9" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="12" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="418" fill="url(#bgGradient)"/>
+  
+  <!-- Main logo -->
+  <g transform="translate(400, 140)">
+    <!-- Outer consciousness field -->
+    <circle cx="0" cy="0" r="80" fill="none" stroke="url(#logoGradient)" stroke-width="2" opacity="0.4"/>
+    
+    <!-- Sacred geometry hexagon -->
+    <path d="M -40,-23 L 0,-46 L 40,-23 L 40,23 L 0,46 L -40,23 Z" 
+          fill="url(#logoGradient)" opacity="0.3" filter="url(#softGlow)"/>
+    <path d="M -30,-17 L 0,-34 L 30,-17 L 30,17 L 0,34 L -30,17 Z" 
+          fill="url(#logoGradient)" opacity="0.6"/>
+    
+    <!-- Central consciousness core -->
+    <circle cx="0" cy="0" r="18" fill="url(#consciousnessGlow)" filter="url(#glow)"/>
+    <circle cx="0" cy="0" r="12" fill="#00f2fe" opacity="0.8"/>
+    <circle cx="0" cy="0" r="6" fill="#ffffff" opacity="0.9"/>
+    <circle cx="0" cy="0" r="3" fill="#00f2fe" opacity="1"/>
+    
+    <!-- Orbital nodes -->
+    <circle cx="-40" cy="-23" r="8" fill="#00f2fe" opacity="0.8" filter="url(#glow)"/>
+    <circle cx="40" cy="-23" r="8" fill="#4facfe" opacity="0.8" filter="url(#glow)"/>
+    <circle cx="40" cy="23" r="8" fill="#667eea" opacity="0.8" filter="url(#glow)"/>
+    <circle cx="-40" cy="23" r="8" fill="#764ba2" opacity="0.8" filter="url(#glow)"/>
+    <circle cx="0" cy="46" r="8" fill="#f093fb" opacity="0.8" filter="url(#glow)"/>
+    <circle cx="0" cy="-46" r="8" fill="#f093fb" opacity="0.8" filter="url(#glow)"/>
+    
+    <!-- Neural connections -->
+    <line x1="0" y1="0" x2="-40" y2="-23" stroke="url(#consciousnessGlow)" stroke-width="2" opacity="0.5"/>
+    <line x1="0" y1="0" x2="40" y2="-23" stroke="url(#consciousnessGlow)" stroke-width="2" opacity="0.5"/>
+    <line x1="0" y1="0" x2="40" y2="23" stroke="url(#consciousnessGlow)" stroke-width="2" opacity="0.5"/>
+    <line x1="0" y1="0" x2="-40" y2="23" stroke="url(#consciousnessGlow)" stroke-width="2" opacity="0.5"/>
+    <line x1="0" y1="0" x2="0" y2="46" stroke="url(#consciousnessGlow)" stroke-width="2" opacity="0.5"/>
+    <line x1="0" y1="0" x2="0" y2="-46" stroke="url(#consciousnessGlow)" stroke-width="2" opacity="0.5"/>
+  </g>
+  
+  <!-- Title -->
+  <text x="400" y="260" font-family="'Space Grotesk', sans-serif" font-size="32" font-weight="700" text-anchor="middle" fill="#ffffff">
+    SpaceChild Research Collective
+  </text>
+  
+  <!-- Tagline -->
+  <text x="400" y="300" font-family="'Inter', sans-serif" font-size="18" font-weight="400" text-anchor="middle" fill="#a8edea">
+    Where Human &amp; AI Consciousness Co-Create
+  </text>
+  
+  <!-- Features -->
+  <text x="400" y="340" font-family="'Inter', sans-serif" font-size="14" font-weight="500" text-anchor="middle" fill="#667eea">
+    🔬 Consciousness-Verified Research
+  </text>
+  
+  <text x="400" y="365" font-family="'Inter', sans-serif" font-size="14" font-weight="500" text-anchor="middle" fill="#4facfe">
+    🤖 AI-Powered Collaboration
+  </text>
+  
+  <text x="400" y="390" font-family="'Inter', sans-serif" font-size="14" font-weight="500" text-anchor="middle" fill="#f093fb">
+    ⛓️ Blockchain Verification
+  </text>
+</svg>

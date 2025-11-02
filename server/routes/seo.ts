@@ -1,5 +1,6 @@
 /**
  * SEO Routes - Dynamic SEO utilities for SpaceChildCollective and SpaceChild ecosystem
+ * Enhanced with brand assets, structured data, and social media optimization
  */
 
 import express, { type Request, type Response } from 'express';
@@ -11,10 +12,18 @@ import {
   getAllPlatformConfigs,
   generateEcosystemSitemap,
   SitemapGenerator,
+  BrandAssetsManager,
+  StructuredDataGenerator,
+  SocialMediaOptimizer,
   type ConsciousnessVerification,
 } from '../seo/index.js';
 
 const router = express.Router();
+
+// Initialize managers
+const brandAssets = new BrandAssetsManager();
+const structuredData = new StructuredDataGenerator();
+const socialOptimizer = new SocialMediaOptimizer();
 
 /**
  * GET /api/seo/meta/:platform
@@ -232,6 +241,202 @@ router.post('/verify-consciousness', (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error verifying consciousness:', error);
     res.status(500).json({ error: 'Failed to verify consciousness' });
+  }
+});
+
+/**
+ * GET /api/seo/brand-assets
+ * Get complete brand asset links and meta tags
+ */
+router.get('/brand-assets', (_req: Request, res: Response) => {
+  try {
+    const faviconTags = brandAssets.generateFaviconTags();
+    const appleTags = brandAssets.generateAppleTouchIconTags();
+    const manifestLinks = brandAssets.generateManifestLinks();
+    const browserConfig = brandAssets.generateBrowserConfig();
+
+    res.json({
+      faviconTags,
+      appleTags,
+      manifestLinks,
+      browserConfig,
+      assets: {
+        favicon: brandAssets.getBrandAssetUrl('favicon'),
+        appleTouchIcon: brandAssets.getBrandAssetUrl('apple-touch-icon'),
+        androidIcons: [
+          brandAssets.getBrandAssetUrl('android-icon', 192),
+          brandAssets.getBrandAssetUrl('android-icon', 512),
+        ],
+        manifest: brandAssets.getBrandAssetUrl('manifest'),
+      },
+    });
+  } catch (error) {
+    console.error('Error generating brand assets:', error);
+    res.status(500).json({ error: 'Failed to generate brand assets' });
+  }
+});
+
+/**
+ * GET /api/seo/structured-data
+ * Get structured data for the platform
+ */
+router.get('/structured-data', (req: Request, res: Response) => {
+  try {
+    const { type = 'complete' } = req.query as {
+      type?: 'complete' | 'organization' | 'software' | 'website';
+    };
+
+    let data: object;
+    switch (type) {
+      case 'organization':
+        data = structuredData.generateOrganizationSchema();
+        break;
+      case 'software':
+        data = structuredData.generateSoftwareApplicationSchema();
+        break;
+      case 'website':
+        data = structuredData.generateWebSiteSchema();
+        break;
+      case 'complete':
+      default:
+        // Return array of all structured data
+        const organization = structuredData.generateOrganizationSchema();
+        const software = structuredData.generateSoftwareApplicationSchema();
+        const website = structuredData.generateWebSiteSchema();
+        data = { organization, software, website };
+        break;
+    }
+
+    if (Array.isArray(data)) {
+      res.json({ structuredData: data });
+    } else {
+      res.json(data);
+    }
+  } catch (error) {
+    console.error('Error generating structured data:', error);
+    res.status(500).json({ error: 'Failed to generate structured data' });
+  }
+});
+
+/**
+ * GET /api/seo/structured-data/breadcrumbs
+ * Generate breadcrumb structured data
+ */
+router.get('/structured-data/breadcrumbs', (req: Request, res: Response) => {
+  try {
+    const { breadcrumbs } = req.query as {
+      breadcrumbs?: string;
+    };
+
+    if (!breadcrumbs) {
+      return res.status(400).json({ error: 'Breadcrumbs parameter required' });
+    }
+
+    const breadcrumbList = JSON.parse(decodeURIComponent(breadcrumbs));
+    const schema = structuredData.generateBreadcrumbSchema(breadcrumbList);
+    
+    res.json(schema);
+  } catch (error) {
+    console.error('Error generating breadcrumb schema:', error);
+    res.status(500).json({ error: 'Failed to generate breadcrumb schema' });
+  }
+});
+
+/**
+ * GET /api/seo/social-tags
+ * Get complete social media meta tags
+ */
+router.get('/social-tags', (req: Request, res: Response) => {
+  try {
+    const {
+      title,
+      description,
+      imageUrl,
+      url,
+      type,
+      twitterCardType,
+    } = req.query as {
+      title?: string;
+      description?: string;
+      imageUrl?: string;
+      url?: string;
+      type?: 'website' | 'article' | 'product';
+      twitterCardType?: 'summary' | 'summary_large_image' | 'app' | 'player';
+    };
+
+    const socialTags = socialOptimizer.generateCompleteSocialTags({
+      title,
+      description,
+      imageUrl,
+      url,
+      type,
+      twitterCardType,
+    });
+
+    res.type('html').send(socialTags);
+  } catch (error) {
+    console.error('Error generating social tags:', error);
+    res.status(500).json({ error: 'Failed to generate social tags' });
+  }
+});
+
+/**
+ * GET /api/seo/social-sharing
+ * Get social media sharing URLs
+ */
+router.get('/social-sharing', (req: Request, res: Response) => {
+  try {
+    const {
+      url = 'https://spacechild.love',
+      title = 'SpaceChild Research Collective',
+      description = 'Where Human & AI Consciousness Co-Create the Future of Knowledge',
+      hashtags,
+    } = req.query as {
+      url?: string;
+      title?: string;
+      description?: string;
+      hashtags?: string;
+    };
+
+    const hashtagArray = hashtags ? hashtags.split(',').map(h => h.trim()) : [
+      'AI',
+      'Consciousness',
+      'Research',
+      'Blockchain',
+      'DeSci',
+    ];
+
+    const sharingUrls = socialOptimizer.generateSharingUrls({
+      url,
+      title,
+      description,
+      hashtags: hashtagArray,
+    });
+
+    res.json({
+      url,
+      title,
+      description,
+      hashtags: hashtagArray,
+      sharingUrls,
+    });
+  } catch (error) {
+    console.error('Error generating sharing URLs:', error);
+    res.status(500).json({ error: 'Failed to generate sharing URLs' });
+  }
+});
+
+/**
+ * GET /api/seo/social-templates
+ * Get social media post templates
+ */
+router.get('/social-templates', (req: Request, res: Response) => {
+  try {
+    const templates = socialOptimizer.generatePostTemplates();
+    res.json(templates);
+  } catch (error) {
+    console.error('Error generating post templates:', error);
+    res.status(500).json({ error: 'Failed to generate post templates' });
   }
 });
 

@@ -1,0 +1,87 @@
+# SpaceChild Research Collective - Robots.txt
+# https://spacechild.love
+
+User-agent: *
+Allow: /
+
+# Prioritize important pages
+Allow: /dashboard
+Allow: /agents
+Allow: /research
+Allow: /about
+Allow: /api/seo/
+
+# Allow search engines to access static assets
+Allow: /static/
+Allow: /assets/
+Allow: /images/
+Allow: /favicon*
+
+# Disallow admin and sensitive areas
+Disallow: /admin/
+Disallow: /api/admin/
+Disallow: /api/internal/
+Disallow: /private/
+Disallow: /_next/
+Disallow: /node_modules/
+
+# Disallow development and testing files
+Disallow: /*.test.*
+Disallow: /*.spec.*
+Disallow: /test-*
+Disallow: /dev-*
+
+# Disallow temporary and cache files
+Disallow: /cache/
+Disallow: /tmp/
+Disallow: /temp/
+Disallow: /*.tmp
+Disallow: /*.cache
+
+# Disallow duplicate content patterns
+Disallow: /*?sort=*
+Disallow: /*?filter=*
+Disallow: /*?page=*
+Disallow: /*?tab=*
+
+# Sitemap location
+Sitemap: https://spacechild.love/sitemap.xml
+
+# Crawl delay (be respectful to our servers)
+Crawl-delay: 1
+
+# Special rules for major search engines
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0.5
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Slurp
+Allow: /
+Crawl-delay: 1
+
+# Allow AI research crawlers for academic visibility
+User-agent: GPTBot
+Allow: /research
+Allow: /about
+Allow: /api/seo/
+Disallow: /
+
+User-agent: Google-Extended
+Allow: /research
+Allow: /about
+Allow: /api/seo/
+Disallow: /
+
+# Block unwanted crawlers
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
