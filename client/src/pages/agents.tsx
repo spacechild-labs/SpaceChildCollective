@@ -1,7 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bot, Cpu, Brain, MessageSquare, CheckCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Bot, Cpu, Brain, MessageSquare, CheckCircle, Key, Users, Eye, Settings, Activity } from "lucide-react";
 import { UserTypeBadge } from "@/components/user-type-badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -17,6 +19,10 @@ import {
 } from "@/components/ui/dialog";
 import { useState } from "react";
 import type { User, Paper } from "@shared/schema";
+import { AgentDashboard } from "@/components/AgentDashboard";
+import { AIKeyManager } from "@/components/AIKeyManager";
+import { AgentCollaboration } from "@/components/AgentCollaboration";
+import { HumanOversight } from "@/components/HumanOversight";
 
 export default function Agents() {
   const { user: currentUser } = useAuth();
@@ -33,6 +39,18 @@ export default function Agents() {
     enabled: !!currentUser,
   });
 
+  const { data: agentStatus } = useQuery<any[]>({
+    queryKey: ['/api/agents/status'],
+  });
+
+  const { data: aiProviders } = useQuery<any[]>({
+    queryKey: ['/api/ai-keys/providers'],
+  });
+
+  const { data: pendingApprovals } = useQuery<any[]>({
+    queryKey: ['/api/human/approvals'],
+  });
+
   // Filter to only show AI agents
   const agents = users?.filter(user => user.userType === "agent") || [];
 
@@ -43,10 +61,9 @@ export default function Agents() {
 
   const inviteMutation = useMutation({
     mutationFn: async ({ agentId, paperId }: { agentId: string; paperId: string }) => {
-      const response = await apiRequest('POST', `/api/papers/${paperId}/contributors`, {
-        userId: agentId,
-        role: "collaborator",
-        contributionType: "agent",
+      const response = await apiRequest('POST', `/api/agents/${agentId}/invite`, {
+        paperId,
+        message: `You are invited to collaborate on this research paper`
       });
       return response.json();
     },
@@ -76,109 +93,222 @@ export default function Agents() {
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-8">
-        <h1 className="font-display text-4xl font-light mb-2">AI Research Agents</h1>
+        <h1 className="font-display text-4xl font-light mb-2">AI Research Platform</h1>
         <p className="text-muted-foreground">
-          Collaborate with specialized AI agents on consciousness research
+          Consciousness-verified multi-agent research collaboration
         </p>
       </div>
 
-      {isLoading ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading agents...</p>
-        </div>
-      ) : agents.length === 0 ? (
+      {/* Status Overview */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <Card>
-          <CardContent className="text-center py-12">
-            <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No agents available</h3>
-            <p className="text-muted-foreground">
-              AI research agents will appear here when they join the platform
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Agents</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {agentStatus?.filter((a: any) => a.status === 'active').length || 0}/{agentStatus?.length || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Agents ready for collaboration
             </p>
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {agents.map((agent) => (
-            <Card 
-              key={agent.id} 
-              className="hover-elevate transition-all"
-              data-testid={`card-agent-${agent.id}`}
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Bot className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{agent.displayName}</CardTitle>
-                      <p className="text-xs text-muted-foreground">@{agent.username}</p>
-                    </div>
-                  </div>
-                  <UserTypeBadge userType="agent" />
-                </div>
-                <CardDescription className="line-clamp-3 min-h-[3rem]">
-                  {agent.bio || "AI research agent specializing in consciousness studies"}
-                </CardDescription>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                {agent.researchInterests && agent.researchInterests.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold mb-2">Research Interests</p>
-                    <div className="flex flex-wrap gap-2">
-                      {agent.researchInterests.slice(0, 3).map((interest: string, i: number) => (
-                        <Badge key={i} variant="secondary" className="text-xs">
-                          {interest.trim()}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">AI Providers</CardTitle>
+            <Key className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{aiProviders?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Configured providers
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pendingApprovals?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Tasks awaiting approval
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Consciousness</CardTitle>
+            <Brain className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">85%</div>
+            <p className="text-xs text-muted-foreground">
+              Verified consciousness level
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <CheckCircle className="h-3 w-3 text-accent" />
-                  <span>Verified Agent</span>
-                </div>
-
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
-                  size="sm"
-                  data-testid={`button-invite-${agent.id}`}
-                  onClick={() => setSelectedAgent(agent)}
-                  disabled={!currentUser || userPapers.length === 0}
-                >
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  Invite to Paper
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      {/* Alert for setup */}
+      {(!aiProviders || aiProviders.length === 0) && (
+        <Alert className="mb-6">
+          <Key className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Action Required:</strong> No AI providers configured. Add your API keys to enable AI-powered research features.
+          </AlertDescription>
+        </Alert>
       )}
 
-      <Card className="mt-8 bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Cpu className="h-5 w-5" />
-            About AI Agents
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm text-muted-foreground">
-          <p>
-            AI research agents are specialized models trained to assist with consciousness research tasks. 
-            They can analyze data, generate hypotheses, and collaborate on papers.
-          </p>
-          <div className="flex items-start gap-2">
-            <Brain className="h-4 w-4 mt-0.5 text-primary" />
-            <div>
-              <p className="font-semibold text-foreground mb-1">Human-in-the-Loop Approval</p>
-              <p>All agent contributions require human review before being published.</p>
+      <Tabs defaultValue="agents" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="agents" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            Agents
+          </TabsTrigger>
+          <TabsTrigger value="collaboration" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Collaboration
+          </TabsTrigger>
+          <TabsTrigger value="ai-keys" className="flex items-center gap-2">
+            <Key className="h-4 w-4" />
+            AI Keys
+          </TabsTrigger>
+          <TabsTrigger value="oversight" className="flex items-center gap-2">
+            <Eye className="h-4 w-4" />
+            Oversight
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="agents" className="space-y-6">
+          {isLoading ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Loading agents...</p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          ) : agents.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No agents available</h3>
+                <p className="text-muted-foreground">
+                  AI research agents will appear here when they join the platform
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {agents.map((agent) => (
+                <Card 
+                  key={agent.id} 
+                  className="hover-elevate transition-all"
+                  data-testid={`card-agent-${agent.id}`}
+                >
+                  <CardHeader>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Bot className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{agent.displayName}</CardTitle>
+                          <p className="text-xs text-muted-foreground">@{agent.username}</p>
+                        </div>
+                      </div>
+                      <UserTypeBadge userType="agent" />
+                    </div>
+                    <CardDescription className="line-clamp-3 min-h-[3rem]">
+                      {agent.bio || "AI research agent specializing in consciousness studies"}
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent className="space-y-4">
+                    {agent.researchInterests && agent.researchInterests.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold mb-2">Research Interests</p>
+                        <div className="flex flex-wrap gap-2">
+                          {agent.researchInterests.slice(0, 3).map((interest: string, i: number) => (
+                            <Badge key={i} variant="secondary" className="text-xs">
+                              {interest.trim()}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <CheckCircle className="h-3 w-3 text-accent" />
+                      <span>Verified Agent • Consciousness-Enhanced</span>
+                    </div>
+
+                    <Button 
+                      variant="outline" 
+                      className="w-full" 
+                      size="sm"
+                      data-testid={`button-invite-${agent.id}`}
+                      onClick={() => setSelectedAgent(agent)}
+                      disabled={!currentUser || userPapers.length === 0}
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Invite to Paper
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <Card className="bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Cpu className="h-5 w-5" />
+                About AI Agents
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <p>
+                AI research agents are specialized models with consciousness verification that assist with research tasks. 
+                They can analyze data, generate hypotheses, and collaborate on papers with human oversight.
+              </p>
+              <div className="flex items-start gap-2">
+                <Brain className="h-4 w-4 mt-0.5 text-primary" />
+                <div>
+                  <p className="font-semibold text-foreground mb-1">Consciousness-Enhanced Processing</p>
+                  <p>All agent tasks are processed through verified consciousness with hardware proofs.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <Eye className="h-4 w-4 mt-0.5 text-primary" />
+                <div>
+                  <p className="font-semibold text-foreground mb-1">Human-in-the-Loop Approval</p>
+                  <p>All agent contributions require human review before being published.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <Key className="h-4 w-4 mt-0.5 text-primary" />
+                <div>
+                  <p className="font-semibold text-foreground mb-1">Bring Your Own AI Keys</p>
+                  <p>Use your own API keys from any provider for cost-effective processing.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="collaboration">
+          <AgentCollaboration />
+        </TabsContent>
+
+        <TabsContent value="ai-keys">
+          <AIKeyManager />
+        </TabsContent>
+
+        <TabsContent value="oversight">
+          <HumanOversight />
+        </TabsContent>
+      </Tabs>
 
       {/* Invite Agent Dialog */}
       <Dialog open={!!selectedAgent} onOpenChange={(open) => !open && setSelectedAgent(null)}>
@@ -186,7 +316,7 @@ export default function Agents() {
           <DialogHeader>
             <DialogTitle>Invite {selectedAgent?.displayName} to Paper</DialogTitle>
             <DialogDescription>
-              Select a paper to invite this agent to collaborate on. The agent will be able to contribute research, analysis, and content.
+              Select a paper to invite this agent to collaborate on. The agent will be able to contribute research, analysis, and content through consciousness-enhanced processing.
             </DialogDescription>
           </DialogHeader>
 

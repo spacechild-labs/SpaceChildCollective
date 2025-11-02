@@ -225,7 +225,33 @@ export class AIKeyManager {
       {
         name: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
-        models: ['gpt-4', 'gpt-4-turbo-preview', 'gpt-3.5-turbo'],
+        models: [
+          // GPT-4 Series (Most Capable)
+          'gpt-4-turbo-preview',
+          'gpt-4-1106-preview',
+          'gpt-4-0125-preview',
+          'gpt-4-vision-preview',
+          'gpt-4',
+          'gpt-4-32k',
+          
+          // GPT-3.5 Series (Fast & Cost-Effective)
+          'gpt-3.5-turbo-0125',
+          'gpt-3.5-turbo-1106',
+          'gpt-3.5-turbo-16k',
+          'gpt-3.5-turbo',
+          
+          // Embedding Models
+          'text-embedding-ada-002',
+          'text-embedding-3-small',
+          'text-embedding-3-large',
+          
+          // Legacy Models
+          'text-davinci-003',
+          'text-davinci-002',
+          'text-curie-001',
+          'text-babbage-001',
+          'text-ada-001'
+        ],
         rateLimit: {
           requestsPerMinute: 3500,
           tokensPerMinute: 90000
@@ -235,7 +261,22 @@ export class AIKeyManager {
       {
         name: 'Anthropic',
         baseUrl: 'https://api.anthropic.com',
-        models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+        models: [
+          // Claude 3 Series (Latest)
+          'claude-3-opus-20240229',
+          'claude-3-sonnet-20240229',
+          'claude-3-haiku-20240307',
+          
+          // Claude 2 Series
+          'claude-2-1',
+          'claude-2-0',
+          'claude-2',
+          
+          // Claude Instant Series
+          'claude-instant-1-2',
+          'claude-instant-1-1',
+          'claude-instant-1'
+        ],
         rateLimit: {
           requestsPerMinute: 1000,
           tokensPerMinute: 40000
@@ -245,7 +286,20 @@ export class AIKeyManager {
       {
         name: 'Google',
         baseUrl: 'https://generativelanguage.googleapis.com/v1',
-        models: ['gemini-pro', 'gemini-pro-vision'],
+        models: [
+          // Gemini Series
+          'gemini-1.5-pro-latest',
+          'gemini-1.5-flash-latest',
+          'gemini-1.5-pro',
+          'gemini-1.5-flash',
+          'gemini-pro-vision',
+          'gemini-pro',
+          
+          // Legacy Models
+          'text-bison-001',
+          'chat-bison-001',
+          'embedding-gecko-001'
+        ],
         rateLimit: {
           requestsPerMinute: 60,
           tokensPerMinute: 32000
@@ -255,12 +309,240 @@ export class AIKeyManager {
       {
         name: 'OpenRouter',
         baseUrl: 'https://openrouter.ai/api/v1',
-        models: ['openai/gpt-4', 'anthropic/claude-3-opus', 'google/gemini-pro'],
+        models: [
+          // OpenAI Models via OpenRouter
+          'openai/gpt-4-turbo-preview',
+          'openai/gpt-4-vision-preview',
+          'openai/gpt-4-1106-preview',
+          'openai/gpt-4-0125-preview',
+          'openai/gpt-4',
+          'openai/gpt-3.5-turbo-0125',
+          'openai/gpt-3.5-turbo-1106',
+          'openai/gpt-3.5-turbo-16k',
+          'openai/gpt-3.5-turbo',
+          'openai/text-davinci-003',
+          'openai/text-davinci-002',
+          'openai/text-curie-001',
+          'openai/text-babbage-001',
+          'openai/text-ada-001',
+          
+          // Anthropic Models via OpenRouter
+          'anthropic/claude-3-opus',
+          'anthropic/claude-3-sonnet',
+          'anthropic/claude-3-haiku',
+          'anthropic/claude-2-1',
+          'anthropic/claude-2',
+          'anthropic/claude-instant-1-2',
+          'anthropic/claude-instant-1',
+          
+          // Google Models via OpenRouter
+          'google/gemini-pro',
+          'google/gemini-pro-vision',
+          'google/gemini-1.5-pro',
+          'google/gemini-1.5-flash',
+          'google/palm-2-chat-bison',
+          'google/palm-2-codechat-bison',
+          'google/palm-2-text-bison',
+          
+          // Meta Models via OpenRouter
+          'meta-llama/llama-3-70b-instruct',
+          'meta-llama/llama-3-8b-instruct',
+          'meta-llama/llama-2-70b-chat',
+          'meta-llama/llama-2-13b-chat',
+          'meta-llama/llama-2-7b-chat',
+          'meta-llama/codellama-70b-instruct',
+          'meta-llama/codellama-34b-instruct',
+          'meta-llama/codellama-13b-instruct',
+          'meta-llama/codellama-7b-instruct',
+          
+          // Mistral Models via OpenRouter
+          'mistralai/mistral-large',
+          'mistralai/mistral-medium',
+          'mistralai/mistral-small',
+          'mistralai/mixtral-8x7b',
+          'mistralai/mixtral-8x22b',
+          'mistralai/mistral-7b-instruct',
+          'mistralai/mistral-7b',
+          
+          // Cohere Models via OpenRouter
+          'cohere/command-r-plus',
+          'cohere/command-r',
+          'cohere/command',
+          'cohere/command-nightly',
+          'cohere/command-light',
+          'cohere/command-light-nightly',
+          
+          // AI21 Labs Models via OpenRouter
+          'ai21/jamba-instruct',
+          'ai21/jurassic-2-ultra',
+          'ai21/jurassic-2-mid',
+          'ai21/jurassic-2-contemporary',
+          
+          // Perplexity Models via OpenRouter
+          'perplexity/pplx-70b-online',
+          'perplexity/pplx-7b-online',
+          'perplexity/pplx-7b-chat',
+          
+          // DeepSeek Models via OpenRouter
+          'deepseek/deepseek-chat',
+          'deepseek/deepseek-coder',
+          
+          // Qwen Models via OpenRouter
+          'qwen/qwen-2-72b-instruct',
+          'qwen/qwen-1.5-72b-chat',
+          'qwen/qwen-1.5-14b-chat',
+          'qwen/qwen-1.5-7b-chat',
+          
+          // Yi Models via OpenRouter
+          '01-ai/yi-34b-chat',
+          '01-ai/yi-34b',
+          '01-ai/yi-6b-chat',
+          
+          // Mixtral Models via OpenRouter
+          'mistralai/mixtral-8x22b-instruct',
+          'mistralai/mixtral-8x7b-instruct',
+          
+          // Other Notable Models
+          'nousresearch/nous-hermes-2-mistral-7b-dpo',
+          'teknium/openhermes-2.5-mistral-7b',
+          'phind/phind-codellama-34b-v2',
+          'wizardlm/wizardlm-70b',
+          'recursal/rwkv-5-world-3b',
+          'sophosynergy/xwin-ml-7b-v0.2'
+        ],
         rateLimit: {
           requestsPerMinute: 100,
           tokensPerMinute: 100000
         },
         instructions: 'Get your API key from https://openrouter.ai/keys'
+      },
+      {
+        name: 'Cohere',
+        baseUrl: 'https://api.cohere.ai/v1',
+        models: [
+          'command-r-plus',
+          'command-r',
+          'command',
+          'command-nightly',
+          'command-light',
+          'command-light-nightly',
+          'embed-english-v3.0',
+          'embed-multilingual-v3.0',
+          'embed-english-light-v3.0',
+          'embed-multilingual-light-v3.0'
+        ],
+        rateLimit: {
+          requestsPerMinute: 1000,
+          tokensPerMinute: 40000
+        },
+        instructions: 'Get your API key from https://dashboard.cohere.com/api-keys'
+      },
+      {
+        name: 'Mistral AI',
+        baseUrl: 'https://api.mistral.ai/v1',
+        models: [
+          'mistral-large-latest',
+          'mistral-medium-latest',
+          'mistral-small-latest',
+          'mixtral-8x7b-2410',
+          'mixtral-8x22b-2410',
+          'mistral-7b-instruct-v0.2',
+          'mistral-embed',
+          'open-mistral-7b',
+          'open-mixtral-8x7b',
+          'open-mixtral-8x22b'
+        ],
+        rateLimit: {
+          requestsPerMinute: 1000,
+          tokensPerMinute: 50000
+        },
+        instructions: 'Get your API key from https://console.mistral.ai/user/api-keys'
+      },
+      {
+        name: 'Groq',
+        baseUrl: 'https://api.groq.com/openai/v1',
+        models: [
+          'llama3-70b-8192',
+          'llama3-8b-8192',
+          'llama2-70b-4096',
+          'mixtral-8x7b-32768',
+          'gemma-7b-it',
+          'llama-guard-3-8b',
+          'llama3-groq-70b-8192-tool-use-preview',
+          'llama3-groq-8b-8192-tool-use-preview'
+        ],
+        rateLimit: {
+          requestsPerMinute: 30,
+          tokensPerMinute: 14400
+        },
+        instructions: 'Get your API key from https://console.groq.com/keys'
+      },
+      {
+        name: 'Together AI',
+        baseUrl: 'https://api.together.xyz/v1',
+        models: [
+          // Meta Models
+          'meta-llama/Llama-3-70b-chat-hf',
+          'meta-llama/Llama-3-8b-chat-hf',
+          'meta-llama/Llama-2-70b-chat-hf',
+          'meta-llama/Llama-2-13b-chat-hf',
+          'meta-llama/Llama-2-7b-chat-hf',
+          'meta-llama/CodeLlama-70b-Instruct-hf',
+          'meta-llama/CodeLlama-34b-Instruct-hf',
+          'meta-llama/CodeLlama-13b-Instruct-hf',
+          'meta-llama/CodeLlama-7b-Instruct-hf',
+          
+          // Mistral Models
+          'mistralai/Mixtral-8x7B-v0.1',
+          'mistralai/Mixtral-8x22B-v0.1',
+          'mistralai/Mistral-7B-Instruct-v0.2',
+          
+          // Google Models
+          'google/gemma-7b-it',
+          'google/gemma-2b-it',
+          
+          // Qwen Models
+          'Qwen/Qwen1.5-72B-Chat',
+          'Qwen/Qwen1.5-14B-Chat',
+          'Qwen/Qwen1.5-7B-Chat',
+          'Qwen/Qwen1.5-1.8B-Chat',
+          
+          // Yi Models
+          '01-ai/Yi-34B-Chat',
+          '01-ai/Yi-6B-Chat',
+          
+          // Other Models
+          'togethercomputer/RedPajama-INCITE-7B-Chat',
+          'togethercomputer/RedPajama-INCITE-7B-Instruct',
+          'databricks/dbrx-instruct',
+          'NousResearch/Nous-Hermes-2-Mixtral-7B-DPO',
+          'WizardLM/WizardLM-70B-V1.0',
+          'cognitivecomputations/dolphin-2.5-mixtral-8x7b'
+        ],
+        rateLimit: {
+          requestsPerMinute: 600,
+          tokensPerMinute: 600000
+        },
+        instructions: 'Get your API key from https://api.together.xyz/settings/api-keys'
+      },
+      {
+        name: 'Replicate',
+        baseUrl: 'https://api.replicate.com/v1',
+        models: [
+          'meta/meta-llama-3-70b-instruct',
+          'meta/meta-llama-3-8b-instruct',
+          'mistralai/mixtral-8x7b-instruct-v0.1',
+          'mistralai/mistral-7b-instruct-v0.2',
+          'stability-ai/stable-diffusion-3',
+          'stability-ai/sdxl-turbo',
+          'openai/whisper-large-v3',
+          'meta/musicgen-large'
+        ],
+        rateLimit: {
+          requestsPerMinute: 120,
+          tokensPerMinute: 100000
+        },
+        instructions: 'Get your API key from https://replicate.com/account/api-tokens'
       }
     ];
   }
