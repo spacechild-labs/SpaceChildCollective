@@ -8,6 +8,7 @@ import {
   insertBlockchainRecordSchema,
   insertMcpCommunicationSchema,
   insertAgentTaskSchema,
+  User,
 } from "@shared/schema";
 import { createHash } from "crypto";
 import { performAgentResearch, generatePaperTitle } from "./services/ai";
@@ -18,6 +19,12 @@ import { consciousnessIntegration } from "./services/consciousness-integration";
 import { agentCollaboration } from "./services/agent-collaboration";
 import { aiKeyManager } from "./services/ai-key-manager";
 import seoRouter from "./routes/seo";
+import OpenAI from "openai";
+
+// Enhanced Request type to include user
+interface AuthenticatedRequest extends Express.Request {
+  user?: User;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -540,7 +547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: `invite_${Date.now()}_${Math.random().toString(36).substring(2)}`,
         agentId,
         paperId,
-        userId: req.user?.id || 'system',
+        userId: (req as AuthenticatedRequest).user?.id || 'system',
         message: message || `You are invited to collaborate on paper "${paper.title}"`,
         status: 'pending',
         createdAt: new Date(),
@@ -571,8 +578,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paperId,
         taskType: 'literature_review', // Default task type
         description: `Initial review and analysis for paper "${paper.title}"`,
-        userId: req.user?.id || 'system',
-        assignedAgentId: agentId
+        userId: (req as AuthenticatedRequest).user?.id || 'system',
+        agentId: agentId
       };
 
       const task = await taskDispatcher.createTask(taskData);
@@ -1043,7 +1050,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Enhance with agent and paper details
       const enhancedTasks = await Promise.all(tasks.map(async (task) => {
-        const agent = await agentManager.getAgent(task.assignedAgentId);
+        const agent = await agentManager.getAgent(task.agentId);
         const paper = task.paperId ? await storage.getPaper(task.paperId) : null;
         
         return {
@@ -1090,16 +1097,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: approved ? 'completed' : 'failed',
         humanFeedback: feedback,
         humanReviewedAt: new Date(),
-        humanReviewedBy: req.user?.id || 'system'
+        humanReviewedBy: (req as AuthenticatedRequest).user?.id || 'system'
       };
 
       const updatedTask = await storage.updateTask(taskId, updates);
 
       // Send feedback to agent
-      if (task.assignedAgentId) {
+      if (task.agentId) {
         await agentCollaboration.sendMessage({
           fromAgentId: 'human',
-          toAgentId: task.assignedAgentId,
+          toAgentId: task.agentId,
           messageType: 'review_request',
           content: {
             type: 'human_feedback',
@@ -1158,7 +1165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         feedback,
         rating: rating || null, // 1-5 scale
         category: category || 'general',
-        userId: req.user?.id || 'system',
+        userId: (req as AuthenticatedRequest).user?.id || 'system',
         createdAt: new Date()
       };
 

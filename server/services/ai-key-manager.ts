@@ -4,6 +4,7 @@ import crypto from 'crypto';
  * AI Provider Configuration
  */
 interface AIProvider {
+  id: string;
   name: string;
   apiKey: string;
   baseUrl?: string;

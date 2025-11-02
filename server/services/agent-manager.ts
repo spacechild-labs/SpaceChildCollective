@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { storage } from '../storage.js';
 import { connectionRegistry } from '../websocket.js';
-import type { AgentTask } from '@shared/schema';
+import type { AgentTask, User } from '@shared/schema';
 
 /**
  * Agent Manager Service
@@ -256,6 +256,19 @@ export class AgentManager {
       health: agent.getHealth(),
       lastActive: agent.getLastActive()
     }));
+  }
+
+  /**
+   * Get agent by ID
+   */
+  async getAgent(agentId: string): Promise<User | null> {
+    try {
+      const agent = await storage.getUser(agentId);
+      return agent || null;
+    } catch (error) {
+      console.error(`Error getting agent ${agentId}:`, error);
+      return null;
+    }
   }
 
   /**

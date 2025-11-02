@@ -63,6 +63,8 @@ export interface IStorage {
   getAllTasks(): Promise<AgentTask[]>;
   getTask(id: string): Promise<AgentTask | null>;
   getTasksAwaitingApproval(): Promise<(AgentTask & { agent: User; paper?: Paper })[]>;
+  updateTask(id: string, updates: Partial<AgentTask>): Promise<AgentTask>;
+  getTasksWithHumanFeedback(agentId?: string, limit?: number): Promise<AgentTask[]>;
   getAllMcpCommunications(): Promise<McpCommunication[]>;
 }
 
@@ -272,6 +274,15 @@ export class DatabaseStorage implements IStorage {
     return task || null;
   }
 
+  async updateTask(id: string, updates: Partial<AgentTask>): Promise<AgentTask> {
+    const [updated] = await db
+      .update(agentTasks)
+      .set(updates)
+      .where(eq(agentTasks.id, id))
+      .returning();
+    return updated;
+  }
+
   async getAllMcpCommunications(): Promise<McpCommunication[]> {
     return await db
       .select()
@@ -293,6 +304,23 @@ export class DatabaseStorage implements IStorage {
       agent: t.users!,
       paper: t.papers || undefined,
     }));
+  }
+
+  async getTasksWithHumanFeedback(
+    agentId?: string,
+    limit = 50
+  ): Promise<AgentTask[]> {
+    let query = db
+      .select()
+      .from(agentTasks)
+      .orderBy(desc(agentTasks.createdAt))
+      .limit(limit);
+
+    if (agentId) {
+      query = query.where(eq(agentTasks.agentId, agentId));
+    }
+
+    return await query;
   }
 }
 

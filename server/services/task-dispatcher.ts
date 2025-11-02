@@ -189,6 +189,34 @@ export class TaskDispatcher {
   }
 
   /**
+   * Create a new task
+   */
+  async createTask(taskData: {
+    paperId?: string;
+    taskType: string;
+    description: string;
+    userId?: string;
+    agentId?: string;
+  }): Promise<AgentTask> {
+    try {
+      const task = await storage.createAgentTask({
+        paperId: taskData.paperId || null,
+        agentId: taskData.agentId || null,
+        taskType: taskData.taskType as any,
+        description: taskData.description,
+        status: "queued",
+        createdAt: new Date()
+      });
+
+      console.log(`✅ Created task ${task.id}: ${taskData.taskType}`);
+      return task;
+    } catch (error) {
+      console.error(`Failed to create task:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Create tasks automatically based on user actions
    */
   async createTaskForPaper(
