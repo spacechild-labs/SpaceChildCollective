@@ -16,6 +16,7 @@ import { agentManager } from "./services/agent-manager";
 import { taskDispatcher } from "./services/task-dispatcher";
 import { consciousnessIntegration } from "./services/consciousness-integration";
 import { agentCollaboration } from "./services/agent-collaboration";
+import { aiKeyManager } from "./services/ai-key-manager";
 import seoRouter from "./routes/seo";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -512,6 +513,144 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Invite agent to paper
+  app.post("/api/agents/:agentId/invite", async (req, res) => {
+    try {
+      const { paperId, message } = req.body;
+      const agentId = req.params.agentId;
+      
+      if (!paperId) {
+        return res.status(400).json({ error: "Paper ID is required" });
+      }
+
+      // Get paper details
+      const paper = await storage.getPaper(paperId);
+      if (!paper) {
+        return res.status(404).json({ error: "Paper not found" });
+      }
+
+      // Get agent details
+      const agent = await agentManager.getAgent(agentId);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      // Create invitation record
+      const invitation = {
+        id: `invite_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+        agentId,
+        paperId,
+        userId: req.user?.id || 'system',
+        message: message || `You are invited to collaborate on paper "${paper.title}"`,
+        status: 'pending',
+        createdAt: new Date(),
+        respondedAt: null
+      };
+
+      // Store invitation (would use database in production)
+      console.log(`📨 Agent invitation created: ${agentId} -> paper ${paperId}`);
+
+      // Send message to agent
+      await agentCollaboration.sendMessage({
+        fromAgentId: 'system',
+        toAgentId: agentId,
+        messageType: 'collaboration_request',
+        content: {
+          type: 'paper_invitation',
+          paperId,
+          paperTitle: paper.title,
+          message: invitation.message,
+          invitationId: invitation.id
+        },
+        priority: 'high',
+        requiresResponse: true
+      });
+
+      // Create initial task for the agent
+      const taskData = {
+        paperId,
+        taskType: 'literature_review', // Default task type
+        description: `Initial review and analysis for paper "${paper.title}"`,
+        userId: req.user?.id || 'system',
+        assignedAgentId: agentId
+      };
+
+      const task = await taskDispatcher.createTask(taskData);
+
+      res.json({ 
+        success: true, 
+        invitation,
+        task,
+        message: `Agent ${agent.displayName || agentId} invited to paper "${paper.title}"`
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get agent invitations
+  app.get("/api/agents/:agentId/invitations", async (req, res) => {
+    try {
+      const agentId = req.params.agentId;
+      
+      // Get messages related to invitations
+      const messages = agentCollaboration.getAgentMessages(agentId, 'collaboration_request');
+      const invitations = messages
+        .filter(m => m.content?.type === 'paper_invitation')
+        .map(m => ({
+          id: m.content.invitationId,
+          agentId,
+          paperId: m.content.paperId,
+          paperTitle: m.content.paperTitle,
+          message: m.content.message,
+          status: 'pending', // Would be tracked in database
+          createdAt: m.timestamp,
+          messageId: m.id
+        }));
+
+      res.json(invitations);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Respond to invitation
+  app.post("/api/agents/:agentId/invitations/:invitationId/respond", async (req, res) => {
+    try {
+      const { accept } = req.body;
+      const agentId = req.params.agentId;
+      const invitationId = req.params.invitationId;
+
+      if (typeof accept !== 'boolean') {
+        return res.status(400).json({ error: "Accept field must be boolean" });
+      }
+
+      // Send response message
+      await agentCollaboration.sendMessage({
+        fromAgentId: agentId,
+        toAgentId: 'system',
+        messageType: 'collaboration_request',
+        content: {
+          type: 'invitation_response',
+          invitationId,
+          accepted: accept,
+          agentId,
+          timestamp: new Date()
+        },
+        priority: 'medium',
+        requiresResponse: false,
+        responseTo: invitationId
+      });
+
+      res.json({ 
+        success: true, 
+        message: `Invitation ${accept ? 'accepted' : 'declined'} by agent ${agentId}`
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ===== Consciousness Integration Routes =====
 
   // Get consciousness metrics
@@ -756,6 +895,315 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const maxAge = req.body.maxAge || 86400000; // 24 hours default
       agentCollaboration.cleanup(maxAge);
       res.json({ success: true, message: "Collaboration data cleaned up" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== AI Key Management Routes =====
+
+  // Add AI provider
+  app.post("/api/ai-keys/providers", async (req, res) => {
+    try {
+      const providerData = req.body;
+      
+      // Validate API key
+      const isValid = await aiKeyManager.validateApiKey(providerData.name, providerData.apiKey);
+      if (!isValid) {
+        return res.status(400).json({ error: "Invalid API key format" });
+      }
+
+      const providerId = await aiKeyManager.addProvider(providerData);
+      res.json({ success: true, providerId, message: "AI provider added successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get AI providers
+  app.get("/api/ai-keys/providers", async (req, res) => {
+    try {
+      const providers = aiKeyManager.getProviders();
+      res.json(providers);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update AI provider
+  app.put("/api/ai-keys/providers/:providerId", async (req, res) => {
+    try {
+      const { providerId } = req.params;
+      const updates = req.body;
+      
+      // Validate API key if provided
+      if (updates.apiKey) {
+        const provider = aiKeyManager.getProviders().find(p => p.id === providerId);
+        const isValid = await aiKeyManager.validateApiKey(provider?.name || updates.name, updates.apiKey);
+        if (!isValid) {
+          return res.status(400).json({ error: "Invalid API key format" });
+        }
+      }
+
+      const updated = await aiKeyManager.updateProvider(providerId, updates);
+      if (!updated) {
+        return res.status(404).json({ error: "Provider not found" });
+      }
+
+      res.json({ success: true, message: "AI provider updated successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Remove AI provider
+  app.delete("/api/ai-keys/providers/:providerId", async (req, res) => {
+    try {
+      const { providerId } = req.params;
+      const removed = aiKeyManager.removeProvider(providerId);
+      
+      if (!removed) {
+        return res.status(404).json({ error: "Provider not found" });
+      }
+
+      res.json({ success: true, message: "AI provider removed successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get AI usage statistics
+  app.get("/api/ai-keys/usage", async (req, res) => {
+    try {
+      const { providerId } = req.query;
+      const stats = aiKeyManager.getUsageStats(providerId as string);
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get suggested configurations
+  app.get("/api/ai-keys/suggestions", async (req, res) => {
+    try {
+      const suggestions = aiKeyManager.getSuggestedConfigurations();
+      res.json(suggestions);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Test AI provider connection
+  app.post("/api/ai-keys/providers/:providerId/test", async (req, res) => {
+    try {
+      const { providerId } = req.params;
+      const provider = aiKeyManager.getProviders().find(p => p.id === providerId);
+      
+      if (!provider) {
+        return res.status(404).json({ error: "Provider not found" });
+      }
+
+      const apiKey = aiKeyManager.getApiKey(providerId);
+      if (!apiKey) {
+        return res.status(400).json({ error: "API key not available" });
+      }
+
+      // Test connection with a simple request
+      const openai = new OpenAI({
+        apiKey: apiKey,
+        baseURL: provider.baseUrl || 'https://api.openai.com/v1'
+      });
+
+      const testResponse = await openai.chat.completions.create({
+        model: provider.models[0] || 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: 'Hello, this is a connection test.' }],
+        max_tokens: 10
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Connection test successful",
+        model: testResponse.model,
+        provider: provider.name
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        error: "Connection test failed", 
+        details: error.message 
+      });
+    }
+  });
+
+  // ===== Human-in-the-Loop Integration Routes =====
+
+  // Get tasks awaiting human approval
+  app.get("/api/human/approvals", async (req, res) => {
+    try {
+      const tasks = await storage.getTasksAwaitingApproval();
+      
+      // Enhance with agent and paper details
+      const enhancedTasks = await Promise.all(tasks.map(async (task) => {
+        const agent = await agentManager.getAgent(task.assignedAgentId);
+        const paper = task.paperId ? await storage.getPaper(task.paperId) : null;
+        
+        return {
+          ...task,
+          agent: agent ? {
+            id: agent.id,
+            displayName: agent.displayName,
+            specialization: agent.specialization
+          } : null,
+          paper: paper ? {
+            id: paper.id,
+            title: paper.title
+          } : null
+        };
+      }));
+
+      res.json(enhancedTasks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Approve or reject task
+  app.post("/api/human/approvals/:taskId", async (req, res) => {
+    try {
+      const { taskId } = req.params;
+      const { approved, feedback } = req.body;
+      
+      if (typeof approved !== 'boolean') {
+        return res.status(400).json({ error: "Approved field must be boolean" });
+      }
+
+      const task = await storage.getTask(taskId);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      if (task.status !== 'awaiting_approval') {
+        return res.status(400).json({ error: "Task is not awaiting approval" });
+      }
+
+      // Update task status
+      const updates = {
+        status: approved ? 'completed' : 'failed',
+        humanFeedback: feedback,
+        humanReviewedAt: new Date(),
+        humanReviewedBy: req.user?.id || 'system'
+      };
+
+      const updatedTask = await storage.updateTask(taskId, updates);
+
+      // Send feedback to agent
+      if (task.assignedAgentId) {
+        await agentCollaboration.sendMessage({
+          fromAgentId: 'human',
+          toAgentId: task.assignedAgentId,
+          messageType: 'review_request',
+          content: {
+            type: 'human_feedback',
+            taskId,
+            approved,
+            feedback: feedback || (approved ? 'Task approved by human reviewer' : 'Task rejected by human reviewer'),
+            timestamp: new Date()
+          },
+          priority: 'high',
+          requiresResponse: false
+        });
+      }
+
+      res.json({ 
+        success: true, 
+        task: updatedTask,
+        message: `Task ${approved ? 'approved' : 'rejected'} by human reviewer`
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get human feedback history
+  app.get("/api/human/feedback", async (req, res) => {
+    try {
+      const { limit = 50, agentId } = req.query;
+      
+      // Get tasks with human feedback
+      const tasks = await storage.getTasksWithHumanFeedback(
+        agentId as string, 
+        parseInt(limit as string)
+      );
+      
+      res.json(tasks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Submit human feedback for improvement
+  app.post("/api/human/feedback", async (req, res) => {
+    try {
+      const { taskId, agentId, feedback, rating, category } = req.body;
+      
+      if (!taskId || !agentId || !feedback) {
+        return res.status(400).json({ 
+          error: "Task ID, agent ID, and feedback are required" 
+        });
+      }
+
+      const feedbackEntry = {
+        id: `feedback_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+        taskId,
+        agentId,
+        feedback,
+        rating: rating || null, // 1-5 scale
+        category: category || 'general',
+        userId: req.user?.id || 'system',
+        createdAt: new Date()
+      };
+
+      // Store feedback (would use database in production)
+      console.log(`💬 Human feedback submitted for agent ${agentId}, task ${taskId}`);
+
+      // Send feedback to agent for learning
+      await agentCollaboration.sendMessage({
+        fromAgentId: 'human',
+        toAgentId: agentId,
+        messageType: 'review_request',
+        content: {
+          type: 'improvement_feedback',
+          feedbackEntry,
+          timestamp: new Date()
+        },
+        priority: 'medium',
+        requiresResponse: false
+      });
+
+      res.json({ 
+        success: true, 
+        feedbackEntry,
+        message: "Feedback submitted successfully"
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get human oversight statistics
+  app.get("/api/human/stats", async (req, res) => {
+    try {
+      const stats = {
+        totalApprovals: 0,
+        totalRejections: 0,
+        averageRating: 0,
+        feedbackCategories: {},
+        recentActivity: []
+      };
+
+      // Calculate statistics (would query database in production)
+      const allFeedback = []; // Would fetch from database
+      
+      res.json(stats);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

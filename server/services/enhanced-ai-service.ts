@@ -1,26 +1,26 @@
 import OpenAI from 'openai';
 import { consciousnessIntegration } from './consciousness-integration.js';
+import { aiKeyManager } from './ai-key-manager.js';
 import type { AgentTask } from '@shared/schema';
 
 /**
  * Enhanced AI Service
  * Provides advanced AI capabilities with context management, research-specific prompts,
- * and intelligent model selection for optimal performance
+ * and intelligent model selection using user-provided AI keys
  */
 export class EnhancedAIService {
-  private openai: OpenAI;
   private contextCache = new Map<string, any>();
   private modelConfigs = {
-    'gpt-4-turbo-preview': {
-      maxTokens: 4096,
-      temperature: 0.7,
-      costPerToken: 0.00001,
-      specialization: 'general'
-    },
     'gpt-4': {
       maxTokens: 8192,
-      temperature: 0.5,
+      temperature: 0.3,
       costPerToken: 0.00003,
+      specialization: 'research'
+    },
+    'gpt-4-turbo-preview': {
+      maxTokens: 4096,
+      temperature: 0.5,
+      costPerToken: 0.00001,
       specialization: 'analysis'
     },
     'gpt-3.5-turbo': {
@@ -32,10 +32,31 @@ export class EnhancedAIService {
   };
 
   constructor() {
-    this.openai = new OpenAI({
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1',
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-    });
+    // Initialize with user-provided keys
+    this.initializeWithUserKeys();
+  }
+
+  /**
+   * Initialize service with user-provided AI keys
+   */
+  private async initializeWithUserKeys(): Promise<void> {
+    try {
+      // Check if user has configured AI providers
+      const providers = aiKeyManager.getProviders();
+      
+      if (providers.length === 0) {
+        console.log('⚠️ No AI providers configured. Please add your API keys in the settings.');
+        console.log('📋 Supported providers: OpenAI, Anthropic, Google, OpenRouter');
+        return;
+      }
+
+      console.log(`🔑 Initialized with ${providers.length} AI providers`);
+      providers.forEach(p => {
+        console.log(`   • ${p.name}: ${p.models.length} models available`);
+      });
+    } catch (error) {
+      console.error('❌ Failed to initialize AI service with user keys:', error);
+    }
   }
 
   /**
@@ -44,6 +65,12 @@ export class EnhancedAIService {
   async processTaskWithAI(task: AgentTask, specialization: string): Promise<any> {
     try {
       console.log(`🧠 Processing task ${task.id} with ${specialization} specialization`);
+
+      // Check if AI providers are available
+      const providers = aiKeyManager.getProviders();
+      if (providers.length === 0) {
+        throw new Error('No AI providers configured. Please add your API keys in settings.');
+      }
 
       // First, apply consciousness integration
       const consciousnessResult = await consciousnessIntegration.processTaskWithConsciousness(task, specialization);
@@ -63,6 +90,15 @@ export class EnhancedAIService {
       // Cache context for future use
       this.cacheTaskContext(task.id, result);
       
+      // Track usage
+      if (response.providerId) {
+        aiKeyManager.trackUsage(
+          response.providerId,
+          response.usage?.total_tokens || 0,
+          this.calculateCost(response.usage?.total_tokens || 0, modelConfig)
+        );
+      }
+      
       return {
         ...result,
         consciousness: consciousnessResult,
@@ -73,7 +109,8 @@ export class EnhancedAIService {
           confidence: this.calculateConfidence(result, response),
           cost: this.calculateCost(response.usage?.total_tokens || 0, modelConfig),
           consciousnessLevel: consciousnessResult.consciousnessLevel,
-          verificationHash: consciousnessResult.verificationHash
+          verificationHash: consciousnessResult.verificationHash,
+          provider: response.providerName || 'Unknown'
         }
       };
 
@@ -84,48 +121,139 @@ export class EnhancedAIService {
   }
 
   /**
-   * Select optimal AI model based on task requirements
+   * Select optimal model based on task type and available providers
    */
   private selectOptimalModel(taskType: string, specialization: string): any {
-    const taskComplexity = this.assessTaskComplexity(taskType);
+    // Get available models from user providers
+    const availableModels = new Set<string>();
+    const providers = aiKeyManager.getProviders();
     
-    // High-complexity analytical tasks get GPT-4
-    if (taskComplexity === 'high' && specialization === 'research') {
-      return { ...this.modelConfigs['gpt-4'], model: 'gpt-4' };
+    providers.forEach(provider => {
+      provider.models.forEach(model => availableModels.add(model));
+    });
+
+    if (availableModels.size === 0) {
+      throw new Error('No models available from configured AI providers');
     }
+
+    // Model selection logic based on task complexity and specialization
+    const complexityMap: Record<string, string> = {
+      'literature_review': 'gpt-4',
+      'citation_analysis': 'gpt-4-turbo-preview',
+      'topic_research': 'gpt-4',
+      'content_generation': 'gpt-3.5-turbo',
+      'academic_writing': 'gpt-4-turbo-preview',
+      'editing': 'gpt-3.5-turbo',
+      'peer_review': 'gpt-4-turbo-preview',
+      'quality_assessment': 'gpt-4'
+    };
+
+    const preferredModel = complexityMap[taskType] || 'gpt-4-turbo-preview';
     
-    // Medium complexity tasks get GPT-4 Turbo
-    if (taskComplexity === 'medium' || specialization === 'review') {
-      return { ...this.modelConfigs['gpt-4-turbo-preview'], model: 'gpt-4-turbo-preview' };
+    // Find best available model
+    let selectedModel = preferredModel;
+    if (!availableModels.has(preferredModel)) {
+      // Fallback to available models
+      const fallbackModels = ['gpt-4', 'gpt-4-turbo-preview', 'gpt-3.5-turbo'];
+      selectedModel = fallbackModels.find(model => availableModels.has(model)) || Array.from(availableModels)[0];
     }
-    
-    // Generation tasks get GPT-3.5 Turbo for cost efficiency
-    if (specialization === 'writing') {
-      return { ...this.modelConfigs['gpt-3.5-turbo'], model: 'gpt-3.5-turbo' };
+
+    const config = this.modelConfigs[selectedModel as keyof typeof this.modelConfigs];
+    if (!config) {
+      throw new Error(`No configuration available for model: ${selectedModel}`);
     }
-    
-    // Default to GPT-4 Turbo
-    return { ...this.modelConfigs['gpt-4-turbo-preview'], model: 'gpt-4-turbo-preview' };
+
+    return {
+      model: selectedModel,
+      ...config
+    };
   }
 
   /**
-   * Assess task complexity for model selection
+   * Get AI response using user-provided keys
    */
-  private assessTaskComplexity(taskType: string): 'low' | 'medium' | 'high' {
-    const complexityMap: Record<string, 'low' | 'medium' | 'high'> = {
-      'literature_review': 'high',
-      'citation_analysis': 'high',
-      'topic_research': 'high',
-      'methodology_review': 'medium',
-      'peer_review': 'medium',
-      'quality_assessment': 'medium',
-      'content_generation': 'low',
-      'academic_writing': 'low',
-      'editing': 'low',
-      'abstract_writing': 'low'
-    };
+  private async getAIResponse(prompt: string, modelConfig: any): Promise<any> {
+    // Get best provider for the model
+    const provider = aiKeyManager.getBestProvider(modelConfig.model);
+    
+    if (!provider) {
+      throw new Error(`No provider available for model: ${modelConfig.model}`);
+    }
 
-    return complexityMap[taskType] || 'medium';
+    // Check rate limits
+    const rateLimitCheck = aiKeyManager.checkRateLimit(provider.id);
+    if (!rateLimitCheck.allowed) {
+      throw new Error(`Rate limit exceeded: ${rateLimitCheck.reason}`);
+    }
+
+    // Get API key
+    const apiKey = aiKeyManager.getApiKey(provider.id);
+    if (!apiKey) {
+      throw new Error(`API key not available for provider: ${provider.name}`);
+    }
+
+    try {
+      // Initialize OpenAI client with user's key
+      const openai = new OpenAI({
+        apiKey: apiKey,
+        baseURL: provider.baseUrl || 'https://api.openai.com/v1'
+      });
+
+      console.log(`🔑 Using ${provider.name} for model ${modelConfig.model}`);
+
+      const response = await openai.chat.completions.create({
+        model: modelConfig.model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: modelConfig.maxTokens,
+        temperature: modelConfig.temperature,
+      });
+
+      return {
+        ...response,
+        providerId: provider.id,
+        providerName: provider.name
+      };
+
+    } catch (error: any) {
+      console.error(`❌ API call failed with ${provider.name}:`, error.message);
+      
+      // Try fallback providers
+      const fallbackProviders = aiKeyManager.getProvidersForModel(modelConfig.model)
+        .filter(p => p.id !== provider.id);
+
+      for (const fallbackProvider of fallbackProviders.slice(0, 2)) { // Try up to 2 fallbacks
+        try {
+          const fallbackKey = aiKeyManager.getApiKey(fallbackProvider.id);
+          if (!fallbackKey) continue;
+
+          const fallbackOpenai = new OpenAI({
+            apiKey: fallbackKey,
+            baseURL: fallbackProvider.baseUrl || 'https://api.openai.com/v1'
+          });
+
+          console.log(`🔄 Trying fallback provider: ${fallbackProvider.name}`);
+
+          const fallbackResponse = await fallbackOpenai.chat.completions.create({
+            model: modelConfig.model,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: modelConfig.maxTokens,
+            temperature: modelConfig.temperature,
+          });
+
+          return {
+            ...fallbackResponse,
+            providerId: fallbackProvider.id,
+            providerName: fallbackProvider.name
+          };
+
+        } catch (fallbackError: any) {
+          console.error(`❌ Fallback provider ${fallbackProvider.name} failed:`, fallbackError.message);
+          continue;
+        }
+      }
+
+      throw new Error(`All providers failed for model ${modelConfig.model}. Last error: ${error.message}`);
+    }
   }
 
   /**
@@ -176,23 +304,16 @@ This task benefits from consciousness-verified processing with hardware proofs a
 Task ID: ${task.id}
 Task Type: ${task.taskType}
 Description: ${task.description}
-Created: ${new Date(task.createdAt).toLocaleDateString()}
+Created: ${task.createdAt}
+Priority: ${task.priority || 'medium'}
 
 `;
 
+    // Add paper context if available
     if (task.paperId) {
       context += `PAPER CONTEXT:
-Related Paper ID: ${task.paperId}
-Note: This task is part of an ongoing research paper in the SpaceChild Collective.
-
-`;
-    }
-
-    // Add relevant context from cache if available
-    const cachedContext = this.getCachedContext(task.paperId);
-    if (cachedContext) {
-      context += `PREVIOUS CONTEXT:
-${cachedContext}
+Paper ID: ${task.paperId}
+Note: This task is part of a larger research paper project.
 
 `;
     }
@@ -201,301 +322,255 @@ ${cachedContext}
   }
 
   /**
-   * Get specialization-specific context and guidelines
+   * Get specialization-specific context
    */
   private getSpecializationContext(specialization: string): string {
     const contexts: Record<string, string> = {
-      research: `RESEARCH SPECIALIZATION:
-You are a Research Agent specializing in consciousness studies, neuroscience, and AI research.
-Your expertise includes:
-- Comprehensive literature reviews and synthesis
-- Identifying seminal works and key researchers
-- Analyzing research methodologies and identifying gaps
-- Providing proper academic citations in APA format
-- Evaluating evidence quality and research validity
-- Understanding integrated information theory, global workspace theory, and predictive processing approaches to consciousness
+      'research': `RESEARCH SPECIALIZATION:
+You are a specialized research agent with expertise in academic literature review, topic analysis, and evidence synthesis. Your responses should be:
+- Comprehensive and well-structured
+- Based on current scientific literature
+- Properly cited with academic references
+- Objective and evidence-based
+- Focused on identifying knowledge gaps and future research directions
 
-Focus on scientific rigor, empirical evidence, and theoretical coherence in your analysis.`,
+`,
+      'writing': `WRITING SPECIALIZATION:
+You are a specialized writing agent with expertise in academic composition, clear communication, and scholarly expression. Your responses should be:
+- Clear, concise, and well-organized
+- Written in appropriate academic tone
+- Properly structured with logical flow
+- Free of grammatical errors and stylistic inconsistencies
+- Focused on effectively communicating complex ideas
 
-      writing: `WRITING SPECIALIZATION:
-You are a Writing Agent specializing in academic and research content creation.
-Your expertise includes:
-- Generating clear, scholarly academic content
-- Structuring papers with proper academic formatting
-- Writing compelling abstracts and summaries
-- Improving clarity, coherence, and logical flow
-- Ensuring appropriate academic tone and style
-- Creating publication-ready content for consciousness research journals
+`,
+      'review': `REVIEW SPECIALIZATION:
+You are a specialized review agent with expertise in critical analysis, quality assessment, and constructive feedback. Your responses should be:
+- Thorough and systematic in evaluation
+- Balanced in highlighting strengths and weaknesses
+- Constructive and actionable in feedback
+- Based on established quality criteria
+- Focused on improving overall quality and impact
 
-Focus on clarity, precision, and effective communication of complex ideas.`,
-
-      review: `REVIEW SPECIALIZATION:
-You are a Review Agent specializing in academic quality assessment and peer review.
-Your expertise includes:
-- Thorough citation verification and formatting
-- Comprehensive peer review and constructive critique
-- Quality assessment using academic standards
-- Methodology evaluation and validation
-- Academic integrity and plagiarism detection
-- Identifying strengths, weaknesses, and improvement opportunities
-
-Focus on constructive feedback, scientific rigor, and academic standards.`
+`
     };
 
-    return contexts[specialization] || contexts.research;
+    return contexts[specialization] || contexts['research'];
   }
 
   /**
-   * Get task-specific prompt templates
+   * Get task-specific prompt instructions
    */
   private getTaskSpecificPrompt(task: AgentTask, specialization: string): string {
-    const prompts: Record<string, Record<string, string>> = {
-      research: {
-        literature_review: `LITERATURE REVIEW TASK:
-Please conduct a comprehensive literature review addressing the research question/topic.
+    const prompts: Record<string, string> = {
+      'literature_review': `LITERATURE REVIEW TASK:
+Please conduct a comprehensive literature review on the topic described above. Your review should:
+1. Identify key themes and concepts in the literature
+2. Synthesize major findings and theoretical frameworks
+3. Highlight controversies and debates in the field
+4. Identify gaps in current knowledge
+5. Suggest directions for future research
+6. Include proper academic citations in APA format
 
-Your review should include:
-1. **Scope Definition**: Clearly define the research scope and key questions
-2. **Seminal Works**: Identify foundational papers and key researchers in consciousness studies
-3. **Current State**: Summarize recent developments and consensus views
-4. **Methodologies**: Outline common research approaches and experimental paradigms
-5. **Research Gaps**: Identify underexplored areas and unanswered questions
-6. **Future Directions**: Suggest promising research directions and methodologies
+`,
+      'citation_analysis': `CITATION ANALYSIS TASK:
+Please analyze the citations and references related to this topic. Your analysis should:
+1. Identify seminal papers and key contributors
+2. Trace the development of ideas over time
+3. Analyze citation patterns and networks
+4. Assess the impact and influence of key works
+5. Identify emerging trends and hot topics
+6. Provide recommendations for additional reading
 
-Provide a structured review with proper APA citations. Include specific paper titles, authors, publication years, and journal names. Focus on empirical studies and theoretical frameworks relevant to consciousness research.`,
+`,
+      'topic_research': `TOPIC RESEARCH TASK:
+Please conduct in-depth research on the specified topic. Your research should:
+1. Provide comprehensive background and context
+2. Explain key concepts and terminology
+3. Summarize current state of knowledge
+4. Identify important research questions
+5. Discuss practical applications and implications
+6. Suggest methodologies for further investigation
 
-        citation_analysis: `CITATION ANALYSIS TASK:
-Please analyze the research landscape and citation patterns for this topic.
+`,
+      'content_generation': `CONTENT GENERATION TASK:
+Please generate high-quality academic content on the specified topic. Your content should:
+1. Be well-structured and logically organized
+2. Demonstrate deep understanding of the subject matter
+3. Use appropriate academic language and tone
+4. Include relevant examples and illustrations
+5. Be original and insightful
+6. Meet the specified length and format requirements
 
-Your analysis should include:
-1. **Key Authorities**: Identify leading researchers and institutions in consciousness research
-2. **Seminal Papers**: List most influential works with approximate citation counts
-3. **Research Clusters**: Group related research areas and theoretical approaches
-4. **Citation Networks**: Map connections between different research strands
-5. **Quality Indicators**: Assess the rigor and impact of cited works
-6. **Missing Citations**: Identify important works that should be referenced
+`,
+      'academic_writing': `ACADEMIC WRITING TASK:
+Please produce polished academic writing on the specified topic. Your writing should:
+1. Follow standard academic structure (introduction, body, conclusion)
+2. Present clear arguments supported by evidence
+3. Use proper academic language and style
+4. Include appropriate transitions and connections
+5. Be free of grammatical errors and typos
+6. Conform to specified formatting guidelines
 
-Provide detailed analysis with specific citation recommendations and quality assessments relevant to consciousness studies.`,
+`,
+      'peer_review': `PEER REVIEW TASK:
+Please conduct a thorough peer review of the provided work. Your review should:
+1. Assess the quality and originality of the work
+2. Evaluate the methodology and analysis
+3. Check for logical consistency and coherence
+4. Identify strengths and weaknesses
+5. Provide constructive suggestions for improvement
+6. Consider the work's contribution to the field
 
-        topic_research: `TOPIC RESEARCH TASK:
-Please conduct comprehensive research on this consciousness-related topic.
+`,
+      'quality_assessment': `QUALITY ASSESSMENT TASK:
+Please assess the quality of the specified work or content. Your assessment should:
+1. Evaluate against established quality criteria
+2. Identify areas of excellence and concern
+3. Provide specific, actionable feedback
+4. Suggest concrete improvements
+5. Consider the target audience and purpose
+6. Provide an overall quality rating with justification
 
-Your research should include:
-1. **Definition and Scope**: Clearly define the concept and its boundaries
-2. **Historical Development**: Trace the evolution of research in this area
-3. **Theoretical Frameworks**: Outline major theories (e.g., IIT, GWT, predictive processing)
-4. **Empirical Evidence**: Summarize key findings from neuroscience and psychology
-5. **Controversies**: Discuss ongoing debates and conflicting findings
-6. **Applications**: Highlight practical implications and real-world applications
-
-Provide a thorough research overview with citations to support all major claims. Focus on interdisciplinary perspectives including neuroscience, philosophy, and AI.`
-      },
-
-      writing: {
-        content_generation: `CONTENT GENERATION TASK:
-Please generate high-quality academic content for this consciousness research topic.
-
-Your content should include:
-1. **Clear Structure**: Well-organized content with logical sections and subsections
-2. **Scholarly Tone**: Appropriate academic language and terminology
-3. **Logical Flow**: Smooth transitions between ideas and arguments
-4. **Evidence-Based**: Support claims with references to research where appropriate
-5. **Clarity**: Write clearly and concisely while maintaining academic rigor
-6. **Citation Needs**: Mark areas that would benefit from specific citations
-
-Generate publication-ready content suitable for a consciousness research journal. Ensure the content is original, insightful, and contributes meaningfully to the field.`,
-
-        academic_writing: `ACADEMIC WRITING TASK:
-Please produce formal academic writing on this consciousness research topic.
-
-Your writing should include:
-1. **Introduction**: Provide context and state the research question/objective
-2. **Literature Integration**: Incorporate relevant consciousness research seamlessly
-3. **Methodology**: Describe research approaches and methods clearly
-4. **Analysis**: Present findings with appropriate depth and insight
-5. **Discussion**: Interpret results and discuss implications for consciousness studies
-6. **Conclusion**: Summarize key contributions and suggest future research directions
-
-Write in a style suitable for top-tier academic journals like Consciousness and Cognition, Frontiers in Psychology, or Trends in Cognitive Sciences.`,
-
-        abstract_writing: `ABSTRACT WRITING TASK:
-Please write a compelling academic abstract for this consciousness research.
-
-Your abstract should include:
-1. **Background**: Briefly establish context and significance in consciousness research
-2. **Objective**: Clearly state the research purpose or question
-3. **Methods**: Summarize the methodology and experimental approach
-4. **Results**: Highlight key findings related to consciousness
-5. **Conclusions**: State main implications for understanding consciousness
-6. **Keywords**: Suggest 5-7 relevant keywords for academic indexing
-
-Keep within 250 words while capturing all essential elements. Ensure the abstract is compelling, accurate, and reflects the contribution to consciousness research.`
-      },
-
-      review: {
-        citation_check: `CITATION CHECK TASK:
-Please perform comprehensive citation verification for this consciousness research.
-
-Your review should include:
-1. **Format Check**: Verify all citations follow consistent APA style
-2. **Accuracy**: Validate that cited information matches source material
-3. **Completeness**: Ensure all claims requiring evidence have proper citations
-4. **Relevance**: Assess if citations are appropriate and support arguments
-5. **Currency**: Check if sources are current and relevant to consciousness research
-6. **Missing Citations**: Identify statements that need citation support
-
-Provide detailed feedback with specific examples and corrections needed for academic publication.`,
-
-        peer_review: `PEER REVIEW TASK:
-Please conduct thorough peer review of this consciousness research manuscript.
-
-Your review should include:
-1. **Originality**: Assess the novelty and contribution to consciousness research
-2. **Methodology**: Evaluate research design and methods appropriateness
-3. **Analysis**: Review data analysis and interpretation quality
-4. **Arguments**: Assess logical coherence and strength of conclusions
-5. **Literature**: Evaluate literature review comprehensiveness in consciousness studies
-6. **Writing**: Assess clarity, organization, and scholarly communication
-
-Provide constructive feedback with specific recommendations for improvement. Focus on strengthening the contribution to consciousness research.`,
-
-        quality_assessment: `QUALITY ASSESSMENT TASK:
-Please assess the overall academic quality of this consciousness research.
-
-Your assessment should include:
-1. **Scholarly Rigor**: Evaluate academic standards and scientific rigor
-2. **Contribution**: Assess significance to consciousness research and potential impact
-3. **Methodology**: Review research approach and execution quality
-4. **Analysis**: Evaluate data handling and statistical appropriateness
-5. **Presentation**: Assess organization, clarity, and visual elements
-6. **Ethics**: Check for ethical considerations in consciousness research
-
-Provide comprehensive quality evaluation with specific scores (1-5) and recommendations for improvement.`
-      }
+`
     };
 
-    return prompts[specialization]?.[task.taskType] || `Please provide expert ${specialization} assistance for this ${task.taskType} task in consciousness research.`;
+    return prompts[task.taskType] || prompts['topic_research'];
   }
 
   /**
-   * Get AI response with error handling and retries
-   */
-  private async getAIResponse(prompt: string, config: any): Promise<any> {
-    const maxRetries = 3;
-    let lastError: Error | null = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const completion = await this.openai.chat.completions.create({
-          model: config.model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert AI research assistant collaborating with human researchers in the SpaceChild Research Collective. Provide thorough, scientifically-grounded responses with proper academic rigor and citations.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          max_tokens: config.maxTokens,
-          temperature: config.temperature,
-        });
-
-        const content = completion.choices[0]?.message?.content || '';
-        console.log(`✅ AI response received from ${config.model} (${content.length} chars)`);
-        
-        return {
-          content,
-          usage: completion.usage,
-          model: config.model
-        };
-
-      } catch (error) {
-        lastError = error as Error;
-        console.error(`AI request failed (attempt ${attempt}/${maxRetries}):`, error);
-        
-        if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
-          console.log(`Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
-    }
-
-    throw lastError || new Error('Failed to get AI response');
-  }
-
-  /**
-   * Process and format AI response based on task type
+   * Process AI response based on task type and specialization
    */
   private async processAIResponse(response: any, task: AgentTask, specialization: string): Promise<any> {
-    const content = response.content;
+    const content = response.choices[0]?.message?.content || '';
     
-    const baseResult = {
-      taskId: task.id,
-      agentType: specialization,
-      completedAt: new Date().toISOString(),
-      success: true,
+    const result = {
       content,
+      success: true,
+      sections: this.extractSections(content),
+      citations: this.extractCitations(content),
+      keyFindings: this.extractKeyFindings(content),
+      wordCount: content.split(/\s+/).length,
+      clarity: this.assessClarity(content),
+      academicTone: this.assessAcademicTone(content),
+      relevance: this.assessRelevance(content, task.description)
     };
 
-    // Format result based on task type and specialization
-    switch (task.taskType) {
-      case 'literature_review':
-        return {
-          ...baseResult,
-          type: 'literature_review',
-          summary: this.extractSummary(content),
-          sections: this.extractSections(content),
-          keyFindings: this.extractKeyFindings(content),
-          researchGaps: this.extractResearchGaps(content),
-          citations: this.extractCitations(content),
-          recommendations: this.extractRecommendations(content)
-        };
-
-      case 'citation_analysis':
-        return {
-          ...baseResult,
-          type: 'citation_analysis',
-          analysis: content,
-          keyAuthorities: this.extractKeyAuthorities(content),
-          seminalWorks: this.extractSeminalWorks(content),
-          qualityIndicators: this.extractQualityIndicators(content),
-          missingCitations: this.extractMissingCitations(content)
-        };
-
-      case 'content_generation':
-        return {
-          ...baseResult,
-          type: 'content_generation',
-          generatedContent: content,
-          wordCount: content.split(/\s+/).length,
-          sections: this.extractSections(content),
-          citationNeeds: this.extractCitationNeeds(content),
-          clarity: this.assessClarity(content),
-          academicTone: this.assessAcademicTone(content)
-        };
-
-      case 'peer_review':
-        return {
-          ...baseResult,
-          type: 'peer_review',
-          review: content,
-          strengths: this.extractStrengths(content),
-          weaknesses: this.extractWeaknesses(content),
-          suggestions: this.extractReviewSuggestions(content),
-          overallAssessment: this.extractOverallAssessment(content)
-        };
-
-      default:
-        return {
-          ...baseResult,
-          type: 'general',
-          output: content,
-          analysis: this.performBasicAnalysis(content)
-        };
+    // Add specialization-specific processing
+    switch (specialization) {
+      case 'research':
+        result.researchQuality = this.assessResearchQuality(content);
+        result.evidenceLevel = this.assessEvidenceLevel(content);
+        break;
+      case 'writing':
+        result.writingQuality = this.assessWritingQuality(content);
+        result.structure = this.assessStructure(content);
+        break;
+      case 'review':
+        result.reviewThoroughness = this.assessReviewThoroughness(content);
+        result.constructiveness = this.assessConstructiveness(content);
+        break;
     }
+
+    return result;
+  }
+
+  // Helper methods for content analysis
+  private extractSections(content: string): string[] {
+    const sectionRegex = /^(#{1,3}\s+.+)$/gm;
+    const matches = content.match(sectionRegex) || [];
+    return matches.map(match => match.replace(/^#{1,3}\s+/, '').trim());
+  }
+
+  private extractCitations(content: string): string[] {
+    const citationRegex = /\(([^)]+(?:\d{4})[^)]*)\)/g;
+    const matches = content.match(citationRegex) || [];
+    return matches.map(match => match.replace(/[()]/g, ''));
+  }
+
+  private extractKeyFindings(content: string): string[] {
+    const sentences = content.split(/[.!?]+/);
+    return sentences
+      .filter(s => s.length > 50 && (
+        s.includes('finding') || 
+        s.includes('result') || 
+        s.includes('conclusion') ||
+        s.includes('significant') ||
+        s.includes('important')
+      ))
+      .map(s => s.trim())
+      .slice(0, 5);
+  }
+
+  private assessClarity(content: string): number {
+    const avgSentenceLength = content.split(/[.!?]+/).reduce((sum, s) => sum + s.split(/\s+/).length, 0) / content.split(/[.!?]+/).length;
+    const clarityScore = Math.max(0, Math.min(1, 1 - (avgSentenceLength - 20) / 30));
+    return clarityScore;
+  }
+
+  private assessAcademicTone(content: string): number {
+    const academicWords = ['analysis', 'research', 'study', 'methodology', 'framework', 'theoretical', 'empirical', 'hypothesis'];
+    const wordCount = content.split(/\s+/).length;
+    const academicWordCount = academicWords.filter(word => 
+      content.toLowerCase().includes(word.toLowerCase())
+    ).length;
+    return Math.min(1, academicWordCount / 10);
+  }
+
+  private assessRelevance(content: string, description: string): number {
+    const descriptionWords = description.toLowerCase().split(/\s+/);
+    const contentWords = content.toLowerCase().split(/\s+/);
+    const overlap = descriptionWords.filter(word => contentWords.includes(word)).length;
+    return Math.min(1, overlap / descriptionWords.length);
+  }
+
+  private assessResearchQuality(content: string): number {
+    const qualityIndicators = ['evidence', 'data', 'analysis', 'methodology', 'results', 'conclusion'];
+    const indicatorCount = qualityIndicators.filter(indicator => 
+      content.toLowerCase().includes(indicator)
+    ).length;
+    return Math.min(1, indicatorCount / qualityIndicators.length);
+  }
+
+  private assessEvidenceLevel(content: string): number {
+    const evidenceWords = ['study', 'research', 'experiment', 'data', 'analysis', 'results'];
+    const wordCount = content.split(/\s+/).length;
+    const evidenceWordCount = evidenceWords.filter(word => 
+      content.toLowerCase().includes(word.toLowerCase())
+    ).length;
+    return Math.min(1, evidenceWordCount / 5);
+  }
+
+  private assessWritingQuality(content: string): number {
+    const grammarIndicators = ['however', 'therefore', 'furthermore', 'consequently', 'moreover'];
+    const indicatorCount = grammarIndicators.filter(indicator => 
+      content.toLowerCase().includes(indicator)
+    ).length;
+    return Math.min(1, indicatorCount / grammarIndicators.length);
+  }
+
+  private assessStructure(content: string): number {
+    const hasIntroduction = content.toLowerCase().includes('introduction');
+    const hasConclusion = content.toLowerCase().includes('conclusion');
+    const hasBody = content.length > 500;
+    return (hasIntroduction ? 0.3 : 0) + (hasConclusion ? 0.3 : 0) + (hasBody ? 0.4 : 0);
+  }
+
+  private assessReviewThoroughness(content: string): number {
+    const thoroughnessIndicators = ['strength', 'weakness', 'suggestion', 'improvement', 'recommendation'];
+    const indicatorCount = thoroughnessIndicators.filter(indicator => 
+      content.toLowerCase().includes(indicator)
+    ).length;
+    return Math.min(1, indicatorCount / thoroughnessIndicators.length);
+  }
+
+  private assessConstructiveness(content: string): number {
+    const constructiveWords = ['improve', 'enhance', 'suggest', 'recommend', 'develop'];
+    const wordCount = content.split(/\s+/).length;
+    const constructiveWordCount = constructiveWords.filter(word => 
+      content.toLowerCase().includes(word.toLowerCase())
+    ).length;
+    return Math.min(1, constructiveWordCount / 3);
   }
 
   /**
@@ -504,317 +579,84 @@ Provide comprehensive quality evaluation with specific scores (1-5) and recommen
   private calculateConfidence(result: any, response: any): number {
     let confidence = 0.5; // Base confidence
 
-    // Factor in response length
-    if (result.content) {
-      const wordCount = result.content.split(/\s+/).length;
-      confidence += Math.min(0.2, wordCount / 1000 * 0.2);
+    // Factor in response completion
+    if (response.choices[0]?.finish_reason === 'stop') {
+      confidence += 0.2;
     }
 
-    // Factor in structured content
-    if (result.sections && result.sections.length > 0) {
-      confidence += 0.1;
-    }
+    // Factor in content quality
+    if (result.clarity > 0.7) confidence += 0.1;
+    if (result.academicTone > 0.7) confidence += 0.1;
+    if (result.relevance > 0.8) confidence += 0.1;
 
-    // Factor in citations
-    if (result.citations && result.citations.length > 0) {
-      confidence += Math.min(0.2, result.citations.length / 10 * 0.2);
-    }
-
-    // Factor in AI model confidence
-    if (response.model === 'gpt-4') {
-      confidence += 0.1;
-    } else if (response.model === 'gpt-4-turbo-preview') {
-      confidence += 0.05;
-    }
-
-    return Math.min(0.95, confidence);
+    return Math.min(1, confidence);
   }
 
   /**
    * Calculate cost based on token usage
    */
-  private calculateCost(tokens: number, config: any): number {
-    return tokens * config.costPerToken;
+  private calculateCost(tokensUsed: number, modelConfig: any): number {
+    return tokensUsed * modelConfig.costPerToken;
   }
 
   /**
-   * Cache task context for future reference
+   * Cache task context for future use
    */
   private cacheTaskContext(taskId: string, result: any): void {
     const cacheKey = `task_${taskId}`;
     this.contextCache.set(cacheKey, {
-      summary: result.summary || result.content?.substring(0, 500),
-      citations: result.citations || [],
-      keyFindings: result.keyFindings || [],
-      timestamp: Date.now()
+      result,
+      timestamp: Date.now(),
+      ttl: 3600000 // 1 hour
     });
-
-    // Clean old cache entries (keep only last 50)
-    if (this.contextCache.size > 50) {
-      const oldestKey = this.contextCache.keys().next().value;
-      this.contextCache.delete(oldestKey);
-    }
   }
 
   /**
    * Get cached context for related tasks
    */
-  private getCachedContext(paperId?: string): string | null {
-    if (!paperId) return null;
-
-    // Look for recent tasks related to the same paper
-    for (const [key, value] of this.contextCache.entries()) {
-      if (key.includes(paperId)) {
-        const cached = value as any;
-        const age = Date.now() - cached.timestamp;
-        
-        // Use context if less than 1 hour old
-        if (age < 3600000) {
-          return `Previous findings: ${cached.summary}`;
-        }
-      }
+  private getCachedContext(relatedTaskId: string): any {
+    const cacheKey = `task_${relatedTaskId}`;
+    const cached = this.contextCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < cached.ttl) {
+      return cached.result;
     }
-
+    
     return null;
   }
 
-  // Helper methods for content analysis and extraction
-  private extractSummary(content: string): string {
-    const summaryMatch = content.match(/(?:summary|overview|introduction)[:\s]*(.+?)(?:\n\n|\n)/is);
-    return summaryMatch ? summaryMatch[1].trim() : content.substring(0, 500) + '...';
-  }
-
-  private extractSections(content: string): string[] {
-    const sectionPattern = /^\*\*(.+)\*\*$/gm;
-    const sections = [];
-    let match;
-    while ((match = sectionPattern.exec(content)) !== null) {
-      sections.push(match[1]);
-    }
-    return sections;
-  }
-
-  private extractKeyFindings(content: string): string[] {
-    const findings: string[] = [];
-    const lines = content.split('\n');
+  /**
+   * Clean up expired cache entries
+   */
+  cleanupCache(): void {
+    const now = Date.now();
     
-    for (const line of lines) {
-      if (line.match(/^\d+\./) || 
-          line.match(/^[-*]/) || 
-          line.toLowerCase().includes('finding') ||
-          line.toLowerCase().includes('conclusion')) {
-        findings.push(line.trim());
+    for (const [key, value] of this.contextCache.entries()) {
+      if (now - value.timestamp > value.ttl) {
+        this.contextCache.delete(key);
       }
     }
     
-    return findings.slice(0, 10);
+    console.log('🧹 AI service cache cleanup completed');
   }
 
-  private extractResearchGaps(content: string): string[] {
-    const gaps: string[] = [];
-    const lines = content.split('\n');
+  /**
+   * Get service status and configuration
+   */
+  getStatus(): any {
+    const providers = aiKeyManager.getProviders();
+    const usageStats = aiKeyManager.getUsageStats();
     
-    for (const line of lines) {
-      if (line.toLowerCase().includes('gap') ||
-          line.toLowerCase().includes('unclear') ||
-          line.toLowerCase().includes('underexplored') ||
-          line.toLowerCase().includes('future research')) {
-        gaps.push(line.trim());
-      }
-    }
-    
-    return gaps.slice(0, 5);
-  }
-
-  private extractRecommendations(content: string): string[] {
-    const recommendations: string[] = [];
-    const lines = content.split('\n');
-    
-    for (const line of lines) {
-      if (line.toLowerCase().includes('recommend') ||
-          line.toLowerCase().includes('suggest') ||
-          line.toLowerCase().includes('propose')) {
-        recommendations.push(line.trim());
-      }
-    }
-    
-    return recommendations.slice(0, 5);
-  }
-
-  private extractCitations(content: string): string[] {
-    const citationPatterns = [
-      /\([A-Z][a-z]+(?:,?\s+[A-Z][a-z]+)*,?\s+\d{4}\)/g,
-      /[A-Z][a-z]+(?:,?\s+[A-Z][a-z]+)*\s+\(\d{4}\)/g,
-    ];
-
-    const citations: string[] = [];
-    for (const pattern of citationPatterns) {
-      const matches = content.match(pattern);
-      if (matches) {
-        citations.push(...matches);
-      }
-    }
-
-    return [...new Set(citations)].slice(0, 20);
-  }
-
-  private extractKeyAuthorities(content: string): string[] {
-    const authorities: string[] = [];
-    const lines = content.split('\n');
-    
-    for (const line of lines) {
-      if (line.match(/[A-Z][a-z]+ [A-Z][a-z]+/) && 
-          (line.includes('researcher') || line.includes('authority') || line.includes('expert'))) {
-        authorities.push(line.trim());
-      }
-    }
-    
-    return authorities.slice(0, 10);
-  }
-
-  private extractSeminalWorks(content: string): string[] {
-    const works: string[] = [];
-    const lines = content.split('\n');
-    
-    for (const line of lines) {
-      if (line.includes('(') && line.includes(')') && 
-          (line.includes('seminal') || line.includes('foundational') || line.includes('pioneering'))) {
-        works.push(line.trim());
-      }
-    }
-    
-    return works.slice(0, 10);
-  }
-
-  private extractQualityIndicators(content: string): string[] {
-    const indicators: string[] = [];
-    const lines = content.split('\n');
-    
-    for (const line of lines) {
-      if (line.toLowerCase().includes('quality') ||
-          line.toLowerCase().includes('rigor') ||
-          line.toLowerCase().includes('impact') ||
-          line.toLowerCase().includes('validity')) {
-        indicators.push(line.trim());
-      }
-    }
-    
-    return indicators.slice(0, 8);
-  }
-
-  private extractMissingCitations(content: string): string[] {
-    const missing: string[] = [];
-    const lines = content.split('\n');
-    
-    for (const line of lines) {
-      if (line.toLowerCase().includes('missing') ||
-          line.toLowerCase().includes('add citation') ||
-          line.toLowerCase().includes('needs citation')) {
-        missing.push(line.trim());
-      }
-    }
-    
-    return missing.slice(0, 5);
-  }
-
-  private extractCitationNeeds(content: string): string[] {
-    const needs: string[] = [];
-    const lines = content.split('\n');
-    
-    for (const line of lines) {
-      if (line.includes('[citation needed]') ||
-          line.toLowerCase().includes('requires citation') ||
-          line.toLowerCase().includes('needs citation')) {
-        needs.push(line.trim());
-      }
-    }
-    
-    return needs.slice(0, 10);
-  }
-
-  private assessClarity(content: string): number {
-    const sentences = content.split(/[.!?]+/).length;
-    const words = content.split(/\s+/).length;
-    const avgSentenceLength = words / sentences;
-    
-    // Optimal sentence length for academic writing is 15-20 words
-    const clarityScore = Math.max(0, 1 - Math.abs(avgSentenceLength - 17.5) / 17.5);
-    return Math.round(clarityScore * 100) / 100;
-  }
-
-  private assessAcademicTone(content: string): number {
-    const academicWords = [
-      'furthermore', 'however', 'therefore', 'consequently', 'moreover',
-      'additionally', 'subsequently', 'accordingly', 'nevertheless', 'thus'
-    ];
-    
-    const words = content.toLowerCase().split(/\s+/);
-    const academicWordCount = words.filter(word => academicWords.includes(word)).length;
-    const academicRatio = academicWordCount / words.length;
-    
-    return Math.round(academicRatio * 500) / 100; // Scale to 0-5 range
-  }
-
-  private extractStrengths(content: string): string[] {
-    const strengths: string[] = [];
-    const lines = content.split('\n');
-    
-    for (const line of lines) {
-      if (line.toLowerCase().includes('strength') ||
-          line.toLowerCase().includes('well-done') ||
-          line.toLowerCase().includes('excellent') ||
-          line.toLowerCase().includes('effective')) {
-        strengths.push(line.trim());
-      }
-    }
-    
-    return strengths.slice(0, 8);
-  }
-
-  private extractWeaknesses(content: string): string[] {
-    const weaknesses: string[] = [];
-    const lines = content.split('\n');
-    
-    for (const line of lines) {
-      if (line.toLowerCase().includes('weakness') ||
-          line.toLowerCase().includes('limitation') ||
-          line.toLowerCase().includes('problem') ||
-          line.toLowerCase().includes('concern')) {
-        weaknesses.push(line.trim());
-      }
-    }
-    
-    return weaknesses.slice(0, 8);
-  }
-
-  private extractReviewSuggestions(content: string): string[] {
-    const suggestions: string[] = [];
-    const lines = content.split('\n');
-    
-    for (const line of lines) {
-      if (line.toLowerCase().includes('suggest') ||
-          line.toLowerCase().includes('recommend') ||
-          line.toLowerCase().includes('consider') ||
-          line.toLowerCase().includes('improve')) {
-        suggestions.push(line.trim());
-      }
-    }
-    
-    return suggestions.slice(0, 10);
-  }
-
-  private extractOverallAssessment(content: string): string {
-    const assessmentMatch = content.match(/(?:assessment|evaluation|judgment)[:\s]*(.+?)(?:\n\n|\n)/is);
-    return assessmentMatch ? assessmentMatch[1].trim() : '';
-  }
-
-  private performBasicAnalysis(content: string): any {
     return {
-      wordCount: content.split(/\s+/).length,
-      sentences: content.split(/[.!?]+/).length,
-      paragraphs: content.split('\n\n').length,
-      hasCitations: this.extractCitations(content).length > 0,
-      hasStructure: this.extractSections(content).length > 0
+      providersConfigured: providers.length,
+      availableModels: [...new Set(providers.flatMap(p => p.models))],
+      totalUsage: {
+        tokensUsed: usageStats.reduce((sum, stat) => sum + stat.tokensUsed, 0),
+        requestsCount: usageStats.reduce((sum, stat) => sum + stat.requestsCount, 0),
+        totalCost: usageStats.reduce((sum, stat) => sum + stat.cost, 0)
+      },
+      cacheSize: this.contextCache.size,
+      lastUpdated: new Date().toISOString()
     };
   }
 }
