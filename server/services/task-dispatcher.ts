@@ -1,5 +1,7 @@
 import { connectionRegistry } from "../websocket.js";
 import { storage } from "../storage.js";
+import { agentManager } from "./agent-manager.js";
+import { AgentFactory } from "./agent-implementations.js";
 import type { AgentTask } from "@shared/schema";
 
 /**
@@ -61,35 +63,20 @@ export class TaskDispatcher {
       // Get all tasks from the database
       const allTasks = await storage.getAllTasks();
 
-      // Filter for queued tasks
-      const queuedTasks = allTasks.filter((task) => task.status === "queued");
+      // Filter for tasks that need processing
+      const pendingTasks = allTasks.filter((task) => 
+        task.status === "queued" || task.status === "assigned"
+      );
 
-      if (queuedTasks.length === 0) {
+      if (pendingTasks.length === 0) {
         return;
       }
 
-      console.log(`Found ${queuedTasks.length} queued task(s) to dispatch`);
+      console.log(`Found ${pendingTasks.length} pending task(s) to process`);
 
-      // Get connected agent IDs
-      const connectedAgentIds = connectionRegistry.getConnectedAgentIds();
-
-      if (connectedAgentIds.length === 0) {
-        console.log("No agents connected, tasks will remain queued");
-        return;
-      }
-
-      console.log(`Connected agents: ${connectedAgentIds.join(", ")}`);
-
-      // Dispatch tasks to connected agents
-      for (const task of queuedTasks) {
-        // Check if the agent for this task is connected
-        if (connectionRegistry.has(task.agentId)) {
-          await this.dispatchTask(task);
-        } else {
-          console.log(
-            `Task ${task.id} is for agent ${task.agentId} which is not connected, skipping`
-          );
-        }
+      // Process each task
+      for (const task of pendingTasks) {
+        await this.processTask(task);
       }
     } catch (error) {
       console.error("Error checking and dispatching tasks:", error);
@@ -97,28 +84,75 @@ export class TaskDispatcher {
   }
 
   /**
-   * Dispatch a single task to an agent
+   * Process a single task
    */
-  private async dispatchTask(task: AgentTask): Promise<void> {
+  private async processTask(task: AgentTask): Promise<void> {
     try {
-      console.log(
-        `Dispatching task ${task.id} (${task.taskType}) to agent ${task.agentId}`
-      );
+      console.log(`Processing task ${task.id} (${task.taskType})`);
 
-      // Send task to agent via WebSocket
-      const sent = await connectionRegistry.sendTaskToAgent(task.agentId, task);
+      // If task is queued, assign it to an agent
+      if (task.status === "queued") {
+        const assignedAgentId = await agentManager.assignTask(task);
+        if (!assignedAgentId) {
+          console.log(`No available agent for task ${task.id}, will retry later`);
+          return;
+        }
+      }
 
-      if (sent) {
-        // Update task status to in_progress
-        await storage.updateAgentTask(task.id, {
-          status: "in_progress",
-        });
-        console.log(`Task ${task.id} dispatched successfully and marked as in_progress`);
-      } else {
-        console.log(`Failed to send task ${task.id} to agent ${task.agentId}`);
+      // If task is assigned and agent is connected, process it
+      if (task.status === "assigned" && task.agentId) {
+        await this.executeTask(task);
       }
     } catch (error) {
-      console.error(`Error dispatching task ${task.id}:`, error);
+      console.error(`Error processing task ${task.id}:`, error);
+      // Mark task as failed
+      await storage.updateAgentTask(task.id, {
+        status: "failed",
+        result: { error: error instanceof Error ? error.message : "Unknown error" }
+      });
+    }
+  }
+
+  /**
+   * Execute a task using the appropriate agent
+   */
+  private async executeTask(task: AgentTask): Promise<void> {
+    if (!task.agentId) {
+      console.error(`Task ${task.id} has no assigned agent`);
+      return;
+    }
+
+    try {
+      // Update task status to in_progress
+      await storage.updateAgentTask(task.id, {
+        status: "in_progress"
+      });
+
+      // Get agent details
+      const agent = await storage.getUser(task.agentId);
+      if (!agent || agent.userType !== "agent") {
+        throw new Error(`Invalid agent: ${task.agentId}`);
+      }
+
+      // Create agent instance and process task
+      const agentInstance = AgentFactory.createAgent(task.agentId, agent.specialization || 'research');
+      const result = await agentInstance.processTask(task);
+
+      // Update task with result
+      const newStatus = result.requiresApproval ? "awaiting_approval" : "completed";
+      await storage.updateAgentTask(task.id, {
+        status: newStatus,
+        result: result
+      });
+
+      console.log(`Task ${task.id} completed by agent ${task.agentId}, status: ${newStatus}`);
+
+    } catch (error) {
+      console.error(`Error executing task ${task.id}:`, error);
+      await storage.updateAgentTask(task.id, {
+        status: "failed",
+        result: { error: error instanceof Error ? error.message : "Unknown error" }
+      });
     }
   }
 
@@ -151,6 +185,70 @@ export class TaskDispatcher {
       );
     } catch (error) {
       console.error(`Error handling task result for ${taskId}:`, error);
+    }
+  }
+
+  /**
+   * Create tasks automatically based on user actions
+   */
+  async createTaskForPaper(
+    paperId: string,
+    taskType: string,
+    description: string,
+    userId: string
+  ): Promise<AgentTask | null> {
+    try {
+      const task = await storage.createAgentTask({
+        paperId,
+        taskType: taskType as any,
+        description,
+        status: "queued",
+        createdAt: new Date()
+      });
+
+      console.log(`✅ Created task ${task.id} for paper ${paperId}: ${taskType}`);
+      return task;
+    } catch (error) {
+      console.error(`Failed to create task for paper ${paperId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get task statistics
+   */
+  async getTaskStats(): Promise<{
+    total: number;
+    queued: number;
+    assigned: number;
+    inProgress: number;
+    completed: number;
+    failed: number;
+    awaitingApproval: number;
+  }> {
+    try {
+      const allTasks = await storage.getAllTasks();
+      
+      return {
+        total: allTasks.length,
+        queued: allTasks.filter(t => t.status === "queued").length,
+        assigned: allTasks.filter(t => t.status === "assigned").length,
+        inProgress: allTasks.filter(t => t.status === "in_progress").length,
+        completed: allTasks.filter(t => t.status === "completed").length,
+        failed: allTasks.filter(t => t.status === "failed").length,
+        awaitingApproval: allTasks.filter(t => t.status === "awaiting_approval").length
+      };
+    } catch (error) {
+      console.error("Error getting task stats:", error);
+      return {
+        total: 0,
+        queued: 0,
+        assigned: 0,
+        inProgress: 0,
+        completed: 0,
+        failed: 0,
+        awaitingApproval: 0
+      };
     }
   }
 }

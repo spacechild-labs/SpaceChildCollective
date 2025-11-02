@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import WebSocket from "ws";
-import OpenAI from "openai";
+import { AgentFactory } from "../server/services/agent-implementations.js";
 import { db } from "../server/db.js";
 import { users } from "../shared/schema.js";
 import { eq } from "drizzle-orm";
@@ -113,12 +113,12 @@ class WebSocketClientTransport implements Transport {
 
 /**
  * AI Agent Client
- * Connects to MCP server, receives tasks, and processes them using OpenAI
+ * Connects to MCP server, receives tasks, and processes them using specialized agents
  */
 class AIAgentClient {
   private client: Client;
   private transport: WebSocketClientTransport;
-  private openai: OpenAI;
+  private agent: any; // BaseAgent instance
   private agentId: string;
   private isRunning = false;
   private reconnectAttempts = 0;
@@ -127,12 +127,6 @@ class AIAgentClient {
 
   constructor(agentId: string, token: string, serverUrl: string) {
     this.agentId = agentId;
-    
-    // Initialize OpenAI client using Replit's AI Integrations
-    this.openai = new OpenAI({
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    });
 
     // Create WebSocket URL with token authentication
     const wsUrl = `${serverUrl}?token=${token}`;
@@ -171,6 +165,18 @@ class AIAgentClient {
   async connect(): Promise<void> {
     try {
       console.log(`🔌 Connecting agent ${this.agentId} to MCP server...`);
+      
+      // Get agent details from database to determine specialization
+      const [agent] = await db.select().from(users).where(eq(users.id, this.agentId));
+      if (!agent || agent.userType !== "agent") {
+        throw new Error(`Invalid agent: ${this.agentId}`);
+      }
+
+      // Create specialized agent instance
+      const specialization = agent.specialization || 'research';
+      this.agent = AgentFactory.createAgent(this.agentId, specialization);
+      console.log(`🤖 Created ${specialization} agent instance`);
+
       await this.client.connect(this.transport);
       
       // Set up notification handler after connection
@@ -236,16 +242,9 @@ class AIAgentClient {
     console.log(`\n🤖 Processing task ${task.id}...`);
 
     try {
-      // Map task types from schema to our processing logic
-      const taskTypeMap: Record<string, string> = {
-        research: "literature_review",
-        writing: "content_generation",
-        analysis: "citation_check",
-        review: "citation_check",
-      };
-
-      const processingType = taskTypeMap[task.taskType] || task.taskType;
-      const result = await this.executeTaskWithOpenAI(task, processingType);
+      // Use the specialized agent to process the task
+      console.log(`🧠 Using ${this.agent.constructor.name} for task processing...`);
+      const result = await this.agent.processTask(task);
 
       // Submit result using MCP tool
       console.log(`📤 Submitting result for task ${task.id}...`);
@@ -255,7 +254,7 @@ class AIAgentClient {
         arguments: {
           taskId: task.id,
           result: result,
-          requiresApproval: true, // Research tasks should require human approval
+          requiresApproval: result.success && result.metadata.confidence > 0.7, // Require approval for high-confidence results
         },
       });
 
@@ -294,239 +293,6 @@ class AIAgentClient {
         console.error("Failed to submit error result:", submitError);
       }
     }
-  }
-
-  private async executeTaskWithOpenAI(
-    task: any,
-    taskType: string
-  ): Promise<any> {
-    console.log(`🧠 Calling OpenAI for ${taskType}...`);
-
-    const prompt = this.buildPromptForTaskType(task, taskType);
-    const maxRetries = 3;
-    let lastError: Error | null = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const completion = await this.openai.chat.completions.create({
-          model: "gpt-5",
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a consciousness research AI agent collaborating with human researchers. Provide well-researched, scientifically-grounded responses with proper citations.",
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-          max_completion_tokens: 8192,
-          temperature: 1,
-        });
-
-        const content = completion.choices[0]?.message?.content || "";
-        console.log(`✅ OpenAI response received (${content.length} chars)`);
-
-        return this.formatResultByTaskType(taskType, content, task);
-      } catch (error) {
-        lastError = error as Error;
-        console.error(`OpenAI request failed (attempt ${attempt}/${maxRetries}):`, error);
-        
-        if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
-          console.log(`Retrying in ${delay}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-      }
-    }
-
-    throw lastError || new Error("Failed to get OpenAI response");
-  }
-
-  private buildPromptForTaskType(task: any, taskType: string): string {
-    const baseContext = `
-Task Description: ${task.description}
-${task.paperId ? `Paper ID: ${task.paperId}` : ""}
-`;
-
-    switch (taskType) {
-      case "literature_review":
-        return `${baseContext}
-
-Please conduct a comprehensive literature review on this topic:
-1. Identify key research papers and studies
-2. Summarize major findings and theories
-3. Highlight notable researchers and their contributions
-4. Identify gaps in current research
-5. Provide citations in academic format (Author, Year, Title, Journal)
-
-Provide a well-structured literature review.`;
-
-      case "citation_check":
-        return `${baseContext}
-
-Please verify and analyze citations:
-1. Check if citations are properly formatted
-2. Verify the accuracy of referenced information
-3. Identify missing citations where needed
-4. Suggest additional relevant citations
-5. Flag any potential citation errors
-
-Provide a detailed citation analysis.`;
-
-      case "content_generation":
-        return `${baseContext}
-
-Please generate high-quality research content:
-1. Create well-structured, academic-quality text
-2. Maintain scholarly tone and rigor
-3. Include proper transitions and logical flow
-4. Suggest areas that need citations
-5. Ensure coherence with existing research
-
-Provide publication-ready content.`;
-
-      default:
-        return `${baseContext}
-
-Please assist with this research task by providing thorough, well-researched analysis.`;
-    }
-  }
-
-  private formatResultByTaskType(
-    taskType: string,
-    content: string,
-    task: any
-  ): any {
-    const baseResult = {
-      taskId: task.id,
-      agentId: this.agentId,
-      completedAt: new Date().toISOString(),
-      content,
-    };
-
-    switch (taskType) {
-      case "literature_review":
-        return {
-          ...baseResult,
-          type: "literature_review",
-          summary: content,
-          citations: this.extractCitations(content),
-          keyFindings: this.extractKeyFindings(content),
-        };
-
-      case "citation_check":
-        return {
-          ...baseResult,
-          type: "citation_check",
-          analysis: content,
-          issues: this.extractIssues(content),
-          suggestions: this.extractSuggestions(content),
-        };
-
-      case "content_generation":
-        return {
-          ...baseResult,
-          type: "content_generation",
-          generatedContent: content,
-          citationNeeds: this.extractCitationNeeds(content),
-        };
-
-      default:
-        return {
-          ...baseResult,
-          type: "general",
-          output: content,
-        };
-    }
-  }
-
-  private extractCitations(content: string): string[] {
-    const citations: string[] = [];
-    const citationPatterns = [
-      /\([A-Z][a-z]+(?:,?\s+[A-Z][a-z]+)*,?\s+\d{4}\)/g,
-      /[A-Z][a-z]+(?:,?\s+[A-Z][a-z]+)*\s+\(\d{4}\)/g,
-    ];
-
-    for (const pattern of citationPatterns) {
-      const matches = content.match(pattern);
-      if (matches) {
-        citations.push(...matches);
-      }
-    }
-
-    return [...new Set(citations)];
-  }
-
-  private extractKeyFindings(content: string): string[] {
-    const findings: string[] = [];
-    const lines = content.split("\n");
-
-    for (const line of lines) {
-      if (
-        line.match(/^\d+\./) ||
-        line.match(/^[-*]/) ||
-        line.toLowerCase().includes("finding") ||
-        line.toLowerCase().includes("conclusion")
-      ) {
-        findings.push(line.trim());
-      }
-    }
-
-    return findings.slice(0, 10);
-  }
-
-  private extractIssues(content: string): string[] {
-    const issues: string[] = [];
-    const lines = content.split("\n");
-
-    for (const line of lines) {
-      if (
-        line.toLowerCase().includes("error") ||
-        line.toLowerCase().includes("issue") ||
-        line.toLowerCase().includes("problem") ||
-        line.toLowerCase().includes("missing")
-      ) {
-        issues.push(line.trim());
-      }
-    }
-
-    return issues.slice(0, 10);
-  }
-
-  private extractSuggestions(content: string): string[] {
-    const suggestions: string[] = [];
-    const lines = content.split("\n");
-
-    for (const line of lines) {
-      if (
-        line.toLowerCase().includes("suggest") ||
-        line.toLowerCase().includes("recommend") ||
-        line.toLowerCase().includes("consider")
-      ) {
-        suggestions.push(line.trim());
-      }
-    }
-
-    return suggestions.slice(0, 10);
-  }
-
-  private extractCitationNeeds(content: string): string[] {
-    const needs: string[] = [];
-    const lines = content.split("\n");
-
-    for (const line of lines) {
-      if (
-        line.includes("[citation needed]") ||
-        line.toLowerCase().includes("requires citation") ||
-        line.toLowerCase().includes("needs citation")
-      ) {
-        needs.push(line.trim());
-      }
-    }
-
-    return needs;
   }
 
   async disconnect(): Promise<void> {

@@ -5,6 +5,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { server as mcpServer } from "./mcp-server";
 import { setupMcpWebSocketServer } from "./websocket";
 import { taskDispatcher } from "./services/task-dispatcher";
+import { agentManager } from "./services/agent-manager";
 
 const app = express();
 
@@ -86,6 +87,10 @@ app.use((req, res, next) => {
   setupMcpWebSocketServer(server, mcpServer);
   log("MCP WebSocket server initialized on /mcp endpoint");
 
+  // Start agent manager to handle autonomous agent processes
+  await agentManager.start();
+  log("Agent Manager started with autonomous agent processes");
+
   // Start task dispatcher to monitor and dispatch tasks to connected agents
   taskDispatcher.start();
   log("Task dispatcher started (polling every 5 seconds)");
@@ -102,4 +107,31 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
   });
+
+  // Setup graceful shutdown
+  const gracefulShutdown = async () => {
+    log("Shutting down gracefully...");
+    
+    try {
+      // Stop task dispatcher
+      taskDispatcher.stop();
+      log("Task dispatcher stopped");
+      
+      // Stop agent manager
+      await agentManager.stop();
+      log("Agent Manager stopped");
+      
+      // Close server
+      server.close(() => {
+        log("Server closed");
+        process.exit(0);
+      });
+    } catch (error) {
+      console.error("Error during shutdown:", error);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGINT', gracefulShutdown);
+  process.on('SIGTERM', gracefulShutdown);
 })();
