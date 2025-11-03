@@ -34,17 +34,35 @@ self.addEventListener('install', (event) => {
   
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
+      .then(async (cache) => {
         console.log('[SW] Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
-      })
-      .then(() => {
+        
+        // Cache files individually to prevent installation failure if one file fails
+        const cachePromises = STATIC_ASSETS.map(async (url) => {
+          try {
+            const response = await fetch(url);
+            if (response.ok) {
+              await cache.put(url, response);
+              console.log('[SW] Cached:', url);
+            } else {
+              console.warn('[SW] Failed to cache (non-200):', url, response.status);
+            }
+          } catch (error) {
+            console.warn('[SW] Failed to cache:', url, error.message);
+          }
+        });
+        
+        // Wait for all cache attempts (but don't fail on individual errors)
+        await Promise.allSettled(cachePromises);
         console.log('[SW] Installation complete');
+        
         // Force the waiting service worker to become the active service worker
         return self.skipWaiting();
       })
       .catch((error) => {
-        console.error('[SW] Installation failed:', error);
+        console.error('[SW] Critical installation error:', error);
+        // Still try to skip waiting even if caching failed
+        return self.skipWaiting();
       })
   );
 });
