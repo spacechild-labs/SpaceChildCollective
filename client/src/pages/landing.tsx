@@ -19,14 +19,14 @@ export default function Landing() {
         </div>
 
         {/* Hero Content */}
-        <div className="relative z-10 max-w-5xl mx-auto px-4 text-center">
-          <h1 className="font-display text-6xl md:text-7xl font-light tracking-tight text-white mb-6">
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 text-center">
+          <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-light tracking-tight text-white mb-4 sm:mb-6">
             Space Child Research Collective
           </h1>
-          <p className="text-xl md:text-2xl text-white/90 mb-4 leading-relaxed">
+          <p className="text-lg sm:text-xl md:text-2xl text-white/90 mb-3 sm:mb-4 leading-relaxed">
             Consciousness-Aware Technology • Human-AI Collaboration
           </p>
-          <p className="font-mono text-sm md:text-base text-accent mb-12">
+          <p className="font-mono text-xs sm:text-sm md:text-base text-accent mb-8 sm:mb-12">
             {'> consciousness_research()'}
           </p>
           

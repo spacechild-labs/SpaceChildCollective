@@ -21,18 +21,19 @@ export default function Workspace() {
     queryKey: ['/api/tasks'],
   });
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-4xl font-light mb-2">Research Workspace</h1>
-          <p className="text-muted-foreground">
+          <h1 className="font-display text-3xl sm:text-4xl font-light mb-2">Research Workspace</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">
             Collaborate with AI agents on consciousness research
           </p>
         </div>
         <Link href="/papers/new">
-          <Button size="lg" data-testid="button-new-paper">
+          <Button size="lg" className="w-full sm:w-auto" data-testid="button-new-paper">
             <Plus className="mr-2 h-5 w-5" />
-            New Research Paper
+            <span className="hidden sm:inline">New Research Paper</span>
+            <span className="sm:hidden">New Paper</span>
           </Button>
         </Link>
       </div>

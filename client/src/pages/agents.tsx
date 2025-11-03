@@ -91,10 +91,10 @@ export default function Agents() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="font-display text-4xl font-light mb-2">AI Research Platform</h1>
-        <p className="text-muted-foreground">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="font-display text-3xl sm:text-4xl font-light mb-2">AI Research Platform</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">
           Consciousness-verified multi-agent research collaboration
         </p>
       </div>
