@@ -8,7 +8,8 @@ import { BlockchainBadge } from "@/components/blockchain-badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery } from "@tanstack/react-query";
 import type { Paper, PaperContributor, User, BlockchainRecord } from "@shared/schema";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { Link } from "wouter";
 
 type PaperWithDetails = Paper & {
   contributors: (PaperContributor & { user: User })[];
@@ -18,10 +19,43 @@ type PaperWithDetails = Paper & {
 export default function Discover() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [verificationFilter, setVerificationFilter] = useState("all");
   
   const { data: papers, isLoading } = useQuery<Paper[]>({
     queryKey: ['/api/papers'],
   });
+
+  // Filter papers based on search and filters
+  const filteredPapers = useMemo(() => {
+    if (!papers) return [];
+    
+    return papers.filter(paper => {
+      // Only show published papers
+      if (paper.status !== "published") return false;
+      
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const titleMatch = paper.title.toLowerCase().includes(query);
+        const abstractMatch = paper.abstract.toLowerCase().includes(query);
+        const categoryMatch = paper.category.toLowerCase().includes(query);
+        if (!titleMatch && !abstractMatch && !categoryMatch) return false;
+      }
+      
+      // Category filter
+      if (categoryFilter !== "all" && paper.category !== categoryFilter) {
+        return false;
+      }
+      
+      // Verification filter (mock for now - would check blockchain records)
+      if (verificationFilter === "verified") {
+        // For demo, consider some papers as verified
+        return paper.id.length % 2 === 0; // Simple mock logic
+      }
+      
+      return true;
+    });
+  }, [papers, searchQuery, categoryFilter, verificationFilter]);
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-8">
@@ -39,9 +73,11 @@ export default function Discover() {
             placeholder="Search papers by title, author, or topic..." 
             className="pl-10"
             data-testid="input-search-papers"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Select defaultValue="all">
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
           <SelectTrigger className="w-full sm:w-48" data-testid="select-filter-category">
             <Filter className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Category" />
@@ -54,7 +90,7 @@ export default function Discover() {
             <SelectItem value="philosophy">Philosophy</SelectItem>
           </SelectContent>
         </Select>
-        <Select defaultValue="all">
+        <Select value={verificationFilter} onValueChange={setVerificationFilter}>
           <SelectTrigger className="w-full sm:w-48" data-testid="select-filter-verification">
             <SelectValue placeholder="Verification Status" />
           </SelectTrigger>
@@ -76,8 +112,22 @@ export default function Discover() {
           <div className="col-span-full text-center py-12">
             <p className="text-muted-foreground">No papers published yet</p>
           </div>
+        ) : filteredPapers.length === 0 ? (
+          <div className="col-span-full text-center py-12">
+            <p className="text-muted-foreground">No papers match your filters</p>
+            <button 
+              className="text-sm text-primary hover:underline mt-2"
+              onClick={() => {
+                setSearchQuery("");
+                setCategoryFilter("all");
+                setVerificationFilter("all");
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
         ) : (
-          papers.filter(paper => paper.status === "published").map((paper) => (
+          filteredPapers.map((paper) => (
           <Card 
             key={paper.id} 
             className="hover-elevate transition-all duration-300 flex flex-col"

@@ -66,9 +66,8 @@ export default function Papers() {
     }
   };
 
-  // For now, show all papers - in production, filter by contributors
-  // TODO: Implement /api/users/:userId/papers endpoint
-  const myPapers = allPapers || [];
+  // Show user's own papers through the contributors relationship
+  const userPapers = myPapers || [];
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -91,7 +90,7 @@ export default function Papers() {
         <div className="text-center py-12">
           <p className="text-muted-foreground">Loading papers...</p>
         </div>
-      ) : myPapers.length === 0 ? (
+      ) : userPapers.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -109,7 +108,7 @@ export default function Papers() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {myPapers.map((paper) => (
+          {userPapers.map((paper) => (
             <Card 
               key={paper.id} 
               className="hover-elevate transition-all"
