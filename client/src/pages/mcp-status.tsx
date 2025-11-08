@@ -7,17 +7,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function McpStatus() {
   const { data: communications, isLoading: commsLoading } = useQuery<any[]>({
     queryKey: ["/api/mcp/communications"],
-    refetchInterval: 5000,
   });
 
   const { data: agentStatus, isLoading: agentsLoading } = useQuery<any[]>({
     queryKey: ["/api/agents/status"],
-    refetchInterval: 5000,
   });
 
   const { data: taskStats, isLoading: tasksLoading } = useQuery<any>({
     queryKey: ["/api/tasks/stats"],
-    refetchInterval: 5000,
   });
 
   const connectedAgents = agentStatus?.filter(agent => agent.status === 'online') || [];

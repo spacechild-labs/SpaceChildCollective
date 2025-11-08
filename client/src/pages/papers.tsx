@@ -26,8 +26,9 @@ export default function Papers() {
   const [, setLocation] = useLocation();
   const [paperToDelete, setPaperToDelete] = useState<string | null>(null);
 
-  const { data: allPapers, isLoading } = useQuery<Paper[]>({
-    queryKey: ['/api/papers'],
+  const { data: myPapers, isLoading } = useQuery<Paper[]>({
+    queryKey: [`/api/users/${user?.id}/papers`],
+    enabled: !!user,
   });
 
   const deleteMutation = useMutation({
@@ -35,7 +36,7 @@ export default function Papers() {
       return await apiRequest('DELETE', `/api/papers/${paperId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/papers'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${user?.id}/papers`] });
       toast({
         title: "Paper deleted",
         description: "The paper has been successfully deleted.",
