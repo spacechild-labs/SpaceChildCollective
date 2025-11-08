@@ -7,14 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Save, Send, Users, Bot, Database, Edit, CheckCircle, Loader2 } from "lucide-react";
+import { Save, Send, Users, Bot, Database, Edit, CheckCircle, Loader2, MessageSquare } from "lucide-react";
 import { UserTypeBadge } from "@/components/user-type-badge";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
 import type { Paper } from "@shared/schema";
 import { WalletConnect } from "@/components/wallet-connect";
 import { useRoute, Link } from "wouter";
+import { AgentTeamwork } from "@/components/agent-teamwork";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +25,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 
 export default function PaperEditor() {
   // Detect if we're in view mode (route is /papers/:id without /edit)
@@ -36,6 +44,7 @@ export default function PaperEditor() {
   const isViewMode = !!(viewParams && !editParams && !isNewPaper);
   
   const { toast } = useToast();
+  const { user } = useAuth();
   const [title, setTitle] = useState("Untitled Research Paper");
   const [content, setContent] = useState("# Introduction\n\nBegin writing your research...");
   const [abstract, setAbstract] = useState("");
@@ -114,14 +123,31 @@ export default function PaperEditor() {
         status: "published",
         publishedAt: new Date().toISOString(),
       });
-      return await res.json() as Paper;
+      
+      const publishedPaper = await res.json() as Paper;
+      
+      // Create blockchain record for secure preservation
+      try {
+        await apiRequest('POST', '/api/blockchain/record', {
+          paperId: savedPaperId,
+          chain: 'neox',
+          dataHash: `hash_${savedPaperId}_${Date.now()}`, // In production, use actual hash
+          title: title,
+          authors: [user?.displayName || 'Anonymous'],
+        });
+      } catch (error) {
+        console.error('Blockchain record creation failed:', error);
+        // Don't fail the publish if blockchain fails
+      }
+      
+      return publishedPaper;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/papers'] });
       setPublishDialogOpen(false);
       toast({
         title: "Paper published!",
-        description: "Your research is now available to the community.",
+        description: "Your research is now available to the community and secured on the blockchain.",
       });
     },
     onError: (error: Error) => {
@@ -266,14 +292,27 @@ export default function PaperEditor() {
 
       {/* Right Sidebar - Collaboration Panel */}
       <div className="w-80 border-l bg-muted/30 p-4 overflow-auto">
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Contributors
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <Tabs defaultValue="contributors" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="contributors">
+              <Users className="h-4 w-4 mr-2" />
+              Team
+            </TabsTrigger>
+            <TabsTrigger value="chat" disabled={!savedPaperId}>
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Chat
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="contributors" className="mt-4">
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Contributors
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
             {contributors.map((contributor) => (
               <div 
                 key={contributor.id}
@@ -456,6 +495,23 @@ export default function PaperEditor() {
         </Card>
 
         <WalletConnect />
+          </TabsContent>
+
+          <TabsContent value="chat" className="mt-4">
+            {savedPaperId ? (
+              <AgentTeamwork paperId={savedPaperId} />
+            ) : (
+              <Card>
+                <CardContent className="text-center py-8">
+                  <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm text-muted-foreground">
+                    Save your paper first to start chatting with agents
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

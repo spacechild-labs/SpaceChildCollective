@@ -94,9 +94,9 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
+  async createUser(user: InsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values(user as any).returning();
+    return newUser;
   }
 
   async getAllUsers(): Promise<User[]> {
@@ -141,14 +141,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPaper(paper: InsertPaper): Promise<Paper> {
-    const [newPaper] = await db.insert(papers).values(paper).returning();
+    const [newPaper] = await db.insert(papers).values(paper as any).returning();
     return newPaper;
   }
 
   async updatePaper(id: string, paperUpdate: Partial<InsertPaper>): Promise<Paper> {
     const [updated] = await db
       .update(papers)
-      .set({ ...paperUpdate, updatedAt: new Date() })
+      .set({ ...paperUpdate, updatedAt: new Date() } as any)
       .where(eq(papers.id, id))
       .returning();
     return updated;
@@ -160,7 +160,7 @@ export class DatabaseStorage implements IStorage {
 
   // Paper contributor operations
   async addContributor(contributor: InsertPaperContributor): Promise<PaperContributor> {
-    const [newContributor] = await db.insert(paperContributors).values(contributor).returning();
+    const [newContributor] = await db.insert(paperContributors).values(contributor as any).returning();
     return newContributor;
   }
 
@@ -176,7 +176,7 @@ export class DatabaseStorage implements IStorage {
 
   // Blockchain operations
   async createBlockchainRecord(record: InsertBlockchainRecord): Promise<BlockchainRecord> {
-    const [newRecord] = await db.insert(blockchainRecords).values(record).returning();
+    const [newRecord] = await db.insert(blockchainRecords).values(record as any).returning();
     return newRecord;
   }
 
@@ -195,7 +195,7 @@ export class DatabaseStorage implements IStorage {
 
   // MCP communications
   async createMcpCommunication(comm: InsertMcpCommunication): Promise<McpCommunication> {
-    const [newComm] = await db.insert(mcpCommunications).values(comm).returning();
+    const [newComm] = await db.insert(mcpCommunications).values(comm as any).returning();
     return newComm;
   }
 
@@ -232,7 +232,7 @@ export class DatabaseStorage implements IStorage {
 
   // Agent task operations
   async createAgentTask(task: InsertAgentTask): Promise<AgentTask> {
-    const [newTask] = await db.insert(agentTasks).values(task).returning();
+    const [newTask] = await db.insert(agentTasks).values(task as any).returning();
     return newTask;
   }
 
@@ -260,7 +260,7 @@ export class DatabaseStorage implements IStorage {
   async updateAgentTask(id: string, updates: Partial<InsertAgentTask>): Promise<AgentTask> {
     const [updated] = await db
       .update(agentTasks)
-      .set(updates)
+      .set(updates as any)
       .where(eq(agentTasks.id, id))
       .returning();
     return updated;
@@ -286,7 +286,7 @@ export class DatabaseStorage implements IStorage {
   async updateTask(id: string, updates: Partial<AgentTask>): Promise<AgentTask> {
     const [updated] = await db
       .update(agentTasks)
-      .set(updates)
+      .set(updates as any)
       .where(eq(agentTasks.id, id))
       .returning();
     return updated;
@@ -319,17 +319,20 @@ export class DatabaseStorage implements IStorage {
     agentId?: string,
     limit = 50
   ): Promise<AgentTask[]> {
-    let query = db
+    if (agentId) {
+      return await db
+        .select()
+        .from(agentTasks)
+        .where(eq(agentTasks.agentId, agentId))
+        .orderBy(desc(agentTasks.createdAt))
+        .limit(limit);
+    }
+    
+    return await db
       .select()
       .from(agentTasks)
       .orderBy(desc(agentTasks.createdAt))
       .limit(limit);
-
-    if (agentId) {
-      query = query.where(eq(agentTasks.agentId, agentId));
-    }
-
-    return await query;
   }
 
   // Agent conversation operations

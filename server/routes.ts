@@ -1093,7 +1093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update task status
-      const updates = {
+      const updates: any = {
         status: approved ? 'completed' : 'failed',
         humanFeedback: feedback,
         humanReviewedAt: new Date(),
@@ -1342,6 +1342,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const estimate = await estimateGasCost(chain, dataSize);
       res.json(estimate);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== Agent Conversation Routes =====
+  
+  // Create a new conversation message
+  app.post("/api/conversations", async (req, res) => {
+    try {
+      const { paperId, agentId, userId, role, message, metadata } = req.body;
+      
+      if (!agentId || !role || !message) {
+        return res.status(400).json({ error: "agentId, role, and message are required" });
+      }
+
+      const conversation = await storage.createAgentConversation({
+        paperId,
+        agentId,
+        userId,
+        role,
+        message,
+        metadata,
+      });
+      
+      res.json(conversation);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get conversations for a paper
+  app.get("/api/papers/:paperId/conversations", async (req, res) => {
+    try {
+      const { paperId } = req.params;
+      const conversations = await storage.getConversationsByPaperId(paperId);
+      res.json(conversations);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get conversations for an agent
+  app.get("/api/agents/:agentId/conversations", async (req, res) => {
+    try {
+      const { agentId } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const conversations = await storage.getConversationsByAgentId(agentId, limit);
+      res.json(conversations);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get conversations for a user
+  app.get("/api/users/:userId/conversations", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const conversations = await storage.getConversationsByUserId(userId, limit);
+      res.json(conversations);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
