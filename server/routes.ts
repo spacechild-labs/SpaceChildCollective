@@ -214,6 +214,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const paperData = insertPaperSchema.parse(req.body);
       const paper = await storage.createPaper(paperData);
+      
+      // Automatically add the creator as an author contributor
+      const userId = (req.session as any).userId;
+      if (userId) {
+        await storage.addContributor({
+          paperId: paper.id,
+          userId: userId,
+          role: "author",
+          contributionType: "human"
+        });
+      }
+      
       res.json(paper);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
