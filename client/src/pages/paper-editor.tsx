@@ -99,7 +99,15 @@ export default function PaperEditor() {
     },
     onSuccess: (data) => {
       setSavedPaperId(data.id);
+      // Invalidate all paper-related queries to ensure fresh data
       queryClient.invalidateQueries({ queryKey: ['/api/papers'] });
+      // Invalidate all user paper queries (using partial match)
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.includes('/api/users/') && key.includes('/papers');
+        }
+      });
       toast({
         title: "Paper saved",
         description: "Your research paper has been saved as a draft.",
@@ -143,7 +151,15 @@ export default function PaperEditor() {
       return publishedPaper;
     },
     onSuccess: () => {
+      // Invalidate all paper-related queries to ensure fresh data everywhere
       queryClient.invalidateQueries({ queryKey: ['/api/papers'] });
+      // Invalidate all user paper queries (using partial match)
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.includes('/api/users/') && key.includes('/papers');
+        }
+      });
       setPublishDialogOpen(false);
       toast({
         title: "Paper published!",

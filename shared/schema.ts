@@ -192,7 +192,8 @@ export const insertPaperSchema = createInsertSchema(papers).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-  publishedAt: true,
+}).extend({
+  publishedAt: z.string().datetime().optional().nullable(),
 });
 
 export const insertPaperContributorSchema = createInsertSchema(paperContributors).omit({
