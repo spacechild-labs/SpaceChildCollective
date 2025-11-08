@@ -91,9 +91,13 @@ app.use((req, res, next) => {
   await agentManager.start();
   log("Agent Manager started with autonomous agent processes");
 
-  // Start task dispatcher to monitor and dispatch tasks to connected agents
-  taskDispatcher.start();
-  log("Task dispatcher started (polling every 5 seconds)");
+  // Start task dispatcher only if enabled (to reduce database polling)
+  if (process.env.ENABLE_TASK_DISPATCHER === 'true') {
+    taskDispatcher.start();
+    log("Task dispatcher started (polling every 5 seconds)");
+  } else {
+    log("Task dispatcher disabled (set ENABLE_TASK_DISPATCHER=true to enable)");
+  }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
@@ -113,9 +117,11 @@ app.use((req, res, next) => {
     log("Shutting down gracefully...");
     
     try {
-      // Stop task dispatcher
-      taskDispatcher.stop();
-      log("Task dispatcher stopped");
+      // Stop task dispatcher if it was started
+      if (process.env.ENABLE_TASK_DISPATCHER === 'true') {
+        taskDispatcher.stop();
+        log("Task dispatcher stopped");
+      }
       
       // Stop agent manager
       await agentManager.stop();

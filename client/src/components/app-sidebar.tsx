@@ -82,7 +82,7 @@ export function AppSidebar() {
   // Get count of pending approvals
   const { data: pendingTasks } = useQuery<AgentTask[]>({
     queryKey: ["/api/tasks/pending-approvals"],
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 300000, // Refetch every 5 minutes to reduce database load
   });
 
   const pendingCount = pendingTasks?.length || 0;
