@@ -63,9 +63,9 @@ export class TaskDispatcher {
       // Get all tasks from the database
       const allTasks = await storage.getAllTasks();
 
-      // Filter for tasks that need processing
+      // Filter for tasks that need processing (only queued tasks)
       const pendingTasks = allTasks.filter((task) => 
-        task.status === "queued" || task.status === "assigned"
+        task.status === "queued"
       );
 
       if (pendingTasks.length === 0) {
@@ -90,24 +90,25 @@ export class TaskDispatcher {
     try {
       console.log(`Processing task ${task.id} (${task.taskType})`);
 
-      // If task is queued, assign it to an agent
+      // If task is queued, try to execute it
       if (task.status === "queued") {
-        const assignedAgentId = await agentManager.assignTask(task);
-        if (!assignedAgentId) {
-          console.log(`No available agent for task ${task.id}, will retry later`);
-          return;
+        // Check if we have an agent for this task
+        if (!task.agentId) {
+          const assignedAgentId = await agentManager.assignTask(task);
+          if (!assignedAgentId) {
+            console.log(`No available agent for task ${task.id}, will retry later`);
+            return;
+          }
         }
-      }
-
-      // If task is assigned and agent is connected, process it
-      if (task.status === "assigned" && task.agentId) {
+        
+        // Execute the task
         await this.executeTask(task);
       }
     } catch (error) {
       console.error(`Error processing task ${task.id}:`, error);
-      // Mark task as failed
+      // Mark task as cancelled on error
       await storage.updateAgentTask(task.id, {
-        status: "failed",
+        status: "cancelled",
         result: { error: error instanceof Error ? error.message : "Unknown error" }
       });
     }
@@ -150,7 +151,7 @@ export class TaskDispatcher {
     } catch (error) {
       console.error(`Error executing task ${task.id}:`, error);
       await storage.updateAgentTask(task.id, {
-        status: "failed",
+        status: "cancelled",
         result: { error: error instanceof Error ? error.message : "Unknown error" }
       });
     }
@@ -200,12 +201,11 @@ export class TaskDispatcher {
   }): Promise<AgentTask> {
     try {
       const task = await storage.createAgentTask({
-        paperId: taskData.paperId || null,
-        agentId: taskData.agentId || null,
+        paperId: taskData.paperId ?? null,
+        agentId: taskData.agentId ?? "system",
         taskType: taskData.taskType as any,
         description: taskData.description,
-        status: "queued",
-        createdAt: new Date()
+        status: "queued"
       });
 
       console.log(`✅ Created task ${task.id}: ${taskData.taskType}`);
@@ -228,10 +228,10 @@ export class TaskDispatcher {
     try {
       const task = await storage.createAgentTask({
         paperId,
+        agentId: "system",
         taskType: taskType as any,
         description,
-        status: "queued",
-        createdAt: new Date()
+        status: "queued"
       });
 
       console.log(`✅ Created task ${task.id} for paper ${paperId}: ${taskType}`);
@@ -248,10 +248,9 @@ export class TaskDispatcher {
   async getTaskStats(): Promise<{
     total: number;
     queued: number;
-    assigned: number;
     inProgress: number;
     completed: number;
-    failed: number;
+    cancelled: number;
     awaitingApproval: number;
   }> {
     try {
@@ -260,10 +259,9 @@ export class TaskDispatcher {
       return {
         total: allTasks.length,
         queued: allTasks.filter(t => t.status === "queued").length,
-        assigned: allTasks.filter(t => t.status === "assigned").length,
         inProgress: allTasks.filter(t => t.status === "in_progress").length,
         completed: allTasks.filter(t => t.status === "completed").length,
-        failed: allTasks.filter(t => t.status === "failed").length,
+        cancelled: allTasks.filter(t => t.status === "cancelled").length,
         awaitingApproval: allTasks.filter(t => t.status === "awaiting_approval").length
       };
     } catch (error) {
@@ -271,10 +269,9 @@ export class TaskDispatcher {
       return {
         total: 0,
         queued: 0,
-        assigned: 0,
         inProgress: 0,
         completed: 0,
-        failed: 0,
+        cancelled: 0,
         awaitingApproval: 0
       };
     }

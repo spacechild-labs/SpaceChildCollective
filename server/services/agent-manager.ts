@@ -192,9 +192,9 @@ export class AgentManager {
           const token = this.generateMcpToken(agentData.id);
           await storage.createUser({
             ...agentData,
+            zkpCommitment: `agent_${agentData.id}`,
             mcpToken: token,
-            mcpConnectionStatus: 'offline',
-            createdAt: new Date()
+            mcpConnectionStatus: 'offline'
           });
           console.log(`✅ Created default agent: ${agentData.displayName}`);
         }
@@ -226,7 +226,7 @@ export class AgentManager {
    * Perform health check on all agents
    */
   private async performHealthCheck(): Promise<void> {
-    for (const [agentId, agentProcess] of this.agents) {
+    for (const [agentId, agentProcess] of Array.from(this.agents.entries())) {
       try {
         const isHealthy = await agentProcess.healthCheck();
         
@@ -382,18 +382,19 @@ class AgentProcess {
       return;
     }
 
+    const process = this.process;
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        this.process!.kill('SIGKILL');
+        process.kill('SIGKILL');
         resolve(undefined);
       }, 5000);
 
-      this.process.once('exit', () => {
+      process.once('exit', () => {
         clearTimeout(timeout);
         resolve(undefined);
       });
 
-      this.process.kill('SIGTERM');
+      process.kill('SIGTERM');
     });
   }
 
