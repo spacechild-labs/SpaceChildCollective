@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Save, Send, Users, Bot, Database, Edit } from "lucide-react";
+import { Save, Send, Users, Bot, Database, Edit, CheckCircle, Loader2 } from "lucide-react";
 import { UserTypeBadge } from "@/components/user-type-badge";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -41,6 +41,7 @@ export default function PaperEditor() {
   const [abstract, setAbstract] = useState("");
   const [category, setCategory] = useState("consciousness");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [savedPaperId, setSavedPaperId] = useState<string | null>(null);
 
   // Fetch paper data if we have a valid paperId (not "new")
@@ -66,16 +67,26 @@ export default function PaperEditor() {
     }
   }, [paper]);
 
-  const createPaperMutation = useMutation({
+  const savePaperMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/papers', {
-        title,
-        abstract: abstract || "No abstract provided",
-        content,
-        status: "draft",
-        category,
-      });
-      return await res.json() as Paper;
+      if (savedPaperId) {
+        const res = await apiRequest('PATCH', `/api/papers/${savedPaperId}`, {
+          title,
+          abstract: abstract || "No abstract provided",
+          content,
+          category,
+        });
+        return await res.json() as Paper;
+      } else {
+        const res = await apiRequest('POST', '/api/papers', {
+          title,
+          abstract: abstract || "No abstract provided",
+          content,
+          status: "draft",
+          category,
+        });
+        return await res.json() as Paper;
+      }
     },
     onSuccess: (data) => {
       setSavedPaperId(data.id);
@@ -88,6 +99,34 @@ export default function PaperEditor() {
     onError: (error: Error) => {
       toast({
         title: "Error saving paper",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const publishPaperMutation = useMutation({
+    mutationFn: async () => {
+      if (!savedPaperId) throw new Error("Paper must be saved first");
+      
+      // Update paper status to published
+      const res = await apiRequest('PATCH', `/api/papers/${savedPaperId}`, {
+        status: "published",
+        publishedAt: new Date().toISOString(),
+      });
+      return await res.json() as Paper;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/papers'] });
+      setPublishDialogOpen(false);
+      toast({
+        title: "Paper published!",
+        description: "Your research is now available to the community.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error publishing paper",
         description: error.message,
         variant: "destructive",
       });
@@ -158,21 +197,22 @@ export default function PaperEditor() {
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => createPaperMutation.mutate()}
-                  disabled={createPaperMutation.isPending}
+                  onClick={() => savePaperMutation.mutate()}
+                  disabled={savePaperMutation.isPending}
                   data-testid="button-save-draft"
                 >
                   <Save className="mr-2 h-4 w-4" />
-                  {createPaperMutation.isPending ? "Saving..." : "Save Draft"}
+                  {savePaperMutation.isPending ? "Saving..." : "Save Draft"}
                 </Button>
                 <Button 
                   size="sm" 
                   variant="default"
-                  disabled
+                  onClick={() => setPublishDialogOpen(true)}
+                  disabled={!savedPaperId || paper?.status === "published"}
                   data-testid="button-publish"
                 >
-                  <Database className="mr-2 h-4 w-4" />
-                  Save Draft First
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  {paper?.status === "published" ? "Published" : "Publish"}
                 </Button>
               </>
             )}
@@ -320,6 +360,66 @@ export default function PaperEditor() {
             </Dialog>
           </CardContent>
         </Card>
+
+        {/* Publish Dialog */}
+        <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
+          <DialogContent data-testid="dialog-publish-paper">
+            <DialogHeader>
+              <DialogTitle>Publish Research Paper</DialogTitle>
+              <DialogDescription>
+                Publishing will make your research available to the community and record it on the blockchain for verification.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <h4 className="font-medium">Paper Details</h4>
+                <div className="text-sm space-y-1">
+                  <p><strong>Title:</strong> {title}</p>
+                  <p><strong>Category:</strong> {category}</p>
+                  <p><strong>Abstract:</strong> {abstract || "No abstract provided"}</p>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Blockchain Verification</h4>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>✓ Paper will be published to NEO X blockchain</p>
+                  <p>✓ Immutable proof of discovery timestamp</p>
+                  <p>✓ Tamper-proof content verification</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setPublishDialogOpen(false)}
+                  disabled={publishPaperMutation.isPending}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => publishPaperMutation.mutate()}
+                  disabled={publishPaperMutation.isPending}
+                  className="flex-1"
+                  data-testid="button-confirm-publish"
+                >
+                  {publishPaperMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Publishing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Publish Paper
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Card className="mb-4">
           <CardHeader>

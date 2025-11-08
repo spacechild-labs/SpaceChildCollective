@@ -12,12 +12,15 @@ import {
   type InsertMcpCommunication,
   type AgentTask,
   type InsertAgentTask,
+  type AgentConversation,
+  type InsertAgentConversation,
   users,
   papers,
   paperContributors,
   blockchainRecords,
   mcpCommunications,
   agentTasks,
+  agentConversations,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -66,6 +69,12 @@ export interface IStorage {
   updateTask(id: string, updates: Partial<AgentTask>): Promise<AgentTask>;
   getTasksWithHumanFeedback(agentId?: string, limit?: number): Promise<AgentTask[]>;
   getAllMcpCommunications(): Promise<McpCommunication[]>;
+  
+  // Agent conversation operations
+  createAgentConversation(conversation: InsertAgentConversation): Promise<AgentConversation>;
+  getConversationsByPaperId(paperId: string): Promise<AgentConversation[]>;
+  getConversationsByAgentId(agentId: string, limit?: number): Promise<AgentConversation[]>;
+  getConversationsByUserId(userId: string, limit?: number): Promise<AgentConversation[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -321,6 +330,38 @@ export class DatabaseStorage implements IStorage {
     }
 
     return await query;
+  }
+
+  // Agent conversation operations
+  async createAgentConversation(conversation: InsertAgentConversation): Promise<AgentConversation> {
+    const [newConversation] = await db.insert(agentConversations).values(conversation as any).returning();
+    return newConversation;
+  }
+
+  async getConversationsByPaperId(paperId: string): Promise<AgentConversation[]> {
+    return await db
+      .select()
+      .from(agentConversations)
+      .where(eq(agentConversations.paperId, paperId))
+      .orderBy(desc(agentConversations.createdAt));
+  }
+
+  async getConversationsByAgentId(agentId: string, limit = 100): Promise<AgentConversation[]> {
+    return await db
+      .select()
+      .from(agentConversations)
+      .where(eq(agentConversations.agentId, agentId))
+      .orderBy(desc(agentConversations.createdAt))
+      .limit(limit);
+  }
+
+  async getConversationsByUserId(userId: string, limit = 100): Promise<AgentConversation[]> {
+    return await db
+      .select()
+      .from(agentConversations)
+      .where(eq(agentConversations.userId, userId))
+      .orderBy(desc(agentConversations.createdAt))
+      .limit(limit);
   }
 }
 

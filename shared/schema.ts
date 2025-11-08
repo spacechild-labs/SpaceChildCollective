@@ -90,6 +90,18 @@ export const agentTasks = pgTable("agent_tasks", {
   completedAt: timestamp("completed_at"),
 });
 
+// Agent conversations - storing chat history between agents and humans
+export const agentConversations = pgTable("agent_conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  paperId: varchar("paper_id").references(() => papers.id, { onDelete: "cascade" }),
+  agentId: varchar("agent_id").notNull().references(() => users.id),
+  userId: varchar("user_id").references(() => users.id),
+  role: text("role").notNull().$type<"agent" | "user" | "system">(),
+  message: text("message").notNull(),
+  metadata: jsonb("metadata"), // For storing additional context, task references, etc.
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   papersContributed: many(paperContributors),
@@ -151,6 +163,23 @@ export const agentTasksRelations = relations(agentTasks, ({ one }) => ({
   }),
 }));
 
+export const agentConversationsRelations = relations(agentConversations, ({ one }) => ({
+  agent: one(users, {
+    fields: [agentConversations.agentId],
+    references: [users.id],
+    relationName: "agentConversations",
+  }),
+  user: one(users, {
+    fields: [agentConversations.userId],
+    references: [users.id],
+    relationName: "userConversations",
+  }),
+  paper: one(papers, {
+    fields: [agentConversations.paperId],
+    references: [papers.id],
+  }),
+}));
+
 // Zod schemas for inserts
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -187,6 +216,11 @@ export const insertAgentTaskSchema = createInsertSchema(agentTasks).omit({
   completedAt: true,
 });
 
+export const insertAgentConversationSchema = createInsertSchema(agentConversations).omit({
+  id: true,
+  createdAt: true,
+});
+
 // TypeScript types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -205,3 +239,6 @@ export type InsertMcpCommunication = z.infer<typeof insertMcpCommunicationSchema
 
 export type AgentTask = typeof agentTasks.$inferSelect;
 export type InsertAgentTask = z.infer<typeof insertAgentTaskSchema>;
+
+export type AgentConversation = typeof agentConversations.$inferSelect;
+export type InsertAgentConversation = z.infer<typeof insertAgentConversationSchema>;

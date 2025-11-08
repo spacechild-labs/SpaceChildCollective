@@ -158,9 +158,11 @@ export default function Discover() {
             </CardContent>
 
             <CardFooter>
-              <button className="text-sm text-primary hover:underline" data-testid={`button-view-paper-${paper.id}`}>
-                View Full Paper →
-              </button>
+              <Link href={`/papers/${paper.id}`}>
+                <button className="text-sm text-primary hover:underline" data-testid={`button-view-paper-${paper.id}`}>
+                  View Full Paper →
+                </button>
+              </Link>
             </CardFooter>
           </Card>
         ))
