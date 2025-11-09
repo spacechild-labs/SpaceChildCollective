@@ -84,11 +84,10 @@ export function isBlockchainEnabled(): boolean {
   return BLOCKCHAIN_CONFIG.neoX.enabled || BLOCKCHAIN_CONFIG.base.enabled;
 }
 
-export function getSHA256Hash(content: string): string {
+export async function getSHA256Hash(content: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(content);
-  return crypto.subtle.digest('SHA-256', data).then(hash => {
-    const hashArray = Array.from(new Uint8Array(hash));
-    return '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  });
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hash));
+  return '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }

@@ -14,6 +14,12 @@ import {
   type InsertAgentTask,
   type AgentConversation,
   type InsertAgentConversation,
+  type AgentMessage,
+  type InsertAgentMessage,
+  type SharedKnowledge,
+  type InsertSharedKnowledge,
+  type CollaborationSession,
+  type InsertCollaborationSession,
   users,
   papers,
   paperContributors,
@@ -21,9 +27,12 @@ import {
   mcpCommunications,
   agentTasks,
   agentConversations,
+  agentMessages,
+  sharedKnowledge,
+  collaborationSessions,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -75,6 +84,17 @@ export interface IStorage {
   getConversationsByPaperId(paperId: string): Promise<AgentConversation[]>;
   getConversationsByAgentId(agentId: string, limit?: number): Promise<AgentConversation[]>;
   getConversationsByUserId(userId: string, limit?: number): Promise<AgentConversation[]>;
+  
+  // Agent collaboration operations
+  createAgentMessage(message: import("@shared/schema").InsertAgentMessage): Promise<import("@shared/schema").AgentMessage>;
+  getAgentMessagesByAgent(agentId: string, limit?: number): Promise<import("@shared/schema").AgentMessage[]>;
+  createSharedKnowledge(knowledge: import("@shared/schema").InsertSharedKnowledge): Promise<import("@shared/schema").SharedKnowledge>;
+  getSharedKnowledgeByAgent(agentId: string): Promise<import("@shared/schema").SharedKnowledge[]>;
+  getSharedKnowledgeByPaper(paperId: string): Promise<import("@shared/schema").SharedKnowledge[]>;
+  updateKnowledgeAccess(id: string): Promise<void>;
+  createCollaborationSession(session: import("@shared/schema").InsertCollaborationSession): Promise<import("@shared/schema").CollaborationSession>;
+  getActiveCollaborationSessions(): Promise<import("@shared/schema").CollaborationSession[]>;
+  updateCollaborationSession(id: string, updates: Partial<import("@shared/schema").InsertCollaborationSession>): Promise<import("@shared/schema").CollaborationSession>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -365,6 +385,77 @@ export class DatabaseStorage implements IStorage {
       .where(eq(agentConversations.userId, userId))
       .orderBy(desc(agentConversations.createdAt))
       .limit(limit);
+  }
+
+  // Agent collaboration operations
+  async createAgentMessage(message: InsertAgentMessage): Promise<AgentMessage> {
+    const [newMessage] = await db.insert(agentMessages).values(message as any).returning();
+    return newMessage;
+  }
+
+  async getAgentMessagesByAgent(agentId: string, limit = 100): Promise<AgentMessage[]> {
+    return await db
+      .select()
+      .from(agentMessages)
+      .where(eq(agentMessages.fromAgentId, agentId))
+      .orderBy(desc(agentMessages.createdAt))
+      .limit(limit);
+  }
+
+  async createSharedKnowledge(knowledge: InsertSharedKnowledge): Promise<SharedKnowledge> {
+    const [newKnowledge] = await db.insert(sharedKnowledge).values(knowledge as any).returning();
+    return newKnowledge;
+  }
+
+  async getSharedKnowledgeByAgent(agentId: string): Promise<SharedKnowledge[]> {
+    return await db
+      .select()
+      .from(sharedKnowledge)
+      .where(eq(sharedKnowledge.agentId, agentId))
+      .orderBy(desc(sharedKnowledge.createdAt));
+  }
+
+  async getSharedKnowledgeByPaper(paperId: string): Promise<SharedKnowledge[]> {
+    return await db
+      .select()
+      .from(sharedKnowledge)
+      .where(eq(sharedKnowledge.paperId, paperId))
+      .orderBy(desc(sharedKnowledge.createdAt));
+  }
+
+  async updateKnowledgeAccess(id: string): Promise<void> {
+    await db
+      .update(sharedKnowledge)
+      .set({ 
+        accessCount: sql`${sharedKnowledge.accessCount} + 1`,
+        lastAccessedAt: new Date() 
+      })
+      .where(eq(sharedKnowledge.id, id));
+  }
+
+  async createCollaborationSession(session: InsertCollaborationSession): Promise<CollaborationSession> {
+    const [newSession] = await db.insert(collaborationSessions).values(session as any).returning();
+    return newSession;
+  }
+
+  async getActiveCollaborationSessions(): Promise<CollaborationSession[]> {
+    return await db
+      .select()
+      .from(collaborationSessions)
+      .where(eq(collaborationSessions.status, 'active'))
+      .orderBy(desc(collaborationSessions.lastActivityAt));
+  }
+
+  async updateCollaborationSession(id: string, updates: Partial<InsertCollaborationSession>): Promise<CollaborationSession> {
+    const [updated] = await db
+      .update(collaborationSessions)
+      .set({ ...updates, lastActivityAt: new Date() } as any)
+      .where(eq(collaborationSessions.id, id))
+      .returning();
+    if (!updated) {
+      throw new Error("Collaboration session not found");
+    }
+    return updated;
   }
 }
 

@@ -140,13 +140,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   switch (name) {
     case "search_papers": {
-      const papers = await storage.getAllPapers();
+      const agentId = args.agentId as string | undefined;
       const query = (args.query as string).toLowerCase();
-      const filtered = papers.filter(
+      
+      // Get papers the agent has access to (via contributor relationship)
+      const allPapers = agentId 
+        ? await storage.getPapersByUserId(agentId)
+        : await storage.getAllPapers();
+      
+      const filtered = allPapers.filter(
         (p) =>
           p.title.toLowerCase().includes(query) ||
           p.abstract.toLowerCase().includes(query)
       );
+      
       return {
         content: [
           {
@@ -158,8 +165,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "get_paper_content": {
-      const paper = await storage.getPaper(args.paperId as string);
-      if (!paper) {
+      const paperId = args.paperId as string;
+      const agentId = args.agentId as string | undefined;
+      
+      // Get paper with contributors to check access
+      const paperWithContributors = await storage.getPaperWithContributors(paperId);
+      
+      if (!paperWithContributors) {
         return {
           content: [
             {
@@ -169,11 +181,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ],
         };
       }
+      
+      // Check if agent has access (is a contributor)
+      if (agentId) {
+        const hasAccess = paperWithContributors.contributors.some(
+          c => c.userId === agentId
+        );
+        
+        if (!hasAccess) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({ 
+                  error: "Access denied: Agent is not a contributor to this paper" 
+                }),
+              },
+            ],
+          };
+        }
+      }
+      
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(paper, null, 2),
+            text: JSON.stringify(paperWithContributors, null, 2),
           },
         ],
       };

@@ -103,7 +103,7 @@ export const agentConversations = pgTable("agent_conversations", {
 });
 
 // Agent messages - agent-to-agent communication for collaboration
-export const agentMessages: ReturnType<typeof pgTable<"agent_messages", any>> = pgTable("agent_messages", {
+export const agentMessages = pgTable("agent_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   fromAgentId: varchar("from_agent_id").notNull().references(() => users.id),
   toAgentId: varchar("to_agent_id").references(() => users.id), // null for broadcast
