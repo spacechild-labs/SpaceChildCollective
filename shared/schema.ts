@@ -102,6 +102,53 @@ export const agentConversations = pgTable("agent_conversations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Agent messages - agent-to-agent communication for collaboration
+export const agentMessages = pgTable("agent_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromAgentId: varchar("from_agent_id").notNull().references(() => users.id),
+  toAgentId: varchar("to_agent_id").references(() => users.id), // null for broadcast
+  messageType: text("message_type").notNull().$type<"collaboration_request" | "knowledge_share" | "task_handoff" | "review_request" | "insight_proposal">(),
+  content: jsonb("content").notNull(),
+  priority: text("priority").notNull().$type<"low" | "medium" | "high" | "urgent">(),
+  requiresResponse: boolean("requires_response").default(false),
+  responseToId: varchar("response_to_id").references(() => agentMessages.id),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Shared knowledge - agent knowledge sharing and discovery
+export const sharedKnowledge = pgTable("shared_knowledge", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => users.id),
+  taskId: varchar("task_id").references(() => agentTasks.id),
+  paperId: varchar("paper_id").references(() => papers.id, { onDelete: "cascade" }),
+  knowledgeType: text("knowledge_type").notNull().$type<"research_finding" | "citation" | "methodology" | "insight" | "resource">(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  confidence: integer("confidence").notNull(), // 0-100
+  relevance: integer("relevance").notNull(), // 0-100
+  tags: text("tags").array(),
+  verified: boolean("verified").default(false),
+  accessCount: integer("access_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastAccessedAt: timestamp("last_accessed_at").defaultNow().notNull(),
+});
+
+// Collaboration sessions - tracking multi-agent collaborative work
+export const collaborationSessions = pgTable("collaboration_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  leadAgentId: varchar("lead_agent_id").notNull().references(() => users.id),
+  participantAgentIds: text("participant_agent_ids").array(), // Array of agent IDs
+  taskIds: text("task_ids").array(), // Array of task IDs
+  sharedKnowledgeIds: text("shared_knowledge_ids").array(), // Array of knowledge IDs
+  messageIds: text("message_ids").array(), // Array of message IDs
+  status: text("status").notNull().$type<"active" | "paused" | "completed">(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   papersContributed: many(paperContributors),
@@ -180,6 +227,45 @@ export const agentConversationsRelations = relations(agentConversations, ({ one 
   }),
 }));
 
+export const agentMessagesRelations = relations(agentMessages, ({ one }) => ({
+  fromAgent: one(users, {
+    fields: [agentMessages.fromAgentId],
+    references: [users.id],
+    relationName: "messagesSent",
+  }),
+  toAgent: one(users, {
+    fields: [agentMessages.toAgentId],
+    references: [users.id],
+    relationName: "messagesReceived",
+  }),
+  responseTo: one(agentMessages, {
+    fields: [agentMessages.responseToId],
+    references: [agentMessages.id],
+  }),
+}));
+
+export const sharedKnowledgeRelations = relations(sharedKnowledge, ({ one }) => ({
+  agent: one(users, {
+    fields: [sharedKnowledge.agentId],
+    references: [users.id],
+  }),
+  task: one(agentTasks, {
+    fields: [sharedKnowledge.taskId],
+    references: [agentTasks.id],
+  }),
+  paper: one(papers, {
+    fields: [sharedKnowledge.paperId],
+    references: [papers.id],
+  }),
+}));
+
+export const collaborationSessionsRelations = relations(collaborationSessions, ({ one }) => ({
+  leadAgent: one(users, {
+    fields: [collaborationSessions.leadAgentId],
+    references: [users.id],
+  }),
+}));
+
 // Zod schemas for inserts
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -222,6 +308,23 @@ export const insertAgentConversationSchema = createInsertSchema(agentConversatio
   createdAt: true,
 });
 
+export const insertAgentMessageSchema = createInsertSchema(agentMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSharedKnowledgeSchema = createInsertSchema(sharedKnowledge).omit({
+  id: true,
+  createdAt: true,
+  lastAccessedAt: true,
+});
+
+export const insertCollaborationSessionSchema = createInsertSchema(collaborationSessions).omit({
+  id: true,
+  createdAt: true,
+  lastActivityAt: true,
+});
+
 // TypeScript types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -243,3 +346,12 @@ export type InsertAgentTask = z.infer<typeof insertAgentTaskSchema>;
 
 export type AgentConversation = typeof agentConversations.$inferSelect;
 export type InsertAgentConversation = z.infer<typeof insertAgentConversationSchema>;
+
+export type AgentMessage = typeof agentMessages.$inferSelect;
+export type InsertAgentMessage = z.infer<typeof insertAgentMessageSchema>;
+
+export type SharedKnowledge = typeof sharedKnowledge.$inferSelect;
+export type InsertSharedKnowledge = z.infer<typeof insertSharedKnowledgeSchema>;
+
+export type CollaborationSession = typeof collaborationSessions.$inferSelect;
+export type InsertCollaborationSession = z.infer<typeof insertCollaborationSessionSchema>;
