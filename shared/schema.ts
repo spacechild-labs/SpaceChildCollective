@@ -103,7 +103,7 @@ export const agentConversations = pgTable("agent_conversations", {
 });
 
 // Agent messages - agent-to-agent communication for collaboration
-export const agentMessages = pgTable("agent_messages", {
+export const agentMessages: ReturnType<typeof pgTable<"agent_messages", any>> = pgTable("agent_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   fromAgentId: varchar("from_agent_id").notNull().references(() => users.id),
   toAgentId: varchar("to_agent_id").references(() => users.id), // null for broadcast
@@ -111,7 +111,7 @@ export const agentMessages = pgTable("agent_messages", {
   content: jsonb("content").notNull(),
   priority: text("priority").notNull().$type<"low" | "medium" | "high" | "urgent">(),
   requiresResponse: boolean("requires_response").default(false),
-  responseToId: varchar("response_to_id").references(() => agentMessages.id),
+  responseToId: varchar("response_to_id"),
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -237,10 +237,6 @@ export const agentMessagesRelations = relations(agentMessages, ({ one }) => ({
     fields: [agentMessages.toAgentId],
     references: [users.id],
     relationName: "messagesReceived",
-  }),
-  responseTo: one(agentMessages, {
-    fields: [agentMessages.responseToId],
-    references: [agentMessages.id],
   }),
 }));
 

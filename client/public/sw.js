@@ -3,8 +3,10 @@
  * Enables PWA functionality, offline support, and reliable installation
  */
 
-const CACHE_NAME = 'spacechild-collective-v1.0.0';
+const CACHE_NAME = 'spacechild-collective-v1.1.0';
 const OFFLINE_URL = '/';
+
+const SKIP_CACHING = true;
 
 // Assets to cache for offline functionality
 const STATIC_ASSETS = [
@@ -109,10 +111,11 @@ self.addEventListener('fetch', (event) => {
   }
   
   event.respondWith(
-    caches.match(request)
+    // Skip cache in development mode - always fetch fresh
+    (SKIP_CACHING ? Promise.resolve(null) : caches.match(request))
       .then((response) => {
-        // Return cached version if available
-        if (response) {
+        // Return cached version if available (only in production)
+        if (response && !SKIP_CACHING) {
           console.log('[SW] Serving from cache:', request.url);
           return response;
         }

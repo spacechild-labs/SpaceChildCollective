@@ -31,6 +31,8 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { BLOCKCHAIN_CONFIG, RESEARCH_REGISTRY_ABI, isBlockchainEnabled } from "@/lib/blockchain-config";
 
 export default function PaperEditor() {
   // Detect if we're in view mode (route is /papers/:id without /edit)
@@ -122,6 +124,12 @@ export default function PaperEditor() {
     },
   });
 
+  const { address, isConnected } = useAccount();
+  const { writeContract, data: txHash, isPending: isWritingContract } = useWriteContract();
+  const { isLoading: isWaitingForTx, isSuccess: isTxConfirmed } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
+
   const publishPaperMutation = useMutation({
     mutationFn: async () => {
       if (!savedPaperId) throw new Error("Paper must be saved first");
@@ -134,18 +142,39 @@ export default function PaperEditor() {
       
       const publishedPaper = await res.json() as Paper;
       
-      // Create blockchain record for secure preservation
-      try {
-        await apiRequest('POST', '/api/blockchain/record', {
-          paperId: savedPaperId,
-          chain: 'neox',
-          dataHash: `hash_${savedPaperId}_${Date.now()}`, // In production, use actual hash
-          title: title,
-          authors: [user?.displayName || 'Anonymous'],
-        });
-      } catch (error) {
-        console.error('Blockchain record creation failed:', error);
-        // Don't fail the publish if blockchain fails
+      // If blockchain is enabled and wallet connected, publish on-chain
+      if (isBlockchainEnabled() && isConnected && address) {
+        try {
+          // Calculate content hash
+          const contentHash = await crypto.subtle.digest(
+            'SHA-256',
+            new TextEncoder().encode(content + title + abstract)
+          );
+          const hashArray = Array.from(new Uint8Array(contentHash));
+          const hashHex = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          
+          // Publish to NEO X if enabled
+          if (BLOCKCHAIN_CONFIG.neoX.enabled && BLOCKCHAIN_CONFIG.neoX.address) {
+            writeContract({
+              address: BLOCKCHAIN_CONFIG.neoX.address as `0x${string}`,
+              abi: RESEARCH_REGISTRY_ABI,
+              functionName: 'publishPaper',
+              args: [hashHex as `0x${string}`, title, `paper://${savedPaperId}`],
+            });
+          }
+          
+          // Record blockchain attempt in database
+          await apiRequest('POST', '/api/blockchain/record', {
+            paperId: savedPaperId,
+            chain: 'neox',
+            dataHash: hashHex,
+            title: title,
+            authors: [user?.displayName || 'Anonymous'],
+          });
+        } catch (error) {
+          console.error('Blockchain record creation failed:', error);
+          // Don't fail the publish if blockchain fails - fallback mode
+        }
       }
       
       return publishedPaper;
