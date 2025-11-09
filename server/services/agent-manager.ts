@@ -215,11 +215,18 @@ export class AgentManager {
 
   /**
    * Start health monitoring for all agents
+   * Disabled by default for stub agents to prevent unnecessary restarts
    */
   private startHealthMonitoring(): void {
-    this.healthCheckInterval = setInterval(async () => {
-      await this.performHealthCheck();
-    }, 30000); // Check every 30 seconds
+    // Only enable health checks if explicitly requested
+    if (process.env.ENABLE_AGENT_HEALTH_CHECKS === 'true') {
+      this.healthCheckInterval = setInterval(async () => {
+        await this.performHealthCheck();
+      }, 30000); // Check every 30 seconds
+      console.log('🔍 Agent health monitoring enabled');
+    } else {
+      console.log('⏭️  Agent health monitoring disabled (stub mode)');
+    }
   }
 
   /**
