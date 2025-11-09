@@ -34,10 +34,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "search_papers",
-        description: "Search for research papers in the collective's database",
+        description: "Search for research papers the agent has access to (must be a contributor)",
         inputSchema: {
           type: "object",
           properties: {
+            agentId: {
+              type: "string",
+              description: "ID of the agent performing the search (required for access control)",
+            },
             query: {
               type: "string",
               description: "Search query for paper titles or abstracts",
@@ -47,21 +51,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Filter by category (consciousness, ai, neuroscience, philosophy)",
             },
           },
-          required: ["query"],
+          required: ["agentId", "query"],
         },
       },
       {
         name: "get_paper_content",
-        description: "Retrieve full content of a specific research paper",
+        description: "Retrieve full content of a specific research paper (must be a contributor)",
         inputSchema: {
           type: "object",
           properties: {
+            agentId: {
+              type: "string",
+              description: "ID of the agent requesting access (required for access control)",
+            },
             paperId: {
               type: "string",
               description: "ID of the paper to retrieve",
             },
           },
-          required: ["paperId"],
+          required: ["agentId", "paperId"],
         },
       },
       {
@@ -141,14 +149,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   switch (name) {
     case "search_papers": {
       const agentId = args.agentId as string | undefined;
+      
+      // SECURITY: agentId is required for access control
+      if (!agentId) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ 
+                error: "Unauthorized: agentId is required for paper access" 
+              }),
+            },
+          ],
+        };
+      }
+      
       const query = (args.query as string).toLowerCase();
       
-      // Get papers the agent has access to (via contributor relationship)
-      const allPapers = agentId 
-        ? await storage.getPapersByUserId(agentId)
-        : await storage.getAllPapers();
+      // Get only papers the agent has access to (via contributor relationship)
+      const agentPapers = await storage.getPapersByUserId(agentId);
       
-      const filtered = allPapers.filter(
+      const filtered = agentPapers.filter(
         (p) =>
           p.title.toLowerCase().includes(query) ||
           p.abstract.toLowerCase().includes(query)
@@ -168,6 +189,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const paperId = args.paperId as string;
       const agentId = args.agentId as string | undefined;
       
+      // SECURITY: agentId is required for access control
+      if (!agentId) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ 
+                error: "Unauthorized: agentId is required for paper access" 
+              }),
+            },
+          ],
+        };
+      }
+      
       // Get paper with contributors to check access
       const paperWithContributors = await storage.getPaperWithContributors(paperId);
       
@@ -183,23 +218,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       
       // Check if agent has access (is a contributor)
-      if (agentId) {
-        const hasAccess = paperWithContributors.contributors.some(
-          c => c.userId === agentId
-        );
-        
-        if (!hasAccess) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify({ 
-                  error: "Access denied: Agent is not a contributor to this paper" 
-                }),
-              },
-            ],
-          };
-        }
+      const hasAccess = paperWithContributors.contributors.some(
+        c => c.userId === agentId
+      );
+      
+      if (!hasAccess) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ 
+                error: "Access denied: Agent is not a contributor to this paper" 
+              }),
+            },
+          ],
+        };
       }
       
       return {
