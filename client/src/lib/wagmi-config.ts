@@ -2,22 +2,22 @@ import { createConfig, http } from 'wagmi';
 import { base, mainnet } from 'wagmi/chains';
 import { coinbaseWallet, injected } from 'wagmi/connectors';
 
-// NEO X Testnet chain config
-export const neoXTestnet = {
-  id: 12227332,
-  name: 'NEO X Testnet',
+// NEO X Mainnet chain config
+export const neoXMainnet = {
+  id: 47763,
+  name: 'NEO X Mainnet',
   nativeCurrency: { name: 'GAS', symbol: 'GAS', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://neoxt4seed1.ngd.network'] },
+    default: { http: ['https://mainnet-2.rpc.banelabs.org'] },
   },
   blockExplorers: {
-    default: { name: 'NEO X Explorer', url: 'https://xt4scan.ngd.network' },
+    default: { name: 'NEO X Explorer', url: 'https://xexplorer.neo.org' },
   },
-  testnet: true,
+  testnet: false,
 } as const;
 
 export const wagmiConfig = createConfig({
-  chains: [base, neoXTestnet],
+  chains: [base, neoXMainnet],
   connectors: [
     injected({ target: 'metaMask' }),
     coinbaseWallet({
@@ -27,6 +27,6 @@ export const wagmiConfig = createConfig({
   ],
   transports: {
     [base.id]: http(),
-    [neoXTestnet.id]: http(),
+    [neoXMainnet.id]: http(),
   },
 });

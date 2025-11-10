@@ -1,11 +1,11 @@
 export const BLOCKCHAIN_CONFIG = {
   neoX: {
-    address: import.meta.env.VITE_NEOX_CONTRACT_ADDRESS || null,
-    chainId: 12227332,
-    rpcUrl: 'https://neoxt4seed1.ngd.network',
-    explorerUrl: 'https://xt4scan.ngd.network',
-    name: 'NEO X Testnet',
-    enabled: !!import.meta.env.VITE_NEOX_CONTRACT_ADDRESS,
+    address: import.meta.env.VITE_NEOX_CONTRACT_ADDRESS || '0x4bafF945A988119D88F4Cf317f05d138019FD714',
+    chainId: 47763,
+    rpcUrl: 'https://mainnet-2.rpc.banelabs.org',
+    explorerUrl: 'https://xexplorer.neo.org',
+    name: 'NEO X Mainnet',
+    enabled: true,
   },
   base: {
     address: import.meta.env.VITE_BASE_CONTRACT_ADDRESS || null,
@@ -18,6 +18,28 @@ export const BLOCKCHAIN_CONFIG = {
 } as const;
 
 export const RESEARCH_REGISTRY_ABI = [
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "bytes32", "name": "contentHash", "type": "bytes32" },
+      { "indexed": true, "internalType": "address", "name": "publisher", "type": "address" },
+      { "indexed": false, "internalType": "string", "name": "title", "type": "string" },
+      { "indexed": false, "internalType": "string", "name": "metadataURI", "type": "string" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "name": "PaperPublished",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "bytes32", "name": "contentHash", "type": "bytes32" },
+      { "indexed": true, "internalType": "address", "name": "verifier", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "name": "PaperVerified",
+    "type": "event"
+  },
   {
     "inputs": [
       { "internalType": "bytes32", "name": "_contentHash", "type": "bytes32" },
@@ -33,12 +55,18 @@ export const RESEARCH_REGISTRY_ABI = [
     "inputs": [
       { "internalType": "bytes32", "name": "_contentHash", "type": "bytes32" }
     ],
-    "name": "verifyPaper",
+    "name": "recordVerification",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "name": "allPaperHashes",
     "outputs": [
-      { "internalType": "bool", "name": "isPublished", "type": "bool" },
-      { "internalType": "address", "name": "publisher", "type": "address" },
-      { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
-      { "internalType": "string", "name": "title", "type": "string" }
+      { "internalType": "bytes32", "name": "", "type": "bytes32" }
     ],
     "stateMutability": "view",
     "type": "function"
@@ -67,16 +95,66 @@ export const RESEARCH_REGISTRY_ABI = [
     "type": "function"
   },
   {
-    "anonymous": false,
     "inputs": [
-      { "indexed": true, "internalType": "bytes32", "name": "contentHash", "type": "bytes32" },
-      { "indexed": true, "internalType": "address", "name": "publisher", "type": "address" },
-      { "indexed": false, "internalType": "string", "name": "title", "type": "string" },
-      { "indexed": false, "internalType": "string", "name": "metadataURI", "type": "string" },
-      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+      { "internalType": "address", "name": "_publisher", "type": "address" }
     ],
-    "name": "PaperPublished",
-    "type": "event"
+    "name": "getPapersByPublisher",
+    "outputs": [
+      { "internalType": "bytes32[]", "name": "", "type": "bytes32[]" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getTotalPapers",
+    "outputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "", "type": "bytes32" }
+    ],
+    "name": "papers",
+    "outputs": [
+      { "internalType": "bytes32", "name": "contentHash", "type": "bytes32" },
+      { "internalType": "string", "name": "metadataURI", "type": "string" },
+      { "internalType": "address", "name": "publisher", "type": "address" },
+      { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
+      { "internalType": "string", "name": "title", "type": "string" },
+      { "internalType": "bool", "name": "isPublished", "type": "bool" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "", "type": "address" },
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "name": "publisherPapers",
+    "outputs": [
+      { "internalType": "bytes32", "name": "", "type": "bytes32" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_contentHash", "type": "bytes32" }
+    ],
+    "name": "verifyPaper",
+    "outputs": [
+      { "internalType": "bool", "name": "isPublished", "type": "bool" },
+      { "internalType": "address", "name": "publisher", "type": "address" },
+      { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
+      { "internalType": "string", "name": "title", "type": "string" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   }
 ] as const;
 
