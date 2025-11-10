@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Wallet, X, ExternalLink } from "lucide-react";
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from "wagmi";
 import { base } from "wagmi/chains";
-import { neoXTestnet } from "@/lib/wagmi-config";
+import { neoXMainnet } from "@/lib/wagmi-config";
 
 export function WalletConnect() {
   const { address, isConnected } = useAccount();
@@ -13,8 +13,8 @@ export function WalletConnect() {
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
 
-  const currentChain = chainId === base.id ? "Base" : chainId === neoXTestnet.id ? "NEO X Testnet" : "Unknown";
-  const isCorrectChain = chainId === base.id || chainId === neoXTestnet.id;
+  const currentChain = chainId === base.id ? "Base" : chainId === neoXMainnet.id ? "NEO X Mainnet" : "Unknown";
+  const isCorrectChain = chainId === base.id || chainId === neoXMainnet.id;
 
   if (isConnected && address) {
     return (
@@ -50,7 +50,7 @@ export function WalletConnect() {
           </div>
           {!isCorrectChain && (
             <div className="pt-2 space-y-2">
-              <p className="text-xs text-destructive">Please switch to Base or NEO X Testnet</p>
+              <p className="text-xs text-destructive">Please switch to Base or NEO X Mainnet</p>
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -63,10 +63,10 @@ export function WalletConnect() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => switchChain({ chainId: neoXTestnet.id })}
+                  onClick={() => switchChain({ chainId: neoXMainnet.id })}
                   data-testid="button-switch-neox"
                 >
-                  Switch to NEO X
+                  Switch to NEO X Mainnet
                 </Button>
               </div>
             </div>
