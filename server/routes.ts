@@ -282,7 +282,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create blockchain record (initiate proof-of-discovery)
   app.post("/api/blockchain/records", async (req, res) => {
     try {
-      const recordData = insertBlockchainRecordSchema.parse(req.body);
+      const parsedData = insertBlockchainRecordSchema.parse(req.body);
+      
+      // Ensure timestamp is a Date object
+      const recordData = {
+        ...parsedData,
+        timestamp: parsedData.timestamp instanceof Date 
+          ? parsedData.timestamp 
+          : new Date(parsedData.timestamp as any),
+      };
+      
       const record = await storage.createBlockchainRecord(recordData);
       res.json(record);
     } catch (error: any) {
