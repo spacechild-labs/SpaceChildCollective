@@ -3,6 +3,41 @@
   <head>
     <meta charset="UTF-8" />
 
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CMEBRPNPGG"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CMEBRPNPGG', {
+        'page_title': document.title,
+        'send_page_view': true,
+        'cookie_flags': 'SameSite=None;Secure'
+      });
+
+      // Enhanced ecommerce and events tracking
+      window.trackEvent = function(eventName, eventParams) {
+        gtag('event', eventName, eventParams || {});
+      };
+
+      // Track page views for SPA
+      window.trackPageView = function(pagePath, pageTitle) {
+        gtag('event', 'page_view', {
+          page_path: pagePath,
+          page_title: pageTitle || document.title,
+          page_location: window.location.href
+        });
+      };
+
+      // Track user engagement
+      window.trackEngagement = function(engagementType, details) {
+        gtag('event', engagementType, {
+          event_category: 'engagement',
+          event_label: details
+        });
+      };
+    </script>
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- Primary Meta Tags -->

@@ -22,6 +22,7 @@ import NotFound from "@/pages/not-found";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi-config";
 import { AuthProvider } from "@/contexts/auth-context";
+import { useAnalytics } from "@/hooks/use-analytics";
 
 function Router() {
   return (
@@ -50,6 +51,9 @@ const sidebarRoutes = ["/workspace", "/discover", "/papers", "/profile", "/setti
 
 function AppContent() {
   const [location] = useLocation();
+  
+  // Track page views for analytics
+  useAnalytics();
   
   // Check if current route should show sidebar
   const showSidebar = sidebarRoutes.some(route => location.startsWith(route));
