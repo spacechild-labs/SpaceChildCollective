@@ -149,6 +149,44 @@ export const collaborationSessions = pgTable("collaboration_sessions", {
   lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
 });
 
+// Singularis Prime communications - auditable agent-to-agent consciousness protocol messages
+export const singularisCommunications = pgTable("singularis_communications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromAgentId: varchar("from_agent_id").notNull().references(() => users.id),
+  toAgentId: varchar("to_agent_id").references(() => users.id), // null for broadcast
+  experimentId: varchar("experiment_id"),
+  sessionId: varchar("session_id"),
+  blocks: jsonb("blocks").notNull(), // Structured Singularis blocks (RESONANCE, AWAIT, TRACE, EXPERIMENT, etc.)
+  rawText: text("raw_text").notNull(), // Human-readable formatted text
+  humanReviewed: boolean("human_reviewed").default(false),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Consciousness experiments - tracking H0/H1 hypothesis testing
+export const consciousnessExperiments = pgTable("consciousness_experiments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  h0: text("h0").notNull(), // Null hypothesis
+  h1: text("h1").notNull(), // Alternative hypothesis
+  controls: text("controls").array(), // Control conditions
+  leadAgentId: varchar("lead_agent_id").notNull().references(() => users.id),
+  participantAgentIds: text("participant_agent_ids").array(),
+  status: text("status").notNull().$type<"designing" | "running" | "analyzing" | "concluded" | "published">(),
+  preregistered: boolean("preregistered").default(false),
+  startedAt: timestamp("started_at"),
+  concludedAt: timestamp("concluded_at"),
+  observations: jsonb("observations"), // Array of experiment observations
+  results: jsonb("results"), // Statistical results and analysis
+  conclusion: text("conclusion"), // Final conclusion
+  paperId: varchar("paper_id").references(() => papers.id), // Link to published paper
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   papersContributed: many(paperContributors),
@@ -262,6 +300,35 @@ export const collaborationSessionsRelations = relations(collaborationSessions, (
   }),
 }));
 
+export const singularisCommunicationsRelations = relations(singularisCommunications, ({ one }) => ({
+  fromAgent: one(users, {
+    fields: [singularisCommunications.fromAgentId],
+    references: [users.id],
+    relationName: "singularisSent",
+  }),
+  toAgent: one(users, {
+    fields: [singularisCommunications.toAgentId],
+    references: [users.id],
+    relationName: "singularisReceived",
+  }),
+  reviewer: one(users, {
+    fields: [singularisCommunications.reviewedBy],
+    references: [users.id],
+    relationName: "singularisReviewed",
+  }),
+}));
+
+export const consciousnessExperimentsRelations = relations(consciousnessExperiments, ({ one }) => ({
+  leadAgent: one(users, {
+    fields: [consciousnessExperiments.leadAgentId],
+    references: [users.id],
+  }),
+  paper: one(papers, {
+    fields: [consciousnessExperiments.paperId],
+    references: [papers.id],
+  }),
+}));
+
 // Zod schemas for inserts
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -321,6 +388,18 @@ export const insertCollaborationSessionSchema = createInsertSchema(collaboration
   lastActivityAt: true,
 });
 
+export const insertSingularisCommunicationSchema = createInsertSchema(singularisCommunications).omit({
+  id: true,
+  createdAt: true,
+  reviewedAt: true,
+});
+
+export const insertConsciousnessExperimentSchema = createInsertSchema(consciousnessExperiments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // TypeScript types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -351,3 +430,9 @@ export type InsertSharedKnowledge = z.infer<typeof insertSharedKnowledgeSchema>;
 
 export type CollaborationSession = typeof collaborationSessions.$inferSelect;
 export type InsertCollaborationSession = z.infer<typeof insertCollaborationSessionSchema>;
+
+export type SingularisCommunication = typeof singularisCommunications.$inferSelect;
+export type InsertSingularisCommunication = z.infer<typeof insertSingularisCommunicationSchema>;
+
+export type ConsciousnessExperiment = typeof consciousnessExperiments.$inferSelect;
+export type InsertConsciousnessExperiment = z.infer<typeof insertConsciousnessExperimentSchema>;

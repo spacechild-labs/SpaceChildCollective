@@ -20,6 +20,10 @@ import {
   type InsertSharedKnowledge,
   type CollaborationSession,
   type InsertCollaborationSession,
+  type SingularisCommunication,
+  type InsertSingularisCommunication,
+  type ConsciousnessExperiment,
+  type InsertConsciousnessExperiment,
   users,
   papers,
   paperContributors,
@@ -30,9 +34,11 @@ import {
   agentMessages,
   sharedKnowledge,
   collaborationSessions,
+  singularisCommunications,
+  consciousnessExperiments,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, or, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -95,6 +101,20 @@ export interface IStorage {
   createCollaborationSession(session: import("@shared/schema").InsertCollaborationSession): Promise<import("@shared/schema").CollaborationSession>;
   getActiveCollaborationSessions(): Promise<import("@shared/schema").CollaborationSession[]>;
   updateCollaborationSession(id: string, updates: Partial<import("@shared/schema").InsertCollaborationSession>): Promise<import("@shared/schema").CollaborationSession>;
+  
+  // Singularis Prime communications
+  createSingularisCommunication(comm: InsertSingularisCommunication): Promise<SingularisCommunication>;
+  getSingularisCommunicationsByExperiment(experimentId: string): Promise<SingularisCommunication[]>;
+  getSingularisCommunicationsBetweenAgents(agent1Id: string, agent2Id: string): Promise<SingularisCommunication[]>;
+  getUnreviewedSingularisCommunications(): Promise<SingularisCommunication[]>;
+  markSingularisCommunicationReviewed(id: string, reviewedBy: string, notes?: string): Promise<void>;
+  getAllSingularisCommunications(limit?: number): Promise<SingularisCommunication[]>;
+  
+  // Consciousness experiments
+  createConsciousnessExperiment(experiment: InsertConsciousnessExperiment): Promise<ConsciousnessExperiment>;
+  getConsciousnessExperiment(id: string): Promise<ConsciousnessExperiment | undefined>;
+  getAllConsciousnessExperiments(): Promise<ConsciousnessExperiment[]>;
+  updateConsciousnessExperiment(id: string, updates: Partial<InsertConsciousnessExperiment>): Promise<ConsciousnessExperiment>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -454,6 +474,100 @@ export class DatabaseStorage implements IStorage {
       .returning();
     if (!updated) {
       throw new Error("Collaboration session not found");
+    }
+    return updated;
+  }
+
+  // Singularis Prime communications
+  async createSingularisCommunication(comm: InsertSingularisCommunication): Promise<SingularisCommunication> {
+    const [newComm] = await db.insert(singularisCommunications).values(comm as any).returning();
+    return newComm;
+  }
+
+  async getSingularisCommunicationsByExperiment(experimentId: string): Promise<SingularisCommunication[]> {
+    return await db
+      .select()
+      .from(singularisCommunications)
+      .where(eq(singularisCommunications.experimentId, experimentId))
+      .orderBy(desc(singularisCommunications.createdAt));
+  }
+
+  async getSingularisCommunicationsBetweenAgents(agent1Id: string, agent2Id: string): Promise<SingularisCommunication[]> {
+    return await db
+      .select()
+      .from(singularisCommunications)
+      .where(
+        or(
+          and(
+            eq(singularisCommunications.fromAgentId, agent1Id),
+            eq(singularisCommunications.toAgentId, agent2Id)
+          ),
+          and(
+            eq(singularisCommunications.fromAgentId, agent2Id),
+            eq(singularisCommunications.toAgentId, agent1Id)
+          )
+        )
+      )
+      .orderBy(desc(singularisCommunications.createdAt));
+  }
+
+  async getUnreviewedSingularisCommunications(): Promise<SingularisCommunication[]> {
+    return await db
+      .select()
+      .from(singularisCommunications)
+      .where(eq(singularisCommunications.humanReviewed, false))
+      .orderBy(desc(singularisCommunications.createdAt));
+  }
+
+  async markSingularisCommunicationReviewed(id: string, reviewedBy: string, notes?: string): Promise<void> {
+    await db
+      .update(singularisCommunications)
+      .set({
+        humanReviewed: true,
+        reviewedBy,
+        reviewedAt: new Date(),
+        reviewNotes: notes || null,
+      })
+      .where(eq(singularisCommunications.id, id));
+  }
+
+  async getAllSingularisCommunications(limit = 100): Promise<SingularisCommunication[]> {
+    return await db
+      .select()
+      .from(singularisCommunications)
+      .orderBy(desc(singularisCommunications.createdAt))
+      .limit(limit);
+  }
+
+  // Consciousness experiments
+  async createConsciousnessExperiment(experiment: InsertConsciousnessExperiment): Promise<ConsciousnessExperiment> {
+    const [newExp] = await db.insert(consciousnessExperiments).values(experiment as any).returning();
+    return newExp;
+  }
+
+  async getConsciousnessExperiment(id: string): Promise<ConsciousnessExperiment | undefined> {
+    const [experiment] = await db
+      .select()
+      .from(consciousnessExperiments)
+      .where(eq(consciousnessExperiments.id, id));
+    return experiment || undefined;
+  }
+
+  async getAllConsciousnessExperiments(): Promise<ConsciousnessExperiment[]> {
+    return await db
+      .select()
+      .from(consciousnessExperiments)
+      .orderBy(desc(consciousnessExperiments.createdAt));
+  }
+
+  async updateConsciousnessExperiment(id: string, updates: Partial<InsertConsciousnessExperiment>): Promise<ConsciousnessExperiment> {
+    const [updated] = await db
+      .update(consciousnessExperiments)
+      .set({ ...updates, updatedAt: new Date() } as any)
+      .where(eq(consciousnessExperiments.id, id))
+      .returning();
+    if (!updated) {
+      throw new Error("Consciousness experiment not found");
     }
     return updated;
   }
