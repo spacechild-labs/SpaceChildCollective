@@ -15,6 +15,8 @@ import McpStatus from "@/pages/mcp-status";
 import Papers from "@/pages/papers";
 import Agents from "@/pages/agents";
 import Approvals from "@/pages/approvals";
+import Experiments from "@/pages/experiments";
+import ExperimentDetail from "@/pages/experiment-detail";
 import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
 import SEODemo from "@/pages/seo-demo";
@@ -38,6 +40,8 @@ function Router() {
       <Route path="/papers" component={Papers} />
       <Route path="/agents" component={Agents} />
       <Route path="/approvals" component={Approvals} />
+      <Route path="/experiments/:id" component={ExperimentDetail} />
+      <Route path="/experiments" component={Experiments} />
       <Route path="/profile" component={Profile} />
       <Route path="/settings" component={Settings} />
       <Route path="/seo-demo" component={SEODemo} />
@@ -47,7 +51,7 @@ function Router() {
 }
 
 // Routes that should show sidebar (authenticated routes only)
-const sidebarRoutes = ["/workspace", "/discover", "/papers", "/profile", "/settings", "/agents", "/mcp", "/approvals"];
+const sidebarRoutes = ["/workspace", "/discover", "/papers", "/profile", "/settings", "/agents", "/mcp", "/approvals", "/experiments"];
 
 function AppContent() {
   const [location] = useLocation();
