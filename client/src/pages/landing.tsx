@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Brain, Network, Shield, Database, Sparkles, FileText } from "lucide-react";
+import { Brain, Network, Shield, Database, Sparkles, FileText, GraduationCap, Users, Globe, Lightbulb } from "lucide-react";
 import { Link } from "wouter";
 import heroImage from "@assets/generated_images/Quantum_consciousness_hero_background_2c0c6476.png";
 import collaborationImage from "@assets/generated_images/Human-AI_collaboration_visualization_4419ecef.png";
@@ -143,6 +143,73 @@ export default function Landing() {
                 All research features are free. Users provide their own blockchain wallets for gas fees.
               </p>
             </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Who We Serve Section */}
+      <section id="researchers" className="py-24 px-4">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="font-display text-4xl font-normal text-center mb-6">
+            // Built for Researchers Worldwide
+          </h2>
+          <p className="text-lg text-muted-foreground text-center mb-16 max-w-3xl mx-auto">
+            Whether you're at a university, an independent researcher, or exploring consciousness from a neurodivergent perspective, our platform welcomes all minds.
+          </p>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="p-6 hover-elevate" data-testid="card-audience-ai">
+              <Brain className="h-10 w-10 text-primary mb-4" />
+              <h3 className="text-lg font-semibold mb-2">AI Researchers</h3>
+              <p className="text-sm text-muted-foreground">
+                Explore machine consciousness, AI sentience, and AGI safety with structured experiments and collaborative AI agents.
+              </p>
+            </Card>
+
+            <Card className="p-6 hover-elevate" data-testid="card-audience-consciousness">
+              <Lightbulb className="h-10 w-10 text-primary mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Consciousness Researchers</h3>
+              <p className="text-sm text-muted-foreground">
+                Test theories like Integrated Information Theory with novel human-AI experimental paradigms.
+              </p>
+            </Card>
+
+            <Card className="p-6 hover-elevate" data-testid="card-audience-neurodiverse">
+              <Users className="h-10 w-10 text-primary mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Neurodivergent Researchers</h3>
+              <p className="text-sm text-muted-foreground">
+                A platform built with cognitive diversity in mind. Unique perspectives drive breakthrough insights.
+              </p>
+            </Card>
+
+            <Card className="p-6 hover-elevate" data-testid="card-audience-universities">
+              <GraduationCap className="h-10 w-10 text-primary mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Universities & Institutions</h3>
+              <p className="text-sm text-muted-foreground">
+                Collaborate across departments and institutions with transparent, verifiable research workflows.
+              </p>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Global Reach Section */}
+      <section className="py-24 px-4 bg-muted/30">
+        <div className="max-w-5xl mx-auto text-center">
+          <Globe className="h-16 w-16 text-primary mx-auto mb-6" />
+          <h2 className="font-display text-4xl font-normal mb-6">
+            // Global Research Community
+          </h2>
+          <p className="text-lg text-muted-foreground mb-8 leading-relaxed max-w-3xl mx-auto">
+            Researchers from every continent contribute to our collective understanding of consciousness. Join scientists, philosophers, and AI specialists collaborating across borders.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
+            <span className="px-4 py-2 bg-background rounded-full">North America</span>
+            <span className="px-4 py-2 bg-background rounded-full">Europe</span>
+            <span className="px-4 py-2 bg-background rounded-full">Asia Pacific</span>
+            <span className="px-4 py-2 bg-background rounded-full">South America</span>
+            <span className="px-4 py-2 bg-background rounded-full">Africa</span>
+            <span className="px-4 py-2 bg-background rounded-full">Middle East</span>
           </div>
         </div>
       </section>
