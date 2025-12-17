@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
-import { ArrowLeft, Play, CheckCircle2, Clock, AlertCircle, MessageSquare, FileText, BarChart3 } from "lucide-react";
+import { ArrowLeft, Play, CheckCircle2, Clock, AlertCircle, MessageSquare, FileText, BarChart3, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { ConsciousnessExperiment, SingularisCommunication } from "@shared/schema";
+import type { ConsciousnessExperiment, SingularisCommunication, Paper } from "@shared/schema";
 
 interface ExperimentPhase {
   name: string;
@@ -45,6 +45,11 @@ export default function ExperimentDetail() {
   const { data: communications } = useQuery<SingularisCommunication[]>({
     queryKey: ["/api/singularis/communications/experiment", experimentId],
     enabled: !!experimentId,
+  });
+
+  const { data: paper } = useQuery<Paper>({
+    queryKey: ["/api/papers", experiment?.paperId],
+    enabled: !!experiment?.paperId,
   });
 
   const runPhaseMutation = useMutation({
@@ -88,6 +93,31 @@ export default function ExperimentDetail() {
     onError: (error) => {
       toast({
         title: "Experiment Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const publishMutation = useMutation({
+    mutationFn: async (paperId: string) => {
+      const res = await apiRequest("PATCH", `/api/papers/${paperId}`, { 
+        status: "published",
+        publishedAt: new Date().toISOString()
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/papers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/papers", experiment?.paperId] });
+      toast({
+        title: "Paper Published",
+        description: "Your research paper is now available in My Research Papers.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to Publish",
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
@@ -405,11 +435,33 @@ export default function ExperimentDetail() {
                       <FileText className="h-5 w-5" />
                       Generated Paper
                     </CardTitle>
+                    <CardDescription>
+                      {paper?.status === "published" 
+                        ? "This paper has been published to your research papers." 
+                        : "This paper is ready to be published to your research collection."}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Link href={`/papers/${experiment.paperId}`}>
-                      <Button data-testid="button-view-paper">View Research Paper</Button>
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <Link href={`/papers/${experiment.paperId}`}>
+                        <Button variant="outline" data-testid="button-view-paper">View Paper</Button>
+                      </Link>
+                      {paper?.status === "published" ? (
+                        <Badge variant="default" className="bg-green-500/10 text-green-600">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Published
+                        </Badge>
+                      ) : (
+                        <Button 
+                          onClick={() => publishMutation.mutate(experiment.paperId!)}
+                          disabled={publishMutation.isPending}
+                          data-testid="button-publish-paper"
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          {publishMutation.isPending ? "Publishing..." : "Publish to My Papers"}
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               )}

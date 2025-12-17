@@ -27,12 +27,6 @@ const menuItems = [
     testId: "nav-home",
   },
   {
-    title: "My Papers",
-    url: "/papers",
-    icon: FileText,
-    testId: "nav-papers",
-  },
-  {
     title: "Discover",
     url: "/discover",
     icon: Search,
