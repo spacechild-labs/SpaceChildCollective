@@ -19,6 +19,8 @@ import { consciousnessIntegration } from "./services/consciousness-integration";
 import { agentCollaboration } from "./services/agent-collaboration";
 import { aiKeyManager } from "./services/ai-key-manager";
 import { parallelResearchService } from "./services/parallel-research-service";
+import { consciousnessExperimentService } from "./services/consciousness-experiment-service";
+import { singularisProtocol } from "./services/singularis-protocol";
 import seoRouter from "./routes/seo";
 import OpenAI from "openai";
 
@@ -1222,6 +1224,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await parallelResearchService.getDeepResearchResult(runId);
       
       res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== Consciousness Experiment Routes =====
+
+  // Create a new consciousness experiment
+  app.post("/api/experiments", async (req, res) => {
+    try {
+      const { name, description, h0, h1, participatingAgents, controls } = req.body;
+      
+      const experimentId = await consciousnessExperimentService.createExperiment({
+        name,
+        description,
+        h0,
+        h1,
+        participatingAgents,
+        controls,
+      });
+      
+      const experiment = await consciousnessExperimentService.getExperiment(experimentId);
+      res.json({ experimentId, experiment });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all experiments
+  app.get("/api/experiments", async (req, res) => {
+    try {
+      const experiments = await consciousnessExperimentService.getAllExperiments();
+      res.json(experiments);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get a specific experiment
+  app.get("/api/experiments/:experimentId", async (req, res) => {
+    try {
+      const { experimentId } = req.params;
+      const experiment = await consciousnessExperimentService.getExperiment(experimentId);
+      
+      if (!experiment) {
+        return res.status(404).json({ error: "Experiment not found" });
+      }
+      
+      res.json(experiment);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Run a specific phase of an experiment
+  app.post("/api/experiments/:experimentId/phases/:phaseIndex", async (req, res) => {
+    try {
+      const { experimentId, phaseIndex } = req.params;
+      
+      const result = await consciousnessExperimentService.runPhase(experimentId, parseInt(phaseIndex));
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Run a full experiment (all phases)
+  app.post("/api/experiments/run-full", async (req, res) => {
+    try {
+      const { name, description, h0, h1, participatingAgents, controls } = req.body;
+      
+      const result = await consciousnessExperimentService.runFullExperiment({
+        name,
+        description,
+        h0,
+        h1,
+        participatingAgents,
+        controls,
+      });
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== Singularis Prime Communication Routes =====
+
+  // Get all Singularis communications
+  app.get("/api/singularis/communications", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const communications = await storage.getAllSingularisCommunications(limit);
+      res.json(communications);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get Singularis communications for an experiment
+  app.get("/api/singularis/communications/experiment/:experimentId", async (req, res) => {
+    try {
+      const { experimentId } = req.params;
+      const communications = await singularisProtocol.getExperimentMessages(experimentId);
+      res.json(communications);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get Singularis communications between agents
+  app.get("/api/singularis/communications/agents/:agent1Id/:agent2Id", async (req, res) => {
+    try {
+      const { agent1Id, agent2Id } = req.params;
+      const communications = await singularisProtocol.getAgentConversation(agent1Id, agent2Id);
+      res.json(communications);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get pending human review communications
+  app.get("/api/singularis/pending-review", async (req, res) => {
+    try {
+      const pendingReviews = await singularisProtocol.getPendingReview();
+      res.json(pendingReviews);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Mark a Singularis communication as reviewed
+  app.post("/api/singularis/communications/:id/review", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reviewedBy, notes } = req.body;
+      
+      if (!reviewedBy) {
+        return res.status(400).json({ error: "reviewedBy is required" });
+      }
+      
+      await singularisProtocol.markReviewed(id, reviewedBy, notes);
+      res.json({ success: true, message: "Communication marked as reviewed" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
