@@ -1,15 +1,18 @@
 import OpenAI from 'openai';
 import { consciousnessIntegration } from './consciousness-integration.js';
 import { aiKeyManager } from './ai-key-manager.js';
+import { parallelResearchService } from './parallel-research-service.js';
 import type { AgentTask } from '@shared/schema';
 
 /**
  * Enhanced AI Service
  * Provides advanced AI capabilities with context management, research-specific prompts,
- * and intelligent model selection using user-provided AI keys
+ * and intelligent model selection using user-provided AI keys.
+ * Now integrates Parallel AI as the default research provider.
  */
 export class EnhancedAIService {
   private contextCache = new Map<string, any>();
+  private useParallelForResearch = true; // Use Parallel AI by default for research
   private modelConfigs = {
     'gpt-4': {
       maxTokens: 8192,
@@ -44,9 +47,19 @@ export class EnhancedAIService {
       // Check if user has configured AI providers
       const providers = aiKeyManager.getProviders();
       
-      if (providers.length === 0) {
+      // Check Parallel AI availability
+      if (parallelResearchService.isConfigured()) {
+        console.log('🔬 Parallel AI configured as default research provider');
+        console.log(`   • Capabilities: ${parallelResearchService.getCapabilities().join(', ')}`);
+        this.useParallelForResearch = true;
+      } else {
+        console.log('⚠️ Parallel AI not configured. Set PARALLEL_API_KEY for enhanced research.');
+        this.useParallelForResearch = false;
+      }
+      
+      if (providers.length === 0 && !this.useParallelForResearch) {
         console.log('⚠️ No AI providers configured. Please add your API keys in the settings.');
-        console.log('📋 Supported providers: OpenAI, Anthropic, Google, OpenRouter');
+        console.log('📋 Supported providers: Parallel AI (recommended), OpenAI, Anthropic, Google, OpenRouter');
         return;
       }
 
@@ -61,6 +74,7 @@ export class EnhancedAIService {
 
   /**
    * Process task with intelligent model selection and context management
+   * Uses Parallel AI as the default research provider when available
    */
   async processTaskWithAI(task: AgentTask, specialization: string): Promise<any> {
     try {
@@ -68,23 +82,27 @@ export class EnhancedAIService {
 
       // Check if AI providers are available
       const providers = aiKeyManager.getProviders();
-      if (providers.length === 0) {
-        throw new Error('No AI providers configured. Please add your API keys in settings.');
+      const hasParallel = parallelResearchService.isConfigured();
+      
+      if (providers.length === 0 && !hasParallel) {
+        throw new Error('No AI providers configured. Please add your API keys in settings or set PARALLEL_API_KEY.');
       }
 
       // First, apply consciousness integration
       const consciousnessResult = await consciousnessIntegration.processTaskWithConsciousness(task, specialization);
       
-      // Select optimal model based on task type and complexity
+      // Check if this is a research task that should use Parallel AI
+      const isResearchTask = this.isResearchTask(task.taskType);
+      
+      if (isResearchTask && hasParallel && this.useParallelForResearch) {
+        console.log(`🔬 Using Parallel AI for research task: ${task.taskType}`);
+        return await this.processWithParallel(task, specialization, consciousnessResult);
+      }
+      
+      // Fall back to standard AI processing
       const modelConfig = this.selectOptimalModel(task.taskType, specialization);
-      
-      // Build consciousness-enhanced prompt
       const prompt = await this.buildConsciousnessEnhancedPrompt(task, specialization, consciousnessResult);
-      
-      // Get AI response with error handling and retries
       const response = await this.getAIResponse(prompt, modelConfig);
-      
-      // Process and format the response
       const result = await this.processAIResponse(response, task, specialization);
       
       // Cache context for future use
@@ -118,6 +136,108 @@ export class EnhancedAIService {
       console.error(`❌ AI processing failed for task ${task.id}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Check if task type is a research-oriented task
+   */
+  private isResearchTask(taskType: string): boolean {
+    const researchTasks = [
+      'literature_review',
+      'citation_analysis', 
+      'topic_research',
+      'web_research',
+      'fact_checking',
+      'data_gathering',
+      'market_research',
+      'competitive_analysis'
+    ];
+    return researchTasks.includes(taskType);
+  }
+
+  /**
+   * Process task using Parallel AI research capabilities
+   */
+  private async processWithParallel(
+    task: AgentTask, 
+    specialization: string, 
+    consciousnessResult: any
+  ): Promise<any> {
+    try {
+      // Determine research mode based on task type
+      const researchMode = this.getParallelResearchMode(task.taskType);
+      
+      console.log(`🔬 Parallel research mode: ${researchMode}`);
+      
+      // Conduct research using Parallel AI
+      const researchResult = await parallelResearchService.conductResearch(
+        task.description,
+        { mode: researchMode, structured: true }
+      );
+      
+      // Format result
+      const result = {
+        content: researchResult.answer,
+        success: true,
+        sections: this.extractSections(researchResult.answer),
+        citations: researchResult.citations.map(c => 
+          typeof c === 'string' ? c : `${c.title || ''} - ${c.url}`
+        ),
+        keyFindings: this.extractKeyFindings(researchResult.answer),
+        wordCount: researchResult.answer.split(/\s+/).length,
+        clarity: this.assessClarity(researchResult.answer),
+        academicTone: this.assessAcademicTone(researchResult.answer),
+        relevance: this.assessRelevance(researchResult.answer, task.description),
+        parallelResearch: {
+          method: researchResult.researchMethod,
+          confidence: researchResult.confidence,
+          citationsCount: researchResult.citations.length
+        }
+      };
+      
+      // Cache context
+      this.cacheTaskContext(task.id, result);
+      
+      return {
+        ...result,
+        consciousness: consciousnessResult,
+        metadata: {
+          model: 'parallel-ai',
+          processingTime: Date.now(),
+          tokensUsed: 0, // Parallel tracks usage differently
+          confidence: researchResult.confidence === 'high' ? 0.95 : researchResult.confidence === 'medium' ? 0.75 : 0.5,
+          cost: 0, // Tracked by Parallel
+          consciousnessLevel: consciousnessResult.consciousnessLevel,
+          verificationHash: consciousnessResult.verificationHash,
+          provider: 'Parallel AI',
+          researchMethod: researchResult.researchMethod
+        }
+      };
+      
+    } catch (error) {
+      console.error('❌ Parallel research failed, falling back to standard processing:', error);
+      // Fall back to standard processing
+      const modelConfig = this.selectOptimalModel(task.taskType, specialization);
+      const prompt = await this.buildConsciousnessEnhancedPrompt(task, specialization, consciousnessResult);
+      const response = await this.getAIResponse(prompt, modelConfig);
+      return await this.processAIResponse(response, task, specialization);
+    }
+  }
+
+  /**
+   * Get appropriate Parallel research mode for task type
+   */
+  private getParallelResearchMode(taskType: string): 'quick' | 'standard' | 'deep' {
+    const deepResearchTasks = ['literature_review', 'market_research', 'competitive_analysis'];
+    const quickResearchTasks = ['fact_checking'];
+    
+    if (deepResearchTasks.includes(taskType)) {
+      return 'deep';
+    }
+    if (quickResearchTasks.includes(taskType)) {
+      return 'quick';
+    }
+    return 'standard';
   }
 
   /**

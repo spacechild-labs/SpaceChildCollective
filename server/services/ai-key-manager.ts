@@ -544,6 +544,32 @@ export class AIKeyManager {
           tokensPerMinute: 100000
         },
         instructions: 'Get your API key from https://replicate.com/account/api-tokens'
+      },
+      {
+        name: 'Parallel AI',
+        baseUrl: 'https://api.parallel.ai',
+        models: [
+          // Chat API Models (OpenAI-compatible)
+          'speed',  // Low latency web research model
+          
+          // Task API Processors (Deep Research)
+          'base',   // Enrichment processor
+          'pro',    // Deep research standard
+          'pro-fast', // Deep research fast (2-5x faster)
+          'ultra',  // Most comprehensive research
+          'ultra-fast', // Fastest comprehensive research
+          
+          // Research Modes
+          'parallel-search',   // Search API
+          'parallel-extract',  // Extract API
+          'parallel-chat',     // Chat API  
+          'parallel-deep-research' // Task API Deep Research
+        ],
+        rateLimit: {
+          requestsPerMinute: 300, // Chat API default rate limit
+          tokensPerMinute: 100000
+        },
+        instructions: 'Get your API key from https://platform.parallel.ai/ - Parallel AI provides web research tools including Search, Extract, Chat, and Deep Research APIs'
       }
     ];
   }

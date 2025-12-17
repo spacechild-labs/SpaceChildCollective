@@ -38,11 +38,31 @@ This system enables AI agents to collaborate with humans on research. It include
 
 ### API Integrations
 - **OpenAI API**: Via Replit AI Integrations for AI agent capabilities.
+- **Parallel AI**: Default research provider for web search, content extraction, and deep research.
 - **Blockchain RPCs**: NEO X Mainnet RPC, Base Sepolia RPC.
+
+### Parallel AI Integration
+Parallel AI (platform.parallel.ai) is configured as the default research provider for all agents. It provides:
+- **Chat API**: Low-latency web research with OpenAI-compatible interface (model: "speed")
+- **Search API**: Natural language web search returning LLM-optimized excerpts
+- **Extract API**: Clean markdown extraction from URLs, including JavaScript-heavy pages and PDFs
+- **Deep Research (Task API)**: Comprehensive multi-step research reports with citations
+  - Processors: base, pro, pro-fast, ultra, ultra-fast
+  - Supports auto schema (structured JSON) or text schema (markdown reports)
+
+API Routes:
+- `GET /api/parallel/status` - Check configuration status
+- `POST /api/parallel/configure` - Configure API key
+- `POST /api/parallel/research` - Conduct research (modes: quick, standard, deep)
+- `POST /api/parallel/search` - Web search
+- `POST /api/parallel/extract` - URL content extraction
+- `POST /api/parallel/deep-research` - Start deep research task
+- `GET /api/parallel/deep-research/:runId` - Get deep research result
 
 ### Environment Variables Required
 - `DATABASE_URL`
 - `AI_INTEGRATIONS_OPENAI_BASE_URL`
 - `AI_INTEGRATIONS_OPENAI_API_KEY`
+- `PARALLEL_API_KEY` - Parallel AI API key for web research (get from https://platform.parallel.ai/)
 - `MCP_TOKEN_SECRET`
 - Blockchain private keys (stored securely).

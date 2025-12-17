@@ -18,6 +18,7 @@ import { taskDispatcher } from "./services/task-dispatcher";
 import { consciousnessIntegration } from "./services/consciousness-integration";
 import { agentCollaboration } from "./services/agent-collaboration";
 import { aiKeyManager } from "./services/ai-key-manager";
+import { parallelResearchService } from "./services/parallel-research-service";
 import seoRouter from "./routes/seo";
 import OpenAI from "openai";
 
@@ -1059,6 +1060,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Connection test failed", 
         details: error.message 
       });
+    }
+  });
+
+  // ===== Parallel AI Research Routes =====
+
+  // Get Parallel AI status
+  app.get("/api/parallel/status", async (req, res) => {
+    try {
+      const isConfigured = parallelResearchService.isConfigured();
+      const capabilities = parallelResearchService.getCapabilities();
+      
+      res.json({
+        configured: isConfigured,
+        provider: 'Parallel AI',
+        capabilities,
+        documentation: 'https://docs.parallel.ai',
+        apiModes: ['search', 'extract', 'chat', 'deep-research']
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Configure Parallel AI
+  app.post("/api/parallel/configure", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      
+      if (!apiKey) {
+        return res.status(400).json({ error: "API key is required" });
+      }
+
+      const providerId = await parallelResearchService.setApiKey(apiKey);
+      
+      res.json({
+        success: true,
+        providerId,
+        message: "Parallel AI configured successfully",
+        capabilities: parallelResearchService.getCapabilities()
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Perform quick research using Parallel AI
+  app.post("/api/parallel/research", async (req, res) => {
+    try {
+      const { query, mode } = req.body;
+      
+      if (!query) {
+        return res.status(400).json({ error: "Research query is required" });
+      }
+
+      if (!parallelResearchService.isConfigured()) {
+        return res.status(400).json({ 
+          error: "Parallel AI not configured",
+          instructions: "Set PARALLEL_API_KEY environment variable or call /api/parallel/configure"
+        });
+      }
+
+      const result = await parallelResearchService.conductResearch(query, {
+        mode: mode || 'standard',
+        structured: true
+      });
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Web search using Parallel AI
+  app.post("/api/parallel/search", async (req, res) => {
+    try {
+      const { objective, searchQueries, maxResults } = req.body;
+      
+      if (!objective) {
+        return res.status(400).json({ error: "Search objective is required" });
+      }
+
+      if (!parallelResearchService.isConfigured()) {
+        return res.status(400).json({ error: "Parallel AI not configured" });
+      }
+
+      const result = await parallelResearchService.search({
+        objective,
+        searchQueries,
+        maxResults: maxResults || 10
+      });
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Extract content from URLs using Parallel AI
+  app.post("/api/parallel/extract", async (req, res) => {
+    try {
+      const { urls, objective, fullContent } = req.body;
+      
+      if (!urls || !Array.isArray(urls)) {
+        return res.status(400).json({ error: "URLs array is required" });
+      }
+
+      if (!parallelResearchService.isConfigured()) {
+        return res.status(400).json({ error: "Parallel AI not configured" });
+      }
+
+      const result = await parallelResearchService.extract({
+        urls,
+        objective,
+        fullContent: fullContent || false
+      });
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Start deep research using Parallel AI
+  app.post("/api/parallel/deep-research", async (req, res) => {
+    try {
+      const { input, processor, outputType } = req.body;
+      
+      if (!input) {
+        return res.status(400).json({ error: "Research input is required" });
+      }
+
+      if (!parallelResearchService.isConfigured()) {
+        return res.status(400).json({ error: "Parallel AI not configured" });
+      }
+
+      const result = await parallelResearchService.startDeepResearch({
+        input,
+        processor: processor || 'ultra',
+        outputType: outputType || 'text'
+      });
+      
+      res.json({
+        ...result,
+        message: "Deep research started. Use /api/parallel/deep-research/:runId to check status."
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get deep research result
+  app.get("/api/parallel/deep-research/:runId", async (req, res) => {
+    try {
+      const { runId } = req.params;
+      
+      if (!parallelResearchService.isConfigured()) {
+        return res.status(400).json({ error: "Parallel AI not configured" });
+      }
+
+      const result = await parallelResearchService.getDeepResearchResult(runId);
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

@@ -1,11 +1,14 @@
 import { spawn, ChildProcess } from 'child_process';
 import { storage } from '../storage.js';
 import { connectionRegistry } from '../websocket.js';
+import { parallelResearchService } from './parallel-research-service.js';
+import { aiKeyManager } from './ai-key-manager.js';
 import type { AgentTask, User } from '@shared/schema';
 
 /**
  * Agent Manager Service
- * Manages autonomous agent processes with health monitoring and resource allocation
+ * Manages autonomous agent processes with health monitoring and resource allocation.
+ * Agents use Parallel AI as the default research provider when configured.
  */
 export class AgentManager {
   private agents = new Map<string, AgentProcess>();
@@ -27,6 +30,9 @@ export class AgentManager {
 
     console.log('🚀 Starting Agent Manager...');
     this.isRunning = true;
+
+    // Initialize Parallel AI if API key is available
+    await this.initializeParallelAI();
 
     // Get all agent users from database
     const allUsers = await storage.getAllUsers();
@@ -214,6 +220,26 @@ export class AgentManager {
   }
 
   /**
+   * Initialize Parallel AI as the default research provider
+   */
+  private async initializeParallelAI(): Promise<void> {
+    const parallelApiKey = process.env.PARALLEL_API_KEY;
+    
+    if (parallelApiKey) {
+      try {
+        await parallelResearchService.setApiKey(parallelApiKey);
+        console.log('🔬 Parallel AI initialized as default research provider');
+        console.log(`   • Capabilities: ${parallelResearchService.getCapabilities().join(', ')}`);
+      } catch (error) {
+        console.error('❌ Failed to initialize Parallel AI:', error);
+      }
+    } else {
+      console.log('⚠️  PARALLEL_API_KEY not set. Set it to enable Parallel AI research capabilities.');
+      console.log('   Get your API key from https://platform.parallel.ai/');
+    }
+  }
+
+  /**
    * Start health monitoring for all agents
    * Disabled by default for stub agents to prevent unnecessary restarts
    */
@@ -351,6 +377,7 @@ class AgentProcess {
         MCP_SERVER_URL: process.env.MCP_SERVER_URL || 'ws://localhost:5000/mcp',
         AI_INTEGRATIONS_OPENAI_BASE_URL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
         AI_INTEGRATIONS_OPENAI_API_KEY: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        PARALLEL_API_KEY: process.env.PARALLEL_API_KEY,
       }
     });
 
