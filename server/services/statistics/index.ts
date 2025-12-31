@@ -27,9 +27,38 @@ export { AssumptionChecker } from "./diagnostics/AssumptionChecker";
 // Reporting
 export { APAReporter } from "./reporting/APAReporter";
 
-// Methods
+// Methods - Base
 export { StatUtils } from "./methods/AnalysisMethod";
 export type { AnalysisMethod } from "./methods/AnalysisMethod";
+
+// Methods - Inferential
+export { 
+  TTestMethod, 
+  PairedTTestMethod, 
+  WelchTTestMethod 
+} from "./methods/inferential/TTests";
+export { ANOVAMethod } from "./methods/inferential/ANOVA";
+export { RepeatedMeasuresANOVAMethod } from "./methods/inferential/RepeatedMeasuresANOVA";
+export { LinearRegressionMethod } from "./methods/inferential/Regression";
+export { MannWhitneyMethod, WilcoxonMethod } from "./methods/inferential/NonParametric";
+export { ChiSquareMethod, FisherExactMethod } from "./methods/inferential/ChiSquare";
+export { 
+  PearsonCorrelationMethod, 
+  SpearmanCorrelationMethod, 
+  CorrelationMatrixMethod 
+} from "./methods/inferential/Correlation";
+
+// Methods - Psychometrics
+export { CronbachAlphaMethod, McDonaldOmegaMethod } from "./methods/psychometrics/Reliability";
+export { EFAMethod } from "./methods/psychometrics/FactorAnalysis";
+export { RaschModelMethod, TwoPLMethod } from "./methods/psychometrics/IRT";
+
+// Methods - Consciousness
+export { 
+  PhiAnalysisMethod, 
+  SignalDetectionMethod, 
+  CoherenceAnalysisMethod 
+} from "./methods/consciousness/ConsciousnessAnalysis";
 
 // Re-export schema types for convenience
 export type {

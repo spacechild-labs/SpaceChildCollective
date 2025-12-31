@@ -6,3 +6,4 @@
 
 export { CronbachAlphaMethod, McDonaldOmegaMethod } from "./Reliability";
 export { EFAMethod } from "./FactorAnalysis";
+export { RaschModelMethod, TwoPLMethod } from "./IRT";

@@ -30,12 +30,14 @@ import type { AnalysisMethod } from "../methods/AnalysisMethod";
 // Import analysis methods
 import { TTestMethod, PairedTTestMethod, WelchTTestMethod } from "../methods/inferential/TTests";
 import { ANOVAMethod } from "../methods/inferential/ANOVA";
+import { RepeatedMeasuresANOVAMethod } from "../methods/inferential/RepeatedMeasuresANOVA";
 import { LinearRegressionMethod } from "../methods/inferential/Regression";
 import { MannWhitneyMethod, WilcoxonMethod } from "../methods/inferential/NonParametric";
 import { ChiSquareMethod, FisherExactMethod } from "../methods/inferential/ChiSquare";
 import { PearsonCorrelationMethod, SpearmanCorrelationMethod, CorrelationMatrixMethod } from "../methods/inferential/Correlation";
 import { CronbachAlphaMethod, McDonaldOmegaMethod } from "../methods/psychometrics/Reliability";
 import { EFAMethod } from "../methods/psychometrics/FactorAnalysis";
+import { RaschModelMethod, TwoPLMethod } from "../methods/psychometrics/IRT";
 import { PhiAnalysisMethod, SignalDetectionMethod, CoherenceAnalysisMethod } from "../methods/consciousness/ConsciousnessAnalysis";
 
 // ============================================================================
@@ -145,6 +147,7 @@ export class StatisticsEngine {
     this.registerMethod("mann_whitney", new MannWhitneyMethod());
     this.registerMethod("wilcoxon", new WilcoxonMethod());
     this.registerMethod("anova", new ANOVAMethod());
+    this.registerMethod("repeated_measures_anova", new RepeatedMeasuresANOVAMethod());
     
     // Inferential methods - Categorical
     this.registerMethod("chi_square", new ChiSquareMethod());
@@ -160,6 +163,8 @@ export class StatisticsEngine {
     this.registerMethod("cronbach_alpha", new CronbachAlphaMethod());
     this.registerMethod("mcdonald_omega", new McDonaldOmegaMethod());
     this.registerMethod("efa", new EFAMethod());
+    this.registerMethod("irt_1pl", new RaschModelMethod());
+    this.registerMethod("irt_2pl", new TwoPLMethod());
     
     // Consciousness-specific methods
     this.registerMethod("phi_analysis", new PhiAnalysisMethod());
