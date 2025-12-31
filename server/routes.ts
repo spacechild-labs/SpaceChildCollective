@@ -22,6 +22,7 @@ import { parallelResearchService } from "./services/parallel-research-service";
 import { consciousnessExperimentService } from "./services/consciousness-experiment-service";
 import { singularisProtocol } from "./services/singularis-protocol";
 import seoRouter from "./routes/seo";
+import statisticsRouter from "./routes/statistics";
 import OpenAI from "openai";
 
 // Enhanced Request type to include user
@@ -1746,6 +1747,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Also serve sitemap and robots.txt at root level
   app.get('/sitemap.xml', seoRouter);
   app.get('/robots.txt', seoRouter);
+
+  // ===== Statistics & Psychometrics Engine Routes =====
+  // Mount the Statistical Analysis & Psychometrics Engine for consciousness research
+  app.use('/api/statistics', statisticsRouter);
 
   return httpServer;
 }
