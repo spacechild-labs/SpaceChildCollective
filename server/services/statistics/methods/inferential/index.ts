@@ -13,3 +13,4 @@ export { ChiSquareMethod, FisherExactMethod } from "./ChiSquare";
 export { PearsonCorrelationMethod, SpearmanCorrelationMethod, CorrelationMatrixMethod } from "./Correlation";
 export { MixedEffectsMethod } from "./MixedEffects";
 export { MediationMethod } from "./Mediation";
+export { ModerationMethod } from "./Moderation";

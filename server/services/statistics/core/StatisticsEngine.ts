@@ -37,10 +37,13 @@ import { ChiSquareMethod, FisherExactMethod } from "../methods/inferential/ChiSq
 import { PearsonCorrelationMethod, SpearmanCorrelationMethod, CorrelationMatrixMethod } from "../methods/inferential/Correlation";
 import { MixedEffectsMethod } from "../methods/inferential/MixedEffects";
 import { MediationMethod } from "../methods/inferential/Mediation";
+import { ModerationMethod } from "../methods/inferential/Moderation";
+import { BayesianTTestMethod, BayesianPairedTTestMethod, BayesianCorrelationMethod } from "../methods/bayesian/BayesianInference";
 import { CronbachAlphaMethod, McDonaldOmegaMethod } from "../methods/psychometrics/Reliability";
 import { EFAMethod } from "../methods/psychometrics/FactorAnalysis";
 import { CFAMethod } from "../methods/psychometrics/CFA";
 import { RaschModelMethod, TwoPLMethod } from "../methods/psychometrics/IRT";
+import { ThreePLMethod, GradedResponseMethod } from "../methods/psychometrics/AdvancedIRT";
 import { NetworkAnalysisMethod } from "../methods/psychometrics/NetworkPsychometrics";
 import { PhiAnalysisMethod, SignalDetectionMethod, CoherenceAnalysisMethod } from "../methods/consciousness/ConsciousnessAnalysis";
 
@@ -164,6 +167,12 @@ export class StatisticsEngine {
     this.registerMethod("linear_regression", new LinearRegressionMethod());
     this.registerMethod("mixed_effects", new MixedEffectsMethod());
     this.registerMethod("mediation", new MediationMethod());
+    this.registerMethod("moderation", new ModerationMethod());
+    
+    // Bayesian methods
+    this.registerMethod("bayesian_t_test", new BayesianTTestMethod());
+    this.registerMethod("bayesian_paired_t_test", new BayesianPairedTTestMethod());
+    this.registerMethod("bayesian_correlation", new BayesianCorrelationMethod());
     
     // Psychometric methods
     this.registerMethod("cronbach_alpha", new CronbachAlphaMethod());
@@ -172,6 +181,8 @@ export class StatisticsEngine {
     this.registerMethod("cfa", new CFAMethod());
     this.registerMethod("irt_1pl", new RaschModelMethod());
     this.registerMethod("irt_2pl", new TwoPLMethod());
+    this.registerMethod("irt_3pl", new ThreePLMethod());
+    this.registerMethod("graded_response", new GradedResponseMethod());
     this.registerMethod("network_psychometrics", new NetworkAnalysisMethod());
     
     // Consciousness-specific methods

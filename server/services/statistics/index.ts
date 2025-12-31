@@ -49,13 +49,22 @@ export {
 } from "./methods/inferential/Correlation";
 export { MixedEffectsMethod } from "./methods/inferential/MixedEffects";
 export { MediationMethod } from "./methods/inferential/Mediation";
+export { ModerationMethod } from "./methods/inferential/Moderation";
 
 // Methods - Psychometrics
 export { CronbachAlphaMethod, McDonaldOmegaMethod } from "./methods/psychometrics/Reliability";
 export { EFAMethod } from "./methods/psychometrics/FactorAnalysis";
 export { CFAMethod } from "./methods/psychometrics/CFA";
 export { RaschModelMethod, TwoPLMethod } from "./methods/psychometrics/IRT";
+export { ThreePLMethod, GradedResponseMethod } from "./methods/psychometrics/AdvancedIRT";
 export { NetworkAnalysisMethod } from "./methods/psychometrics/NetworkPsychometrics";
+
+// Methods - Bayesian
+export { 
+  BayesianTTestMethod, 
+  BayesianPairedTTestMethod, 
+  BayesianCorrelationMethod 
+} from "./methods/bayesian/BayesianInference";
 
 // Methods - Consciousness
 export { 

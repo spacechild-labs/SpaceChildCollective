@@ -38,7 +38,7 @@ Clean TypeScript architecture with a simple interface for adding custom methods.
 
 ---
 
-## 📈 Methods (26+)
+## 📈 Methods (33)
 
 ### Inferential Statistics
 
@@ -51,6 +51,15 @@ Clean TypeScript architecture with a simple interface for adding custom methods.
 | **Correlation** | Pearson, Spearman, matrix | r, 95% CI, p |
 | **Regression** | Linear, mixed effects | β, R², AIC/BIC |
 | **Mediation** | Baron & Kenny + bootstrap | a×b, 95% CI, Sobel z |
+| **Moderation** | Interaction effects | b₃, ΔR², simple slopes |
+
+### Bayesian Inference
+
+| Method | Description | Key Output |
+|--------|-------------|------------|
+| **Bayesian T-Test** | JZS prior, independent samples | BF₁₀, posterior P(H1) |
+| **Bayesian Paired T** | Within-subjects comparison | BF₁₀, credible interval |
+| **Bayesian Correlation** | Evidence for association | BF₁₀, posterior r |
 
 ### Psychometrics
 
@@ -58,7 +67,8 @@ Clean TypeScript architecture with a simple interface for adding custom methods.
 |--------|-------------|------------|
 | **Reliability** | Cronbach's α, McDonald's ω | α, ω, item-total r |
 | **Factor Analysis** | EFA, CFA | Loadings, fit indices |
-| **IRT** | Rasch (1PL), 2PL | a, b parameters, info |
+| **IRT (Dichotomous)** | Rasch (1PL), 2PL, 3PL | a, b, c parameters |
+| **IRT (Polytomous)** | Graded Response Model | a, thresholds |
 | **Network** | Gaussian Graphical Model | Centrality, density |
 
 ### Consciousness Research
@@ -285,13 +295,15 @@ StatUtils.interpretEtaSquared(eta2);
 
 ## 🔮 Roadmap
 
-- [ ] Bayesian alternatives (Bayesian t-test, regression)
-- [ ] Moderation analysis (interaction effects)
+- [x] ~~Bayesian alternatives (Bayesian t-test, correlation)~~
+- [x] ~~Moderation analysis (interaction effects)~~
+- [x] ~~Advanced IRT (3PL, graded response)~~
 - [ ] Full Structural Equation Modeling
 - [ ] Longitudinal models (growth curves)
-- [ ] Advanced IRT (3PL, graded response, DIF)
+- [ ] DIF analysis for IRT
 - [ ] Power analysis integration
 - [ ] Interactive visualization components
+- [ ] Bayesian regression
 
 ---
 

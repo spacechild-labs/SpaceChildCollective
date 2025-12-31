@@ -113,6 +113,12 @@ export const ModelFamily = z.enum([
   "latent_profile",
   "hidden_markov",
   "network_psychometrics",
+  
+  // Bayesian
+  "bayesian_t_test",
+  "bayesian_paired_t_test",
+  "bayesian_correlation",
+  "bayesian_regression",
   "bayesian_hierarchical"
 ]);
 export type ModelFamily = z.infer<typeof ModelFamily>;
