@@ -47,11 +47,15 @@ export {
   SpearmanCorrelationMethod, 
   CorrelationMatrixMethod 
 } from "./methods/inferential/Correlation";
+export { MixedEffectsMethod } from "./methods/inferential/MixedEffects";
+export { MediationMethod } from "./methods/inferential/Mediation";
 
 // Methods - Psychometrics
 export { CronbachAlphaMethod, McDonaldOmegaMethod } from "./methods/psychometrics/Reliability";
 export { EFAMethod } from "./methods/psychometrics/FactorAnalysis";
+export { CFAMethod } from "./methods/psychometrics/CFA";
 export { RaschModelMethod, TwoPLMethod } from "./methods/psychometrics/IRT";
+export { NetworkAnalysisMethod } from "./methods/psychometrics/NetworkPsychometrics";
 
 // Methods - Consciousness
 export { 

@@ -35,9 +35,13 @@ import { LinearRegressionMethod } from "../methods/inferential/Regression";
 import { MannWhitneyMethod, WilcoxonMethod } from "../methods/inferential/NonParametric";
 import { ChiSquareMethod, FisherExactMethod } from "../methods/inferential/ChiSquare";
 import { PearsonCorrelationMethod, SpearmanCorrelationMethod, CorrelationMatrixMethod } from "../methods/inferential/Correlation";
+import { MixedEffectsMethod } from "../methods/inferential/MixedEffects";
+import { MediationMethod } from "../methods/inferential/Mediation";
 import { CronbachAlphaMethod, McDonaldOmegaMethod } from "../methods/psychometrics/Reliability";
 import { EFAMethod } from "../methods/psychometrics/FactorAnalysis";
+import { CFAMethod } from "../methods/psychometrics/CFA";
 import { RaschModelMethod, TwoPLMethod } from "../methods/psychometrics/IRT";
+import { NetworkAnalysisMethod } from "../methods/psychometrics/NetworkPsychometrics";
 import { PhiAnalysisMethod, SignalDetectionMethod, CoherenceAnalysisMethod } from "../methods/consciousness/ConsciousnessAnalysis";
 
 // ============================================================================
@@ -158,13 +162,17 @@ export class StatisticsEngine {
     this.registerMethod("spearman_correlation", new SpearmanCorrelationMethod());
     this.registerMethod("correlation_matrix", new CorrelationMatrixMethod());
     this.registerMethod("linear_regression", new LinearRegressionMethod());
+    this.registerMethod("mixed_effects", new MixedEffectsMethod());
+    this.registerMethod("mediation", new MediationMethod());
     
     // Psychometric methods
     this.registerMethod("cronbach_alpha", new CronbachAlphaMethod());
     this.registerMethod("mcdonald_omega", new McDonaldOmegaMethod());
     this.registerMethod("efa", new EFAMethod());
+    this.registerMethod("cfa", new CFAMethod());
     this.registerMethod("irt_1pl", new RaschModelMethod());
     this.registerMethod("irt_2pl", new TwoPLMethod());
+    this.registerMethod("network_psychometrics", new NetworkAnalysisMethod());
     
     // Consciousness-specific methods
     this.registerMethod("phi_analysis", new PhiAnalysisMethod());
