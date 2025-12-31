@@ -404,8 +404,10 @@ export class ParallelResearchService {
         let totalLength = 0;
         
         for (const r of searchResult.results) {
-          const excerptContent = r.excerpts?.join('\n').substring(0, MAX_CHARS_PER_RESULT) || '';
-          const part = `Source: ${r.title}\nURL: ${r.url}\nContent: ${excerptContent}`;
+          // Guard against undefined excerpts
+          const rawExcerpts = r.excerpts && Array.isArray(r.excerpts) ? r.excerpts.join('\n') : '';
+          const excerptContent = rawExcerpts.substring(0, MAX_CHARS_PER_RESULT);
+          const part = `Source: ${r.title || 'Unknown'}\nURL: ${r.url}\nContent: ${excerptContent}`;
           
           if (totalLength + part.length > MAX_CONTEXT_LENGTH) {
             break;
@@ -415,7 +417,11 @@ export class ParallelResearchService {
           totalLength += part.length;
         }
         
-        const context = contextParts.join('\n\n');
+        // Final safety clamp on total context
+        let context = contextParts.join('\n\n');
+        if (context.length > MAX_CONTEXT_LENGTH) {
+          context = context.substring(0, MAX_CONTEXT_LENGTH);
+        }
         
         const synthesisResult = await this.chat({
           messages: [

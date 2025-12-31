@@ -307,8 +307,56 @@ export class StatisticsEngine {
     design: DesignObject,
     recommendations: MethodRecommendationReport
   ): AnalysisSpec {
-    const selectedMethod = request.preferredMethod || recommendations.primaryRecommendation;
+    let selectedMethod = request.preferredMethod || recommendations.primaryRecommendation;
+    
+    // Validate that the selected method is actually registered
+    if (!this.methodRegistry.has(selectedMethod)) {
+      this.log(`Recommended method ${selectedMethod} not registered, finding fallback...`);
+      
+      // Try to find an alternative from the recommendations
+      const validAlternative = recommendations.recommendations.find(r => 
+        this.methodRegistry.has(r.modelFamily)
+      );
+      
+      if (validAlternative) {
+        selectedMethod = validAlternative.modelFamily;
+        this.log(`Using fallback method: ${selectedMethod}`);
+      } else {
+        // Fall back to sensible defaults based on design
+        const registeredMethods = Array.from(this.methodRegistry.keys());
+        
+        // Check if predictor is categorical (suggests group comparison)
+        const predictorVar = request.predictors?.[0];
+        const predictorInfo = design.variables.find(v => v.name === predictorVar);
+        const isCategoricalPredictor = predictorInfo && 
+          (predictorInfo.type === "binary" || predictorInfo.type === "nominal" || predictorInfo.type === "ordinal");
+        
+        // Check if it looks like a group comparison
+        const hasBetweenFactors = design.betweenSubjectFactors && design.betweenSubjectFactors.length > 0;
+        
+        if ((hasBetweenFactors || isCategoricalPredictor) && registeredMethods.includes("t_test")) {
+          selectedMethod = "t_test";
+        } else if (registeredMethods.includes("linear_regression")) {
+          selectedMethod = "linear_regression";
+        } else if (registeredMethods.includes("t_test")) {
+          selectedMethod = "t_test";
+        } else if (registeredMethods.length > 0) {
+          selectedMethod = registeredMethods[0];
+        }
+        this.log(`Using default fallback method: ${selectedMethod}`);
+      }
+    }
+    
     const recommendation = recommendations.recommendations.find(r => r.modelFamily === selectedMethod);
+    
+    // For t-test/anova methods, predictors should be treated as grouping variables
+    let groupingVariables = request.groupingVariables;
+    if (!groupingVariables?.length && request.predictors?.length) {
+      const groupMethods = ["t_test", "paired_t_test", "welch_t_test", "anova", "repeated_measures_anova", "mann_whitney", "wilcoxon"];
+      if (groupMethods.includes(selectedMethod)) {
+        groupingVariables = request.predictors;
+      }
+    }
     
     return {
       id: randomUUID(),
@@ -317,7 +365,7 @@ export class StatisticsEngine {
       outcomes: request.outcomes,
       predictors: request.predictors,
       covariates: request.covariates,
-      groupingVariables: request.groupingVariables,
+      groupingVariables,
       modelFamily: selectedMethod,
       estimationMethod: "ml",
       correctionMethod: request.mode === "exploratory" ? "bh" : "none",
