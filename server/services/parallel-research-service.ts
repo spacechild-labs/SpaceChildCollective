@@ -396,9 +396,26 @@ export class ParallelResearchService {
           excerpt: r.excerpts?.[0]?.substring(0, 500)
         }));
         
-        const context = searchResult.results
-          .map(r => `Source: ${r.title}\nURL: ${r.url}\nContent: ${r.excerpts?.join('\n').substring(0, 2000)}`)
-          .join('\n\n');
+        // Build context with total length limit of 15000 chars to stay well under the 20000 char API limit
+        const MAX_CONTEXT_LENGTH = 15000;
+        const MAX_CHARS_PER_RESULT = 1200;
+        
+        let contextParts: string[] = [];
+        let totalLength = 0;
+        
+        for (const r of searchResult.results) {
+          const excerptContent = r.excerpts?.join('\n').substring(0, MAX_CHARS_PER_RESULT) || '';
+          const part = `Source: ${r.title}\nURL: ${r.url}\nContent: ${excerptContent}`;
+          
+          if (totalLength + part.length > MAX_CONTEXT_LENGTH) {
+            break;
+          }
+          
+          contextParts.push(part);
+          totalLength += part.length;
+        }
+        
+        const context = contextParts.join('\n\n');
         
         const synthesisResult = await this.chat({
           messages: [
