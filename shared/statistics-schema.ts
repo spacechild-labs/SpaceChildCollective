@@ -57,7 +57,7 @@ export const CorrectionMethod = z.enum([
 export type CorrectionMethod = z.infer<typeof CorrectionMethod>;
 
 export const ModelFamily = z.enum([
-  // Inferential
+  // Inferential - Group Comparisons
   "t_test",
   "paired_t_test",
   "welch_t_test",
@@ -69,6 +69,11 @@ export const ModelFamily = z.enum([
   "repeated_measures_anova",
   "ancova",
   "manova",
+  
+  // Inferential - Correlation & Regression
+  "pearson_correlation",
+  "spearman_correlation",
+  "correlation_matrix",
   "linear_regression",
   "logistic_regression",
   "ordinal_regression",
@@ -98,6 +103,9 @@ export const ModelFamily = z.enum([
   "dif",
   
   // Consciousness-specific
+  "phi_analysis",
+  "signal_detection",
+  "coherence_analysis",
   "growth_model",
   "arima",
   "var",

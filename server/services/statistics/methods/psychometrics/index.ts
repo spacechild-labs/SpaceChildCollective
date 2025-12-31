@@ -5,3 +5,4 @@
  */
 
 export { CronbachAlphaMethod, McDonaldOmegaMethod } from "./Reliability";
+export { EFAMethod } from "./FactorAnalysis";

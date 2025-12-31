@@ -8,3 +8,5 @@ export { TTestMethod, PairedTTestMethod, WelchTTestMethod } from "./TTests";
 export { ANOVAMethod } from "./ANOVA";
 export { LinearRegressionMethod } from "./Regression";
 export { MannWhitneyMethod, WilcoxonMethod } from "./NonParametric";
+export { ChiSquareMethod, FisherExactMethod } from "./ChiSquare";
+export { PearsonCorrelationMethod, SpearmanCorrelationMethod, CorrelationMatrixMethod } from "./Correlation";

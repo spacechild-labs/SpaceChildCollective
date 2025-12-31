@@ -32,7 +32,11 @@ import { TTestMethod, PairedTTestMethod, WelchTTestMethod } from "../methods/inf
 import { ANOVAMethod } from "../methods/inferential/ANOVA";
 import { LinearRegressionMethod } from "../methods/inferential/Regression";
 import { MannWhitneyMethod, WilcoxonMethod } from "../methods/inferential/NonParametric";
+import { ChiSquareMethod, FisherExactMethod } from "../methods/inferential/ChiSquare";
+import { PearsonCorrelationMethod, SpearmanCorrelationMethod, CorrelationMatrixMethod } from "../methods/inferential/Correlation";
 import { CronbachAlphaMethod, McDonaldOmegaMethod } from "../methods/psychometrics/Reliability";
+import { EFAMethod } from "../methods/psychometrics/FactorAnalysis";
+import { PhiAnalysisMethod, SignalDetectionMethod, CoherenceAnalysisMethod } from "../methods/consciousness/ConsciousnessAnalysis";
 
 // ============================================================================
 // TYPES
@@ -134,18 +138,33 @@ export class StatisticsEngine {
   }
   
   private registerBuiltInMethods(): void {
-    // Inferential methods
+    // Inferential methods - Group comparisons
     this.registerMethod("t_test", new TTestMethod());
     this.registerMethod("paired_t_test", new PairedTTestMethod());
     this.registerMethod("welch_t_test", new WelchTTestMethod());
     this.registerMethod("mann_whitney", new MannWhitneyMethod());
     this.registerMethod("wilcoxon", new WilcoxonMethod());
     this.registerMethod("anova", new ANOVAMethod());
+    
+    // Inferential methods - Categorical
+    this.registerMethod("chi_square", new ChiSquareMethod());
+    this.registerMethod("fisher_exact", new FisherExactMethod());
+    
+    // Inferential methods - Correlation & Regression
+    this.registerMethod("pearson_correlation", new PearsonCorrelationMethod());
+    this.registerMethod("spearman_correlation", new SpearmanCorrelationMethod());
+    this.registerMethod("correlation_matrix", new CorrelationMatrixMethod());
     this.registerMethod("linear_regression", new LinearRegressionMethod());
     
     // Psychometric methods
     this.registerMethod("cronbach_alpha", new CronbachAlphaMethod());
     this.registerMethod("mcdonald_omega", new McDonaldOmegaMethod());
+    this.registerMethod("efa", new EFAMethod());
+    
+    // Consciousness-specific methods
+    this.registerMethod("phi_analysis", new PhiAnalysisMethod());
+    this.registerMethod("signal_detection", new SignalDetectionMethod());
+    this.registerMethod("coherence_analysis", new CoherenceAnalysisMethod());
     
     console.log(`📊 Registered ${this.methodRegistry.size} analysis methods`);
   }
