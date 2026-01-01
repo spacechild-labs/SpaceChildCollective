@@ -21,6 +21,7 @@ import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
 import SEODemo from "@/pages/seo-demo";
 import StudyDesigner from "@/pages/study-designer";
+import Statistics from "@/pages/statistics";
 import NotFound from "@/pages/not-found";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi-config";
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/experiments/:id" component={ExperimentDetail} />
       <Route path="/experiments" component={Experiments} />
       <Route path="/study-designer" component={StudyDesigner} />
+      <Route path="/statistics" component={Statistics} />
       <Route path="/profile" component={Profile} />
       <Route path="/settings" component={Settings} />
       <Route path="/seo-demo" component={SEODemo} />
@@ -53,7 +55,7 @@ function Router() {
 }
 
 // Routes that should show sidebar (authenticated routes only)
-const sidebarRoutes = ["/workspace", "/discover", "/papers", "/profile", "/settings", "/agents", "/mcp", "/approvals", "/experiments", "/study-designer"];
+const sidebarRoutes = ["/workspace", "/discover", "/papers", "/profile", "/settings", "/agents", "/mcp", "/approvals", "/experiments", "/study-designer", "/statistics"];
 
 function AppContent() {
   const [location] = useLocation();

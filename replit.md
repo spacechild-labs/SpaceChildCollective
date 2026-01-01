@@ -125,6 +125,36 @@ API Routes:
 - `POST /api/experiments/:experimentId/phases/:phaseIndex` - Run specific phase
 - `POST /api/experiments/run-full` - Run complete experiment (all phases)
 
+### Statistics & Psychometrics Engine
+A comprehensive statistical analysis subsystem for consciousness research with 31+ methods, full provenance tracking, and APA-style reporting.
+
+**Method Categories:**
+- **Inferential**: T-tests (independent, paired, Welch), ANOVA, Repeated Measures ANOVA
+- **Non-parametric**: Mann-Whitney U, Wilcoxon Signed-Rank
+- **Regression**: Linear, Logistic, Mixed Effects
+- **Advanced**: Mediation, Moderation, Correlation Matrix
+- **Psychometrics**: Cronbach's Alpha, McDonald's Omega, EFA, CFA, IRT (1PL, 2PL, 3PL), Graded Response, Network Psychometrics
+- **Bayesian**: Bayesian T-Test, Bayesian Paired T-Test, Bayesian Correlation
+- **Consciousness Research**: Phi Analysis, Signal Detection, Coherence Analysis
+
+**Features:**
+- Automated method recommendation based on data structure
+- Assumption checking and diagnostics
+- APA-style report generation
+- Full provenance tracking with audit trails
+- Machine-readable JSON output
+
+API Routes:
+- `GET /api/statistics/methods` - List available methods
+- `POST /api/statistics/analyze` - Run full analysis
+- `POST /api/statistics/quick-analyze` - Quick automated analysis
+- `POST /api/statistics/recommend` - Get method recommendations
+- `POST /api/statistics/descriptives` - Compute descriptive statistics
+- `POST /api/statistics/check-assumptions` - Run assumption diagnostics
+- `POST /api/statistics/parse-design` - Infer study design
+- `GET /api/statistics/config` - Get engine configuration
+- `PATCH /api/statistics/config` - Update engine configuration
+
 ### Environment Variables Required
 - `DATABASE_URL`
 - `AI_INTEGRATIONS_OPENAI_BASE_URL`

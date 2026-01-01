@@ -1,4 +1,4 @@
-import { Home, FileText, Search, User, Settings, Bot, Network, CheckCircle2, LogOut, FlaskConical, Wand2 } from "lucide-react";
+import { Home, FileText, Search, User, Settings, Bot, Network, CheckCircle2, LogOut, FlaskConical, Wand2, BarChart3 } from "lucide-react";
 import { Link, useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -49,6 +49,12 @@ const menuItems = [
     url: "/study-designer",
     icon: Wand2,
     testId: "nav-study-designer",
+  },
+  {
+    title: "Statistics",
+    url: "/statistics",
+    icon: BarChart3,
+    testId: "nav-statistics",
   },
   {
     title: "Approvals",
