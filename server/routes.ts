@@ -23,6 +23,7 @@ import { consciousnessExperimentService } from "./services/consciousness-experim
 import { singularisProtocol } from "./services/singularis-protocol";
 import seoRouter from "./routes/seo";
 import statisticsRouter from "./routes/statistics";
+import studyDesignerRouter from "./routes/study-designer";
 import OpenAI from "openai";
 
 // Enhanced Request type to include user
@@ -1751,6 +1752,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== Statistics & Psychometrics Engine Routes =====
   // Mount the Statistical Analysis & Psychometrics Engine for consciousness research
   app.use('/api/statistics', statisticsRouter);
+
+  // ===== AI Study Designer Routes =====
+  // Mount the AI-assisted study design system for consciousness research
+  app.use('/api/study-designer', studyDesignerRouter);
 
   return httpServer;
 }
