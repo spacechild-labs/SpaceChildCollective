@@ -253,7 +253,7 @@ export default function StudyDesigner() {
     designMutation.mutate({
       prompt: prompt.trim(),
       preferences: {
-        paradigm: selectedParadigm || undefined,
+        paradigm: selectedParadigm && selectedParadigm !== "_auto_" ? selectedParadigm : undefined,
         complexity,
       },
       autoStart,
@@ -365,7 +365,7 @@ export default function StudyDesigner() {
                           <SelectValue placeholder="Let AI decide..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Let AI decide</SelectItem>
+                          <SelectItem value="_auto_">Let AI decide</SelectItem>
                           {paradigmsData?.paradigms.map((p) => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.name}
