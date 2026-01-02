@@ -23,6 +23,7 @@ import SEODemo from "@/pages/seo-demo";
 import StudyDesigner from "@/pages/study-designer";
 import Statistics from "@/pages/statistics";
 import NotFound from "@/pages/not-found";
+import SSOCallbackPage from "@/pages/sso-callback";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi-config";
 import { AuthProvider } from "@/contexts/auth-context";
@@ -32,6 +33,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
+      <Route path="/sso/callback" component={SSOCallbackPage} />
       <Route path="/auth" component={Auth} />
       <Route path="/workspace" component={Workspace} />
       <Route path="/discover" component={Discover} />
