@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppSidebar } from "@/components/app-sidebar";
+import { MobileNav } from "@/components/mobile-nav";
 import Landing from "@/pages/landing";
 import Auth from "@/pages/auth";
 import Workspace from "@/pages/workspace";
@@ -27,6 +28,7 @@ import SSOCallbackPage from "@/pages/sso-callback";
 import PrivacyPage from "@/pages/privacy";
 import TermsPage from "@/pages/terms";
 import { CookieConsent } from "@/components/cookie-consent";
+import { PWAInstallPrompt, OfflineIndicator, UpdateBanner } from "@/components/pwa";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi-config";
 import { AuthProvider } from "@/contexts/auth-context";
@@ -81,18 +83,26 @@ function AppContent() {
   return (
     <>
       {showSidebar ? (
-        <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-          <div className="flex h-screen w-full">
-            <AppSidebar />
-            <main className="flex-1 overflow-auto">
-              <Router />
-            </main>
-          </div>
-        </SidebarProvider>
+        <>
+          <MobileNav />
+          <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+            <div className="flex h-screen w-full">
+              <div className="hidden md:block">
+                <AppSidebar />
+              </div>
+              <main className="flex-1 overflow-auto pt-14 md:pt-0">
+                <Router />
+              </main>
+            </div>
+          </SidebarProvider>
+        </>
       ) : (
         <Router />
       )}
       <Toaster />
+        <PWAInstallPrompt appName="Research Collective" />
+        <OfflineIndicator />
+        <UpdateBanner />
     </>
   );
 }

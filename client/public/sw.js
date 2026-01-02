@@ -1,12 +1,15 @@
 /**
  * SpaceChild Research Collective - Service Worker
- * Enables PWA functionality, offline support, and reliable installation
+ * Space Child PWA - Auto-versioned for automatic updates
  */
 
-const CACHE_NAME = 'spacechild-collective-v1.1.0';
+const VERSION = new Date().getTime();
+const APP_NAME = 'spacechild-collective';
+const CACHE_NAME = `${APP_NAME}-${VERSION}`;
+const RUNTIME_CACHE = `${APP_NAME}-runtime-${VERSION}`;
+const IMAGE_CACHE = `${APP_NAME}-images-${VERSION}`;
+const API_CACHE = `${APP_NAME}-api-${VERSION}`;
 const OFFLINE_URL = '/';
-
-const SKIP_CACHING = true;
 
 // Assets to cache for offline functionality
 const STATIC_ASSETS = [
@@ -71,14 +74,16 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker');
+  console.log('[SW] Activating service worker with version:', VERSION);
+  const currentCaches = [CACHE_NAME, RUNTIME_CACHE, IMAGE_CACHE, API_CACHE];
   
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_NAME) {
+            // Delete any cache that starts with our app name but isn't current
+            if (cacheName.startsWith(APP_NAME) && !currentCaches.includes(cacheName)) {
               console.log('[SW] Deleting old cache:', cacheName);
               return caches.delete(cacheName);
             }
