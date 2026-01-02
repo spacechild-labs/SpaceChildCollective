@@ -24,6 +24,9 @@ import StudyDesigner from "@/pages/study-designer";
 import Statistics from "@/pages/statistics";
 import NotFound from "@/pages/not-found";
 import SSOCallbackPage from "@/pages/sso-callback";
+import PrivacyPage from "@/pages/privacy";
+import TermsPage from "@/pages/terms";
+import { CookieConsent } from "@/components/cookie-consent";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi-config";
 import { AuthProvider } from "@/contexts/auth-context";
@@ -51,6 +54,8 @@ function Router() {
       <Route path="/profile" component={Profile} />
       <Route path="/settings" component={Settings} />
       <Route path="/seo-demo" component={SEODemo} />
+      <Route path="/privacy" component={PrivacyPage} />
+      <Route path="/terms" component={TermsPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -100,6 +105,7 @@ function App() {
           <ThemeProvider defaultTheme="light">
             <TooltipProvider>
               <AppContent />
+              <CookieConsent />
             </TooltipProvider>
           </ThemeProvider>
         </AuthProvider>
