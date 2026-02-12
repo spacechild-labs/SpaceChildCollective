@@ -3,39 +3,12 @@
   <head>
     <meta charset="UTF-8" />
 
-    <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CMEBRPNPGG"></script>
+    <!-- Analytics removed for privacy - see PRIVACY.md -->
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-CMEBRPNPGG', {
-        'page_title': document.title,
-        'send_page_view': true,
-        'cookie_flags': 'SameSite=None;Secure'
-      });
-
-      // Enhanced ecommerce and events tracking
-      window.trackEvent = function(eventName, eventParams) {
-        gtag('event', eventName, eventParams || {});
-      };
-
-      // Track page views for SPA
-      window.trackPageView = function(pagePath, pageTitle) {
-        gtag('event', 'page_view', {
-          page_path: pagePath,
-          page_title: pageTitle || document.title,
-          page_location: window.location.href
-        });
-      };
-
-      // Track user engagement
-      window.trackEngagement = function(engagementType, details) {
-        gtag('event', engagementType, {
-          event_category: 'engagement',
-          event_label: details
-        });
-      };
+      // No-op stubs for code that references tracking functions
+      window.trackEvent = function() {};
+      window.trackPageView = function() {};
+      window.trackEngagement = function() {};
     </script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -525,13 +498,7 @@
           deferredPrompt.userChoice.then((choiceResult) => {
             if (choiceResult.outcome === "accepted") {
               console.log("User accepted the A2HS prompt");
-              // Track installation event
-              if (typeof gtag !== "undefined") {
-                gtag("event", "pwa_install", {
-                  event_category: "PWA",
-                  event_label: "SpaceChild Install",
-                });
-              }
+              // Analytics removed for privacy
             } else {
               console.log("User dismissed the A2HS prompt");
             }
@@ -554,13 +521,7 @@
       // Handle app installed event
       window.addEventListener("appinstalled", (evt) => {
         console.log("SpaceChild was installed");
-        // Track successful installation
-        if (typeof gtag !== "undefined") {
-          gtag("event", "pwa_installed", {
-            event_category: "PWA",
-            event_label: "SpaceChild Installed Successfully",
-          });
-        }
+        // Analytics removed for privacy
         // Hide any remaining install prompts
         dismissInstallBanner();
       });
