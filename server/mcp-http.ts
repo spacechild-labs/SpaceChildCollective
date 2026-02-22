@@ -146,7 +146,8 @@ async function executeTool(name: string, args: Record<string, any>): Promise<any
 
 export function registerMcpHttpRoutes(app: Express): void {
   // MCP HTTP Streamable endpoint
-  app.post("/mcp/http", async (req: Request, res: Response) => {
+  // Handle both /mcp and /mcp/http for flexibility
+  const mcpHandler = async (req: Request, res: Response) => {
     try {
       const { jsonrpc, id, method, params } = req.body;
 
@@ -224,7 +225,10 @@ export function registerMcpHttpRoutes(app: Express): void {
       console.error("[MCP HTTP] Error:", error);
       return res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: error.message } });
     }
-  });
+  };
 
-  console.log("[MCP HTTP] Registered HTTP Streamable MCP endpoint at POST /mcp/http");
+  app.post("/mcp", mcpHandler);
+  app.post("/mcp/http", mcpHandler);
+
+  console.log("[MCP HTTP] Registered HTTP Streamable MCP endpoint at POST /mcp and /mcp/http");
 }
