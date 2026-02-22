@@ -368,13 +368,17 @@ class AgentProcess {
   }
 
   async start(): Promise<void> {
-    const scriptPath = new URL('../agent-client/index.ts', import.meta.url).pathname;
+    const scriptUrl = new URL('../agent-client/index.ts', import.meta.url);
+    const scriptPath = process.platform === 'win32' 
+      ? scriptUrl.pathname.replace(/^\/([a-zA-Z]:)/, '$1')  // Remove leading slash on Windows
+      : scriptUrl.pathname;
     
-    this.process = spawn('tsx', [scriptPath, this.id], {
+    this.process = spawn('npx', ['tsx', scriptPath, this.id], {
+      shell: true,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        MCP_SERVER_URL: process.env.MCP_SERVER_URL || 'ws://localhost:5000/mcp',
+        MCP_SERVER_URL: process.env.MCP_SERVER_URL || `ws://localhost:${process.env.PORT || '5000'}/mcp`,
         AI_INTEGRATIONS_OPENAI_BASE_URL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
         AI_INTEGRATIONS_OPENAI_API_KEY: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
         PARALLEL_API_KEY: process.env.PARALLEL_API_KEY,

@@ -78,6 +78,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
+            agentId: {
+              type: "string",
+              description: "ID of the agent creating the task",
+            },
             paperId: {
               type: "string",
               description: "ID of the paper this task relates to",
@@ -248,7 +252,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "create_research_task": {
       const task = await storage.createAgentTask({
         paperId: args.paperId as string,
-        agentId: "mcp-agent", // Default MCP agent ID
+        agentId: (args.agentId as string) || "mcp-agent",
         taskType: args.taskType as "research" | "writing" | "analysis" | "review",
         description: args.description as string,
         status: "awaiting_approval",

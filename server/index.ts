@@ -77,8 +77,10 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  if (app.get("env") === "development" && process.env.REPL_ID) {
     await setupVite(app, server);
+  } else if (app.get("env") === "development") {
+    log("Skipping Vite setup (local dev without Replit). API-only mode.");
   } else {
     serveStatic(app);
   }
@@ -107,7 +109,6 @@ app.use((req, res, next) => {
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
   });

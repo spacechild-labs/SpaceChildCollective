@@ -1,10 +1,5 @@
-// Database connection setup using blueprint: javascript_database
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+// Database connection setup — supports both Neon (production/Replit) and local PostgreSQL
 import * as schema from "@shared/schema";
-
-neonConfig.webSocketConstructor = ws;
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -12,5 +7,25 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+const isLocalDev = process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1');
+
+let pool: any;
+let db: any;
+
+if (isLocalDev) {
+  // Local development: use standard pg driver (no WebSocket needed)
+  const pg = await import('pg');
+  const { drizzle } = await import('drizzle-orm/node-postgres');
+  pool = new pg.default.Pool({ connectionString: process.env.DATABASE_URL });
+  db = drizzle(pool, { schema });
+} else {
+  // Production (Neon/Replit): use serverless driver with WebSocket
+  const { Pool, neonConfig } = await import('@neondatabase/serverless');
+  const { drizzle } = await import('drizzle-orm/neon-serverless');
+  const ws = await import('ws');
+  neonConfig.webSocketConstructor = ws.default;
+  pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  db = drizzle({ client: pool, schema });
+}
+
+export { pool, db };
