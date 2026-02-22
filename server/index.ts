@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { server as mcpServer } from "./mcp-server";
 import { setupMcpWebSocketServer } from "./websocket";
+import { registerMcpHttpRoutes } from "./mcp-http";
 import { taskDispatcher } from "./services/task-dispatcher";
 import { agentManager } from "./services/agent-manager";
 
@@ -85,8 +86,9 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Initialize MCP WebSocket server for agent connections
+  // Initialize MCP servers (WebSocket for agents, HTTP for ElevenLabs/external)
   setupMcpWebSocketServer(server, mcpServer);
+  registerMcpHttpRoutes(app);
   log("MCP WebSocket server initialized on /mcp endpoint");
 
   // Start agent manager to handle autonomous agent processes
