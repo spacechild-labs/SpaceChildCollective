@@ -60,13 +60,8 @@ export class TaskDispatcher {
    */
   private async checkAndDispatchTasks(): Promise<void> {
     try {
-      // Get all tasks from the database
-      const allTasks = await storage.getAllTasks();
-
-      // Filter for tasks that need processing (only queued tasks)
-      const pendingTasks = allTasks.filter((task) => 
-        task.status === "queued"
-      );
+      // Fetch only queued tasks (indexed query) instead of scanning all tasks.
+      const pendingTasks = await storage.getTasksByStatus("queued");
 
       if (pendingTasks.length === 0) {
         return;
@@ -108,7 +103,7 @@ export class TaskDispatcher {
       console.error(`Error processing task ${task.id}:`, error);
       // Mark task as cancelled on error
       await storage.updateAgentTask(task.id, {
-        status: "cancelled",
+        status: "failed",
         result: { error: error instanceof Error ? error.message : "Unknown error" }
       });
     }
@@ -151,7 +146,7 @@ export class TaskDispatcher {
     } catch (error) {
       console.error(`Error executing task ${task.id}:`, error);
       await storage.updateAgentTask(task.id, {
-        status: "cancelled",
+        status: "failed",
         result: { error: error instanceof Error ? error.message : "Unknown error" }
       });
     }

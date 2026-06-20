@@ -4,14 +4,15 @@
  */
 
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2, Mail } from "lucide-react";
 import { useSpaceChildAuth } from "@/hooks/useSpaceChildAuth";
 
 export default function VerifyEmailPage() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [, navigate] = useLocation();
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
   const { verifyEmail } = useSpaceChildAuth();
   
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -42,7 +43,7 @@ export default function VerifyEmailPage() {
     };
 
     verify();
-  }, [searchParams, verifyEmail]);
+  }, [search, verifyEmail]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900/20 to-slate-900 flex items-center justify-center p-4">

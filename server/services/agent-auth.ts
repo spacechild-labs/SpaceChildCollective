@@ -59,7 +59,10 @@ export function validateMcpToken(token: string): { agentId: string; paperId: str
     hmac.update(payloadB64);
     const expectedSignature = hmac.digest("base64url");
     
-    if (signature !== expectedSignature) {
+    // Constant-time comparison to avoid signature-forgery timing attacks.
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expectedSignature);
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
       console.error("MCP token signature mismatch");
       return null;
     }

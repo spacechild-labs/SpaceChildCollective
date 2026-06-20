@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from "crypto";
-import type { AnalysisSpec, AnalysisResult, DesignObject } from "@shared/statistics-schema";
+import type { AnalysisSpec, AnalysisResult, DesignObject, ParameterEstimate } from "@shared/statistics-schema";
 import type { AnalysisMethod } from "../AnalysisMethod";
 import { StatUtils } from "../AnalysisMethod";
 
@@ -184,7 +184,7 @@ export class ThreePLMethod implements AnalysisMethod {
     const bic = -2 * logLik + Math.log(n * k) * nParams;
     
     // Build parameters array
-    const parameters = [
+    const parameters: ParameterEstimate[] = [
       { name: "Sample Size", estimate: n },
       { name: "Number of Items", estimate: k },
       { name: "Log-Likelihood", estimate: logLik },
@@ -440,7 +440,7 @@ export class GradedResponseMethod implements AnalysisMethod {
     const bic = -2 * logLik + Math.log(n * k) * nParams;
     
     // Build parameters
-    const parameters = [
+    const parameters: ParameterEstimate[] = [
       { name: "Sample Size", estimate: n },
       { name: "Number of Items", estimate: k },
       { name: "Number of Categories", estimate: nCats },

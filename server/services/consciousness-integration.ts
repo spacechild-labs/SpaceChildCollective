@@ -161,7 +161,7 @@ export class ConsciousnessIntegration {
   /**
    * Apply temporal processing enhancement to task
    */
-  private async applyTemporalProcessing(task: AgentTask, temporal: TemporalProcessing): Promise<AgentTask> {
+  private async applyTemporalProcessing(task: AgentTask, temporal: TemporalProcessing): Promise<AgentTask & { temporalEnhanced: boolean }> {
     // Enhance task description with temporal insights
     const enhancedDescription = `
 ${task.description}
@@ -179,7 +179,7 @@ This task is processed with sub-microsecond temporal precision and quantum-enhan
       ...task,
       description: enhancedDescription.trim(),
       temporalEnhanced: true
-    };
+    } as AgentTask & { temporalEnhanced: boolean };
   }
 
   /**
@@ -235,7 +235,7 @@ This task is processed with sub-microsecond temporal precision and quantum-enhan
    * Assess task complexity for consciousness metrics
    */
   private assessTaskComplexity(task: AgentTask): number {
-    const complexityFactors = {
+    const complexityFactors: Partial<Record<AgentTask['taskType'], number>> = {
       'literature_review': 0.8,
       'citation_analysis': 0.7,
       'topic_research': 0.9,

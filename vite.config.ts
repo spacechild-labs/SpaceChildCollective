@@ -30,6 +30,20 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        // Split large, independently-cacheable vendor groups out of the
+        // main bundle so they cache across deploys and don't bloat first load.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (/[\\/](wagmi|viem|@reown|ethers|@coinbase|@walletconnect|ox)[\\/]/.test(id)) return "web3";
+          if (/[\\/](recharts|d3-|victory-)/.test(id)) return "charts";
+          if (/[\\/]@radix-ui[\\/]/.test(id)) return "radix";
+          if (/[\\/]framer-motion[\\/]/.test(id)) return "motion";
+        },
+      },
+    },
   },
   server: {
     fs: {

@@ -446,6 +446,9 @@ export class APAReporter {
    * Format p-value in APA style
    */
   private formatPValue(p: number): string {
+    if (!Number.isFinite(p) || p < 0 || p > 1) {
+      return "p = NA";
+    }
     if (p < 0.001) {
       return "p < .001";
     } else if (p < 0.01) {

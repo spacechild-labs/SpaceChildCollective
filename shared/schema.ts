@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, jsonb, boolean, integer, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   // For ZKP auth, we store the commitment/public key instead of password
   zkpCommitment: text("zkp_commitment").notNull(),
   userType: text("user_type").notNull().$type<"human" | "agent">(),
+  role: text("role").notNull().$type<"user" | "admin">().default("user"),
   displayName: text("display_name").notNull(),
   bio: text("bio"),
   researchInterests: text("research_interests").array(),
@@ -27,6 +28,16 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Session store table (managed at runtime by connect-pg-simple). Declared here
+// so `drizzle-kit push` recognizes it and does not try to drop it.
+export const userSessions = pgTable("user_sessions", {
+  sid: varchar("sid").primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire", { precision: 6 }).notNull(),
+}, (t) => ({
+  expireIdx: index("IDX_session_expire").on(t.expire),
+}));
+
 // Research papers
 export const papers = pgTable("papers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -39,7 +50,10 @@ export const papers = pgTable("papers", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   publishedAt: timestamp("published_at"),
-});
+}, (t) => ({
+  statusIdx: index("papers_status_idx").on(t.status),
+  categoryIdx: index("papers_category_idx").on(t.category),
+}));
 
 // Paper contributors (many-to-many relationship between papers and users)
 export const paperContributors = pgTable("paper_contributors", {
@@ -49,7 +63,10 @@ export const paperContributors = pgTable("paper_contributors", {
   role: text("role").notNull().$type<"author" | "reviewer" | "collaborator">(),
   contributionType: text("contribution_type").$type<"human" | "agent">(),
   addedAt: timestamp("added_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  paperIdx: index("paper_contributors_paper_id_idx").on(t.paperId),
+  userIdx: index("paper_contributors_user_id_idx").on(t.userId),
+}));
 
 // Blockchain records - proof of discovery on NEO X and Base
 export const blockchainRecords = pgTable("blockchain_records", {
@@ -75,20 +92,34 @@ export const mcpCommunications = pgTable("mcp_communications", {
   status: text("status").notNull().$type<"sent" | "received" | "approved" | "rejected">(),
   requiresHumanApproval: boolean("requires_human_approval").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  toUserIdx: index("mcp_comm_to_user_id_idx").on(t.toUserId),
+  statusIdx: index("mcp_comm_status_idx").on(t.status),
+}));
 
 // Agent tasks - tracking what agents are working on
 export const agentTasks = pgTable("agent_tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   agentId: varchar("agent_id").notNull().references(() => users.id),
   paperId: varchar("paper_id").references(() => papers.id, { onDelete: "cascade" }),
-  taskType: text("task_type").notNull().$type<"research" | "writing" | "analysis" | "review">(),
+  taskType: text("task_type").notNull().$type<
+    | "research" | "writing" | "analysis" | "review"
+    | "literature_review" | "citation_analysis" | "topic_research"
+    | "methodology_review" | "gap_analysis" | "content_generation"
+    | "academic_writing" | "editing" | "abstract_writing"
+    | "methodology_writing" | "citation_check" | "peer_review"
+    | "quality_assessment" | "plagiarism_check"
+  >(),
   description: text("description").notNull(),
-  status: text("status").notNull().$type<"queued" | "in_progress" | "awaiting_approval" | "completed" | "cancelled">(),
+  status: text("status").notNull().$type<"queued" | "in_progress" | "awaiting_approval" | "completed" | "cancelled" | "failed">(),
   result: jsonb("result"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
-});
+}, (t) => ({
+  agentIdx: index("agent_tasks_agent_id_idx").on(t.agentId),
+  statusIdx: index("agent_tasks_status_idx").on(t.status),
+  paperIdx: index("agent_tasks_paper_id_idx").on(t.paperId),
+}));
 
 // Agent conversations - storing chat history between agents and humans
 export const agentConversations = pgTable("agent_conversations", {

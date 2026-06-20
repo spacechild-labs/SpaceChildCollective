@@ -5,7 +5,7 @@
  */
 
 import { randomUUID } from "crypto";
-import type { AnalysisSpec, AnalysisResult, DesignObject } from "@shared/statistics-schema";
+import type { AnalysisSpec, AnalysisResult, DesignObject, ParameterEstimate } from "@shared/statistics-schema";
 import type { AnalysisMethod } from "../AnalysisMethod";
 import { StatUtils } from "../AnalysisMethod";
 
@@ -254,7 +254,7 @@ export class CFAMethod implements AnalysisMethod {
     });
     
     // Build parameters
-    const parameters = [
+    const parameters: ParameterEstimate[] = [
       { name: "Sample Size", estimate: n },
       { name: "Number of Indicators", estimate: k },
       { name: "Number of Factors", estimate: m },

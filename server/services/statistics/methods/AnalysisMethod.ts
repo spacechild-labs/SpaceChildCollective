@@ -239,6 +239,22 @@ export class StatUtils {
   static tPValue(t: number, df: number): number {
     return 2 * (1 - this.tCDF(Math.abs(t), df));
   }
+
+  /**
+   * Two-tailed t critical value: the t such that P(-t <= T <= t) = 1 - alpha.
+   * Found by bisection on the t CDF (converges to ~1.96 as df -> infinity).
+   */
+  static tCritical(df: number, alpha: number = 0.05): number {
+    const target = 1 - alpha / 2;
+    let lo = 0;
+    let hi = 1000;
+    for (let i = 0; i < 200; i++) {
+      const mid = (lo + hi) / 2;
+      if (this.tCDF(mid, df) < target) lo = mid;
+      else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
   
   /**
    * F-distribution CDF

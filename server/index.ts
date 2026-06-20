@@ -1,38 +1,79 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { server as mcpServer } from "./mcp-server";
 import { setupMcpWebSocketServer } from "./websocket";
 import { registerMcpHttpRoutes } from "./mcp-http";
 import { taskDispatcher } from "./services/task-dispatcher";
 import { agentManager } from "./services/agent-manager";
+import { validateEnv } from "./config/env";
+import { loadUser, guardMutations } from "./middleware/auth";
+import { pool } from "./db";
+
+// Fail fast on missing/insecure configuration before doing any work.
+validateEnv();
 
 const app = express();
+const isProd = process.env.NODE_ENV === "production";
+
+// Behind a reverse proxy (Replit/hosting): needed for secure cookies and for
+// rate-limit to see the real client IP.
+app.set("trust proxy", 1);
 
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
   }
 }
+
+// Security headers. A tailored CSP is deferred (the SPA + wallet SDKs need a
+// specific policy); the rest of helmet's hardening is safe to enable now.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
 app.use(express.json({
+  limit: "1mb",
   verify: (req, _res, buf) => {
     req.rawBody = buf;
   }
 }));
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
-// Session middleware for ZKP authentication
+// Rate limiting: a general API cap plus a strict cap on auth endpoints.
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again later." },
+});
+app.use("/api/auth", authLimiter);
+app.use("/api", apiLimiter);
+
+// Session: persistent Postgres-backed store (never an in-memory store in prod).
+const PgSession = connectPgSimple(session);
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'spacechild-research-collective-secret',
+  store: new PgSession({ pool, createTableIfMissing: true, tableName: "user_sessions" }),
+  secret: process.env.SESSION_SECRET || (isProd
+    ? (() => { throw new Error("SESSION_SECRET is required in production"); })()
+    : "dev-only-insecure-secret"),
   resave: false,
   saveUninitialized: false,
+  rolling: true,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProd,
     httpOnly: true,
+    sameSite: "lax",
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
   }
 }));
+
+// Populate req.user from the session, then block anonymous state changes.
+app.use(loadUser);
+app.use(guardMutations);
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -67,29 +108,26 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
+  // MCP servers: WebSocket for agents + HTTP for external clients. Register the
+  // HTTP route before the SPA catch-all below so it isn't shadowed by the client.
+  setupMcpWebSocketServer(server);
+  registerMcpHttpRoutes(app);
+  log("MCP WebSocket server initialized on /mcp endpoint");
+
+  // API error handler (after all API/MCP routes, before the SPA catch-all).
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
-
     res.status(status).json({ message });
-    throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development" && process.env.REPL_ID) {
+  // Serve the client: Vite dev middleware in development (full UI + HMR), or the
+  // static production build otherwise. Serves both the API and the client.
+  if (app.get("env") === "development") {
     await setupVite(app, server);
-  } else if (app.get("env") === "development") {
-    log("Skipping Vite setup (local dev without Replit). API-only mode.");
   } else {
     serveStatic(app);
   }
-
-  // Initialize MCP servers (WebSocket for agents, HTTP for ElevenLabs/external)
-  setupMcpWebSocketServer(server, mcpServer);
-  registerMcpHttpRoutes(app);
-  log("MCP WebSocket server initialized on /mcp endpoint");
 
   // Start agent manager to handle autonomous agent processes
   await agentManager.start();

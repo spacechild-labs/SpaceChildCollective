@@ -1,4 +1,6 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route, useLocation } from "wouter";
+import { Loader2 } from "lucide-react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,26 +9,29 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MobileNav } from "@/components/mobile-nav";
-import Landing from "@/pages/landing";
-import Auth from "@/pages/auth";
-import Workspace from "@/pages/workspace";
-import Discover from "@/pages/discover";
-import PaperEditor from "@/pages/paper-editor";
-import McpStatus from "@/pages/mcp-status";
-import Papers from "@/pages/papers";
-import Agents from "@/pages/agents";
-import Approvals from "@/pages/approvals";
-import Experiments from "@/pages/experiments";
-import ExperimentDetail from "@/pages/experiment-detail";
-import Profile from "@/pages/profile";
-import Settings from "@/pages/settings";
-import SEODemo from "@/pages/seo-demo";
-import StudyDesigner from "@/pages/study-designer";
-import Statistics from "@/pages/statistics";
-import NotFound from "@/pages/not-found";
-import SSOCallbackPage from "@/pages/sso-callback";
-import PrivacyPage from "@/pages/privacy";
-import TermsPage from "@/pages/terms";
+
+// Route pages are code-split so each route's JS (and heavy deps like
+// recharts/the paper editor) loads on demand instead of in the initial bundle.
+const Landing = lazy(() => import("@/pages/landing"));
+const Auth = lazy(() => import("@/pages/auth"));
+const Workspace = lazy(() => import("@/pages/workspace"));
+const Discover = lazy(() => import("@/pages/discover"));
+const PaperEditor = lazy(() => import("@/pages/paper-editor"));
+const McpStatus = lazy(() => import("@/pages/mcp-status"));
+const Papers = lazy(() => import("@/pages/papers"));
+const Agents = lazy(() => import("@/pages/agents"));
+const Approvals = lazy(() => import("@/pages/approvals"));
+const Experiments = lazy(() => import("@/pages/experiments"));
+const ExperimentDetail = lazy(() => import("@/pages/experiment-detail"));
+const Profile = lazy(() => import("@/pages/profile"));
+const Settings = lazy(() => import("@/pages/settings"));
+const SEODemo = lazy(() => import("@/pages/seo-demo"));
+const StudyDesigner = lazy(() => import("@/pages/study-designer"));
+const Statistics = lazy(() => import("@/pages/statistics"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const SSOCallbackPage = lazy(() => import("@/pages/sso-callback"));
+const PrivacyPage = lazy(() => import("@/pages/privacy"));
+const TermsPage = lazy(() => import("@/pages/terms"));
 import { CookieConsent } from "@/components/cookie-consent";
 import { PWAInstallPrompt, OfflineIndicator, UpdateBanner } from "@/components/pwa";
 import { WagmiProvider } from "wagmi";
@@ -34,32 +39,42 @@ import { wagmiConfig } from "@/lib/wagmi-config";
 import { AuthProvider } from "@/contexts/auth-context";
 import { useAnalytics } from "@/hooks/use-analytics";
 
+function PageLoader() {
+  return (
+    <div className="flex h-screen w-full items-center justify-center" role="status" aria-label="Loading page">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Landing} />
-      <Route path="/sso/callback" component={SSOCallbackPage} />
-      <Route path="/auth" component={Auth} />
-      <Route path="/workspace" component={Workspace} />
-      <Route path="/discover" component={Discover} />
-      <Route path="/mcp" component={McpStatus} />
-      <Route path="/papers/new" component={PaperEditor} />
-      <Route path="/papers/:id/edit" component={PaperEditor} />
-      <Route path="/papers/:id" component={PaperEditor} />
-      <Route path="/papers" component={Papers} />
-      <Route path="/agents" component={Agents} />
-      <Route path="/approvals" component={Approvals} />
-      <Route path="/experiments/:id" component={ExperimentDetail} />
-      <Route path="/experiments" component={Experiments} />
-      <Route path="/study-designer" component={StudyDesigner} />
-      <Route path="/statistics" component={Statistics} />
-      <Route path="/profile" component={Profile} />
-      <Route path="/settings" component={Settings} />
-      <Route path="/seo-demo" component={SEODemo} />
-      <Route path="/privacy" component={PrivacyPage} />
-      <Route path="/terms" component={TermsPage} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<PageLoader />}>
+      <Switch>
+        <Route path="/" component={Landing} />
+        <Route path="/sso/callback" component={SSOCallbackPage} />
+        <Route path="/auth" component={Auth} />
+        <Route path="/workspace" component={Workspace} />
+        <Route path="/discover" component={Discover} />
+        <Route path="/mcp" component={McpStatus} />
+        <Route path="/papers/new" component={PaperEditor} />
+        <Route path="/papers/:id/edit" component={PaperEditor} />
+        <Route path="/papers/:id" component={PaperEditor} />
+        <Route path="/papers" component={Papers} />
+        <Route path="/agents" component={Agents} />
+        <Route path="/approvals" component={Approvals} />
+        <Route path="/experiments/:id" component={ExperimentDetail} />
+        <Route path="/experiments" component={Experiments} />
+        <Route path="/study-designer" component={StudyDesigner} />
+        <Route path="/statistics" component={Statistics} />
+        <Route path="/profile" component={Profile} />
+        <Route path="/settings" component={Settings} />
+        <Route path="/seo-demo" component={SEODemo} />
+        <Route path="/privacy" component={PrivacyPage} />
+        <Route path="/terms" component={TermsPage} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 

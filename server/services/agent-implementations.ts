@@ -145,14 +145,20 @@ export abstract class BaseAgent {
   }
 
   /**
-   * Execute the specific task - implemented by each agent type
+   * Execute the specific task. Default implementation delegates to the
+   * enhanced AI service; specialized agents may override.
    */
-  protected abstract executeTask(task: AgentTask): Promise<any>;
+  protected async executeTask(task: AgentTask): Promise<any> {
+    return enhancedAIService.processTaskWithAI(task, this.specialization);
+  }
 
   /**
-   * Generate context-aware prompt for the task
+   * Generate context-aware prompt for the task. Default uses the task
+   * description; specialized agents may override.
    */
-  protected abstract buildPrompt(task: AgentTask): string;
+  protected buildPrompt(task: AgentTask): string {
+    return task.description;
+  }
 
   /**
    * Calculate confidence score for the result
@@ -188,50 +194,6 @@ export abstract class BaseAgent {
     }
 
     return [...new Set(citations)].slice(0, 20); // Limit to 20 citations
-  }
-
-  /**
-   * Call OpenAI with error handling and retries
-   */
-  protected async callOpenAI(prompt: string, maxTokens: number = 4000): Promise<string> {
-    const maxRetries = 3;
-    let lastError: Error | null = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const completion = await this.openai.chat.completions.create({
-          model: 'gpt-4-turbo-preview', // Use actual available model
-          messages: [
-            {
-              role: 'system',
-              content: this.getSystemPrompt(),
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          max_tokens: maxTokens,
-          temperature: 0.7,
-        });
-
-        const content = completion.choices[0]?.message?.content || '';
-        console.log(`✅ OpenAI response received for ${this.specialization} agent (${content.length} chars)`);
-        return content;
-
-      } catch (error) {
-        lastError = error as Error;
-        console.error(`OpenAI request failed (attempt ${attempt}/${maxRetries}):`, error);
-        
-        if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
-          console.log(`Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
-    }
-
-    throw lastError || new Error('Failed to get OpenAI response');
   }
 
   /**

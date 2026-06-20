@@ -28,12 +28,9 @@ export function ApprovalModal({ task, open, onOpenChange }: ApprovalModalProps) 
 
   const approveMutation = useMutation({
     mutationFn: async (approved: boolean) => {
-      return await apiRequest(`/api/tasks/${task.id}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({
-          approved,
-          feedback: feedback || undefined,
-        }),
+      return await apiRequest('POST', `/api/tasks/${task.id}/approve`, {
+        approved,
+        feedback: feedback || undefined,
       });
     },
     onSuccess: (_, approved) => {
@@ -75,11 +72,11 @@ export function ApprovalModal({ task, open, onOpenChange }: ApprovalModalProps) 
             <p className="text-sm text-muted-foreground">{task.description}</p>
           </div>
 
-          {task.result && (
+          {task.result != null && (
             <div>
               <p className="text-sm font-medium mb-2">Agent Result</p>
-              <div className="bg-muted p-4 rounded-md text-sm">
-                {task.result}
+              <div className="bg-muted p-4 rounded-md text-sm whitespace-pre-wrap break-words">
+                {typeof task.result === "string" ? task.result : JSON.stringify(task.result, null, 2)}
               </div>
             </div>
           )}

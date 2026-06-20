@@ -65,6 +65,7 @@ export interface IStorage {
   // Blockchain operations
   createBlockchainRecord(record: InsertBlockchainRecord): Promise<BlockchainRecord>;
   getBlockchainRecordsByPaperId(paperId: string): Promise<BlockchainRecord[]>;
+  getVerifiedPaperIds(): Promise<string[]>;
   updateBlockchainStatus(id: string, status: "pending" | "confirmed" | "failed"): Promise<BlockchainRecord>;
   
   // MCP communications
@@ -79,6 +80,7 @@ export interface IStorage {
   getActiveAgentTasks(agentId: string): Promise<AgentTask[]>;
   updateAgentTask(id: string, updates: Partial<InsertAgentTask>): Promise<AgentTask>;
   getAllTasks(): Promise<AgentTask[]>;
+  getTasksByStatus(status: AgentTask["status"]): Promise<AgentTask[]>;
   getTask(id: string): Promise<AgentTask | null>;
   getTasksAwaitingApproval(): Promise<(AgentTask & { agent: User; paper?: Paper })[]>;
   updateTask(id: string, updates: Partial<AgentTask>): Promise<AgentTask>;
@@ -177,7 +179,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(paperContributors.userId, userId))
       .orderBy(desc(papers.updatedAt));
     
-    return contributorPapers.map(cp => cp.paper);
+    return contributorPapers.map((cp: { paper: Paper }) => cp.paper);
   }
 
   async createPaper(paper: InsertPaper): Promise<Paper> {
@@ -211,7 +213,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(paperContributors.userId, users.id))
       .where(eq(paperContributors.paperId, paperId));
     
-    return contribs.map(c => ({ ...c.paper_contributors, user: c.users }));
+    return contribs.map((c: { paper_contributors: PaperContributor; users: User }) => ({ ...c.paper_contributors, user: c.users }));
   }
 
   // Blockchain operations
@@ -222,6 +224,14 @@ export class DatabaseStorage implements IStorage {
 
   async getBlockchainRecordsByPaperId(paperId: string): Promise<BlockchainRecord[]> {
     return await db.select().from(blockchainRecords).where(eq(blockchainRecords.paperId, paperId));
+  }
+
+  async getVerifiedPaperIds(): Promise<string[]> {
+    const rows = await db
+      .selectDistinct({ paperId: blockchainRecords.paperId })
+      .from(blockchainRecords)
+      .where(eq(blockchainRecords.status, "confirmed"));
+    return rows.map((r: { paperId: string }) => r.paperId);
   }
 
   async updateBlockchainStatus(id: string, status: "pending" | "confirmed" | "failed"): Promise<BlockchainRecord> {
@@ -314,6 +324,14 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(agentTasks.createdAt));
   }
 
+  async getTasksByStatus(status: AgentTask["status"]): Promise<AgentTask[]> {
+    return await db
+      .select()
+      .from(agentTasks)
+      .where(eq(agentTasks.status, status))
+      .orderBy(desc(agentTasks.createdAt));
+  }
+
   async getTask(id: string): Promise<AgentTask | null> {
     const [task] = await db
       .select()
@@ -348,7 +366,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(agentTasks.status, "awaiting_approval"))
       .orderBy(desc(agentTasks.createdAt));
 
-    return tasks.map(t => ({
+    return tasks.map((t: { agent_tasks: AgentTask; users: User | null; papers: Paper | null }) => ({
       ...t.agent_tasks,
       agent: t.users!,
       paper: t.papers || undefined,

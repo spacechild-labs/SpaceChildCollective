@@ -29,6 +29,7 @@ export function WalletConnect() {
               variant="ghost"
               size="icon"
               onClick={() => disconnect()}
+              aria-label="Disconnect wallet"
               data-testid="button-disconnect-wallet"
             >
               <X className="h-4 w-4" />

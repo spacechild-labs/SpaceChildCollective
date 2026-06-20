@@ -5,7 +5,7 @@
  */
 
 import { randomUUID } from "crypto";
-import type { AnalysisSpec, AnalysisResult, DesignObject } from "@shared/statistics-schema";
+import type { AnalysisSpec, AnalysisResult, DesignObject, ParameterEstimate } from "@shared/statistics-schema";
 import type { AnalysisMethod } from "../AnalysisMethod";
 import { StatUtils } from "../AnalysisMethod";
 
@@ -141,8 +141,8 @@ export class MixedEffectsMethod implements AnalysisMethod {
     const dfBeta1 = n - J - 1;
     
     // P-values
-    const pBeta0 = 2 * StatUtils.tPValue(Math.abs(tBeta0), dfBeta0);
-    const pBeta1 = predictor ? 2 * StatUtils.tPValue(Math.abs(tBeta1), dfBeta1) : 1;
+    const pBeta0 = StatUtils.tPValue(Math.abs(tBeta0), dfBeta0);
+    const pBeta1 = predictor ? StatUtils.tPValue(Math.abs(tBeta1), dfBeta1) : 1;
     
     // Model fit
     // Conditional R² (variance explained by fixed + random effects)
@@ -163,15 +163,15 @@ export class MixedEffectsMethod implements AnalysisMethod {
     const bic = -2 * logLik + Math.log(n) * numParams;
     
     // Build parameters
-    const parameters = [
-      { 
-        name: "Intercept (β₀)", 
-        estimate: beta0, 
-        se: seBeta0, 
-        testStatistic: tBeta0, 
-        testType: "t", 
-        df: dfBeta0, 
-        pValue: pBeta0 
+    const parameters: ParameterEstimate[] = [
+      {
+        name: "Intercept (β₀)",
+        estimate: beta0,
+        se: seBeta0,
+        testStatistic: tBeta0,
+        testType: "t",
+        df: dfBeta0,
+        pValue: pBeta0
       }
     ];
     

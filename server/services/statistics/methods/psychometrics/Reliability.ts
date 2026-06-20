@@ -53,7 +53,7 @@ export class CronbachAlphaMethod implements AnalysisMethod {
     const sumItemVariances = itemStats.reduce((sum, s) => sum + s.variance, 0);
     
     // Calculate total scores
-    const totals = [];
+    const totals: number[] = [];
     for (let i = 0; i < validN; i++) {
       let total = 0;
       let valid = true;
@@ -250,7 +250,7 @@ export class McDonaldOmegaMethod implements AnalysisMethod {
     
     const parameters = [
       {
-        name: "McDonald's Omega",
+        name: "McDonald's Omega (tau-equivalent approx.)",
         estimate: omega
       },
       {
@@ -276,8 +276,8 @@ export class McDonaldOmegaMethod implements AnalysisMethod {
         value: omega,
         interpretation: interpretation as any
       }],
-      conclusion: `McDonald's ω = ${omega.toFixed(3)} (${interpretation})`,
-      interpretation: `Composite reliability was assessed using McDonald's omega. The ${k}-item scale demonstrated ${interpretation} reliability (ω = ${omega.toFixed(2)}). The average inter-item correlation was ${avgCorr.toFixed(2)}, suggesting ${avgCorr > 0.5 ? "strong" : avgCorr > 0.3 ? "moderate" : "weak"} item homogeneity.`,
+      conclusion: `McDonald's ω ≈ ${omega.toFixed(3)} (${interpretation}; tau-equivalent approximation)`,
+      interpretation: `Composite reliability was assessed using a tau-equivalent approximation of McDonald's omega (equal to standardized alpha; a factor-analytic omega is recommended for congeneric items). The ${k}-item scale demonstrated ${interpretation} reliability (ω ≈ ${omega.toFixed(2)}). The average inter-item correlation was ${avgCorr.toFixed(2)}, suggesting ${avgCorr > 0.5 ? "strong" : avgCorr > 0.3 ? "moderate" : "weak"} item homogeneity.`,
       limitations: [
         "This is a simplified omega calculation assuming essentially tau-equivalent items.",
         "For heterogeneous items, factor-based omega (omega hierarchical) is recommended."

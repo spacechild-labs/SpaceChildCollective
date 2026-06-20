@@ -420,12 +420,18 @@ export const ModelFitSchema = z.object({
   deviance: z.number().optional(),
   aic: z.number().optional(),
   bic: z.number().optional(),
-  
+
   // R-squared variants
   rSquared: z.number().optional(),
   adjustedRSquared: z.number().optional(),
   pseudoRSquared: z.record(z.string(), z.number()).optional(),
-  
+
+  // Omnibus test statistics (regression/ANOVA-style fit summaries)
+  fStatistic: z.number().optional(),
+  chiSquare: z.number().optional(),  // Alias for chi2 used by SEM/CFA callers
+  df: z.union([z.number(), z.array(z.number())]).optional(),
+  pValue: z.number().optional(),
+
   // SEM/CFA fit indices
   chi2: z.number().optional(),
   chi2Df: z.number().optional(),
@@ -455,7 +461,11 @@ export const AnalysisResultSchema = z.object({
   parameters: z.array(ParameterEstimateSchema),
   effectSizes: z.array(EffectSizeSchema).optional(),
   modelFit: ModelFitSchema.optional(),
-  
+
+  // Method-specific structured results
+  // (lazy: FactorAnalysisResultSchema is declared later in this module)
+  factorAnalysis: z.lazy(() => FactorAnalysisResultSchema).optional(),
+
   // Test results
   testStatistic: z.number().optional(),
   testType: z.string().optional(),
@@ -696,13 +706,15 @@ export const FactorLoadingSchema = z.object({
   factor: z.string(),
   loading: z.number(),
   se: z.number().optional(),
+  standardError: z.number().optional(),  // Alias used by EFA loading builder
   communality: z.number().optional(),
   uniqueness: z.number().optional()
 });
 export type FactorLoading = z.infer<typeof FactorLoadingSchema>;
 
 export const FactorAnalysisResultSchema = z.object({
-  type: z.enum(["efa", "cfa", "bifactor", "higher_order"]),
+  type: z.enum(["efa", "cfa", "bifactor", "higher_order"]).optional(),
+  method: z.string().optional(),  // Extraction method, e.g. "principal_axis"
   nFactors: z.number(),
   rotation: z.string().optional(),
   loadings: z.array(FactorLoadingSchema),
@@ -713,6 +725,14 @@ export const FactorAnalysisResultSchema = z.object({
     variance: z.number(),
     cumulative: z.number()
   })).optional(),
+  cumulativeVariance: z.array(z.number()).optional(),  // Running cumulative % variance
+  communalities: z.record(z.string(), z.number()).optional(),  // Per-item communality
+  kmo: z.number().optional(),  // Kaiser-Meyer-Olkin sampling adequacy
+  bartlettTest: z.object({
+    chiSquare: z.number(),
+    df: z.number(),
+    pValue: z.number()
+  }).optional(),
   fit: ModelFitSchema.optional()
 });
 export type FactorAnalysisResult = z.infer<typeof FactorAnalysisResultSchema>;

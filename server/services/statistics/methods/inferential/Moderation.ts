@@ -121,10 +121,10 @@ export class ModerationMethod implements AnalysisMethod {
       const covWY = sumWY / n;
       const covXWY = sumXWY / n;
       
-      // Approximate solution
+      // Approximate solution (initial seed for iterative refinement)
+      b1 = covXY / (varX || 0.001);
+      b2 = covWY / (varW || 0.001);
       b3 = (covXWY - b1 * covXXW - b2 * covWXW) / (varXW || 0.001);
-      b1 = (covXY - b3 * covXXW) / (varX || 0.001);
-      b2 = (covWY - b3 * covWXW) / (varW || 0.001);
       
       // Iterative refinement
       for (let iter = 0; iter < 5; iter++) {
@@ -155,9 +155,9 @@ export class ModerationMethod implements AnalysisMethod {
     const tB3 = b3 / seB3;
     const df = n - 4;
     
-    const pB1 = 2 * StatUtils.tPValue(Math.abs(tB1), df);
-    const pB2 = 2 * StatUtils.tPValue(Math.abs(tB2), df);
-    const pB3 = 2 * StatUtils.tPValue(Math.abs(tB3), df);
+    const pB1 = StatUtils.tPValue(Math.abs(tB1), df);
+    const pB2 = StatUtils.tPValue(Math.abs(tB2), df);
+    const pB3 = StatUtils.tPValue(Math.abs(tB3), df);
     
     // F-test for overall model
     const ssr = sst - sse;
@@ -186,8 +186,8 @@ export class ModerationMethod implements AnalysisMethod {
     const seSimpleSlope = Math.sqrt(seB1 * seB1 + sdW * sdW * seB3 * seB3);
     const tLowW = slopeAtLowW / seSimpleSlope;
     const tHighW = slopeAtHighW / seSimpleSlope;
-    const pLowW = 2 * StatUtils.tPValue(Math.abs(tLowW), df);
-    const pHighW = 2 * StatUtils.tPValue(Math.abs(tHighW), df);
+    const pLowW = StatUtils.tPValue(Math.abs(tLowW), df);
+    const pHighW = StatUtils.tPValue(Math.abs(tHighW), df);
     
     const moderationSignificant = pB3 < spec.alpha;
     
