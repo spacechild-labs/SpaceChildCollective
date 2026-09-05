@@ -288,6 +288,12 @@ export interface EncodeOptions {
   experimentId?: string | null;
   sessionId?: string | null;
   frameLength?: number;
+  /**
+   * Upper-case the whole body BEFORE computing the CRC, for transports that fold case
+   * (some digital modes carry uppercase only). Codes and keys are case-insensitive so
+   * nothing structural is lost; free-text values arrive uppercase (documented as lossy).
+   */
+  caseFold?: boolean;
 }
 
 export interface DecodedFrame {
@@ -383,7 +389,8 @@ export function encodeMessage(blocks: SingularisBlock[], opts: EncodeOptions): s
   if (payloads.length > 9) payloads = layout(payloads.length);
   const total = payloads.length;
   return payloads.map((p, i) => {
-    const body = `${frameHeader(from, to, id, i + 1, total)}${p}`;
+    let body = `${frameHeader(from, to, id, i + 1, total)}${p}`;
+    if (opts.caseFold) body = body.toUpperCase();
     return `${body} #${crc16(body)}`;
   });
 }
@@ -438,8 +445,9 @@ export function decodePayload(payload: string): Omit<DecodedMessage, "from" | "t
   const meta: { experimentId?: string; sessionId?: string } = {};
   while (tokens.length && tokens[0].startsWith("@")) {
     const t = tokens.shift()!;
-    if (t.startsWith("@x=")) meta.experimentId = unescapeValue(t.slice(3));
-    else if (t.startsWith("@s=")) meta.sessionId = unescapeValue(t.slice(3));
+    const key = t.slice(0, 3).toLowerCase(); // meta keys are case-insensitive like every other code
+    if (key === "@x=") meta.experimentId = unescapeValue(t.slice(3));
+    else if (key === "@s=") meta.sessionId = unescapeValue(t.slice(3));
     else throw new Error(`Unknown meta token ${t}`);
   }
   const groups: string[][] = [[]];

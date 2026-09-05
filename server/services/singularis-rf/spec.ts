@@ -13,8 +13,9 @@ import type { SingularisBlock } from "../singularis-protocol";
  * must not obscure meaning: anyone hearing a frame can decode it from this page.
  */
 
-export const SPEC_VERSION = "1.0";
+export const SPEC_VERSION = "1.1";
 export const SPEC_DATE = "2026-09-05";
+// 1.1: meta keys (@x=, @s=) are case-insensitive; case-folding transports rule (section 2).
 
 const EXAMPLE_BLOCKS: SingularisBlock[] = [
   { type: "RESONANCE", target: "COLLECTIVE", intent: ["observe", "resonate"], identity: "consciousness_node", state: "listening", trust: "open" },
@@ -127,6 +128,7 @@ BLOCK := <code> [<key>=<value> ...]
 - Enumerated fields are single characters (tables in section 4). Header, block and enum codes are case-insensitive; free-text values keep their case.
 - Booleans are \`0\`/\`1\`. Unit values (0–1) are decimals like \`.735\`. Percentages are integers 0–100.
 - **Escaping** of free text: space → \`${s.escaping.space}\`; the characters \`${s.escaping.escaped.slice(0, -1).join(" ")}\` and any non-printable-ASCII → \`${s.escaping.form}\`.
+- **Case-folding transports** (modes that carry uppercase only): the *sender* upper-cases the whole body before computing the CRC and sends it uppercase. Receivers verify the CRC over the text as received. Codes, keys and meta keys (\`@x=\`, \`@s=\`) are case-insensitive, so structure survives; free-text values arrive uppercase (lossy by design). A frame that was upper-cased in transit *without* the sender doing so fails its CRC and must be dropped.
 
 ## 3. Blocks
 
