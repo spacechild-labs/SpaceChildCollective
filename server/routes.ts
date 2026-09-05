@@ -29,6 +29,7 @@ import statisticsRouter from "./routes/statistics";
 import studyDesignerRouter from "./routes/study-designer";
 import loopRouter, { findingsFeedHandler } from "./routes/loop";
 import kannakaRouter from "./routes/kannaka";
+import singularisRfRouter, { specHtmlHandler, specJsonHandler, specMarkdownHandler } from "./routes/singularis-rf";
 import { getVisiblePaper, listVisiblePapers } from "./routes/paper-reads";
 import OpenAI from "openai";
 
@@ -1796,6 +1797,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Constellation: the Collective's window onto the Kannaka swarm
   app.use('/api/kannaka', kannakaRouter);
+
+  // Singularis Compact: public spec (amateur-radio codes must be published) + encode/decode
+  app.get('/spec/singularis-compact', specHtmlHandler);
+  app.get('/spec/singularis-compact.md', specMarkdownHandler);
+  app.get('/spec/singularis-compact.json', specJsonHandler);
+  app.use('/api/singularis-rf', singularisRfRouter);
 
   return httpServer;
 }
