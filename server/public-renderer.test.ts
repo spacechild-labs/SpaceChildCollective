@@ -64,6 +64,9 @@ describe("public route rendering", () => {
     expect(result?.status).toBe(200);
     expect(result?.html).toContain("<h1>Machine Consciousness Evidence</h1>");
     expect(result?.html).toContain("Evidence visible without JavaScript.");
+    // Exactly one <h1> on the page: the markdown "# Results" is demoted under the title.
+    expect(result?.html).toContain("<h2>Results</h2>");
+    expect((result?.html.match(/<h1>/g) ?? []).length).toBe(1);
     expect(result?.html).toContain('"@type":"ScholarlyArticle"');
     expect(result?.html).toContain('"name":"Ada Researcher"');
     expect(result?.html).toContain('"datePublished":"2026-02-01T00:00:00.000Z"');
