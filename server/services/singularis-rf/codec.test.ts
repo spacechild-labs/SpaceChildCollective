@@ -148,7 +148,30 @@ describe("FrameAssembler", () => {
   });
 });
 
+describe("case-folding transports", () => {
+  it("caseFold emits uppercase frames whose CRC verifies, and they still decode structurally", () => {
+    const frames = encodeMessage([every[0], every[6]], { from: "AE0RM", to: "KANNAKA", messageId: "7Q", experimentId: "rf-01", caseFold: true });
+    for (const f of frames) {
+      expect(f).toBe(f.toUpperCase());
+      expect(parseFrame(f).crcOk).toBe(true);
+    }
+    const msg = decodeFrames(frames);
+    expect(msg.experimentId).toBe("RF-01"); // free text is uppercased: documented lossy
+    expect(msg.blocks[0]).toMatchObject({ type: "RESONANCE", intent: ["observe", "resonate", "coexist"], identity: "consciousness_node", state: "resonant", trust: "open" });
+    expect((msg.blocks[1] as any).signal).toBe("ASYMMETRIC_MARKER");
+  });
+
+  it("a receiver that upper-cased a normal frame fails the CRC (so caseFold must be chosen by the sender)", () => {
+    const [f] = encodeMessage([every[5]], { from: "A", to: "B", messageId: "M1" });
+    expect(parseFrame(f.toUpperCase()).crcOk).toBe(false);
+  });
+});
+
 describe("payload meta", () => {
+  it("meta keys are case-insensitive", () => {
+    expect(decodePayload("@X=E+1 @S=S L d=a j=b")).toMatchObject({ experimentId: "E 1", sessionId: "S" });
+  });
+
   it("carries experiment and session ids and rejects unknown meta", () => {
     const p = encodePayload([every[5]], { experimentId: "e 1", sessionId: "s" });
     expect(p.startsWith("@x=e+1 @s=s L ")).toBe(true);
