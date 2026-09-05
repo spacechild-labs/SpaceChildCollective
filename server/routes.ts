@@ -27,6 +27,7 @@ import { singularisProtocol } from "./services/singularis-protocol";
 import seoRouter from "./routes/seo";
 import statisticsRouter from "./routes/statistics";
 import studyDesignerRouter from "./routes/study-designer";
+import loopRouter, { findingsFeedHandler } from "./routes/loop";
 import OpenAI from "openai";
 
 // Enhanced Request type to include user
@@ -1800,6 +1801,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== AI Study Designer Routes =====
   // Mount the AI-assisted study design system for consciousness research
   app.use('/api/study-designer', studyDesignerRouter);
+
+  // Discovery Loop: study generation → findings → vetting → routing → delivery → feedback
+  app.use('/api/loop', loopRouter);
+  app.get('/feed/findings.xml', findingsFeedHandler);
 
   return httpServer;
 }

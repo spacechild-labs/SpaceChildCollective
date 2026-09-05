@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { storage } from "./storage.js";
 import { taskDispatcher } from "./services/task-dispatcher.js";
 import { validateMcpToken } from "./services/agent-auth.js";
+import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
 
 /**
  * HTTP Streamable MCP endpoint for ElevenLabs and other HTTP-based MCP clients.
@@ -79,6 +80,7 @@ const TOOLS = [
       properties: {},
     },
   },
+  ...LOOP_TOOLS,
 ];
 
 // Tool execution
@@ -150,7 +152,7 @@ async function executeTool(name: string, args: Record<string, any>, auth: { agen
     }
 
     default:
-      throw new Error(`Unknown tool: ${name}`);
+      return handleLoopTool(name, args, auth.agentId);
   }
 }
 

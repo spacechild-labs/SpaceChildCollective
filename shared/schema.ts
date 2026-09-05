@@ -467,3 +467,179 @@ export type InsertSingularisCommunication = z.infer<typeof insertSingularisCommu
 
 export type ConsciousnessExperiment = typeof consciousnessExperiments.$inferSelect;
 export type InsertConsciousnessExperiment = z.infer<typeof insertConsciousnessExperimentSchema>;
+
+// ============================================================================
+// DISCOVERY LOOP — study generation → findings → vetting → routing → delivery
+// → feedback → next study. See server/services/loop/.
+// ============================================================================
+
+export type StudyDesignStatus = "draft" | "preregistered" | "running" | "concluded" | "archived";
+export type StudyGenerator = "heuristic" | "llm" | "hybrid";
+
+// Persisted study designs (first-class, not a blob inside experiment observations).
+export const studyDesigns = pgTable("study_designs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "set null" }),
+  prompt: text("prompt").notNull(),
+  title: text("title").notNull(),
+  paradigm: text("paradigm").notNull(),
+  constructs: text("constructs").array(),
+  design: jsonb("design").notNull(), // Full StudyDesign document
+  generator: text("generator").notNull().$type<StudyGenerator>(),
+  status: text("status").notNull().$type<StudyDesignStatus>().default("draft"),
+  // Preregistration: canonical hash of the design at the moment it was frozen,
+  // optionally anchored on-chain ({ chain, transactionHash, blockNumber }).
+  preregistrationHash: text("preregistration_hash"),
+  preregisteredAt: timestamp("preregistered_at"),
+  anchor: jsonb("anchor"),
+  experimentId: varchar("experiment_id").references(() => consciousnessExperiments.id, { onDelete: "set null" }),
+  // Lineage: the design (if any) whose findings/feedback spawned this one.
+  parentDesignId: varchar("parent_design_id"),
+  sourceFindingIds: text("source_finding_ids").array(),
+  generation: integer("generation").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  statusIdx: index("study_designs_status_idx").on(t.status),
+  parentIdx: index("study_designs_parent_idx").on(t.parentDesignId),
+  ownerIdx: index("study_designs_owner_idx").on(t.ownerId),
+}));
+
+export type FindingStatus = "candidate" | "vetting" | "vetted" | "rejected" | "routed" | "delivered" | "archived";
+export type FindingSource = "experiment" | "paper" | "manual" | "agent";
+
+// Findings: the atomic, shareable unit of discovery. One claim + its evidence.
+export const findings = pgTable("findings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  claim: text("claim").notNull(), // One falsifiable sentence
+  summary: text("summary"),
+  evidence: jsonb("evidence").notNull(), // Structured evidence (n, p, effect, raw trial refs, ...)
+  category: text("category").notNull(),
+  tags: text("tags").array(),
+  confidence: integer("confidence").notNull(), // 0-100
+  novelty: integer("novelty"), // 0-100, filled by vetting
+  simulated: boolean("simulated").notNull().default(false), // Evidence from a simulation, not live agents
+  contentHash: text("content_hash").notNull(), // sha256 of canonical {title, claim, evidence}
+  status: text("status").notNull().$type<FindingStatus>().default("candidate"),
+  source: text("source").notNull().$type<FindingSource>(),
+  vettingSummary: jsonb("vetting_summary"),
+  paperId: varchar("paper_id").references(() => papers.id, { onDelete: "set null" }),
+  experimentId: varchar("experiment_id").references(() => consciousnessExperiments.id, { onDelete: "set null" }),
+  studyDesignId: varchar("study_design_id").references(() => studyDesigns.id, { onDelete: "set null" }),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  statusIdx: index("findings_status_idx").on(t.status),
+  categoryIdx: index("findings_category_idx").on(t.category),
+  hashIdx: index("findings_content_hash_idx").on(t.contentHash),
+  designIdx: index("findings_study_design_idx").on(t.studyDesignId),
+}));
+
+export type VettingReviewerType = "automated" | "agent" | "human";
+export type VettingVerdict = "pass" | "fail" | "flag";
+
+// One row per vetting check or review applied to a finding.
+export const vettingReviews = pgTable("vetting_reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  findingId: varchar("finding_id").notNull().references(() => findings.id, { onDelete: "cascade" }),
+  reviewerType: text("reviewer_type").notNull().$type<VettingReviewerType>(),
+  reviewerId: varchar("reviewer_id").references(() => users.id, { onDelete: "set null" }),
+  check: text("check").notNull(), // schema | stats_integrity | reproducibility | novelty | simulation_disclosure | safety | peer_review | human_approval
+  verdict: text("verdict").notNull().$type<VettingVerdict>(),
+  score: integer("score"), // 0-100 where meaningful
+  notes: text("notes"),
+  details: jsonb("details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  findingIdx: index("vetting_reviews_finding_idx").on(t.findingId),
+}));
+
+export type ChannelKind = "webhook" | "kannaka" | "nats" | "mcp_subscriber" | "feed" | "blockchain";
+
+export interface ChannelFilters {
+  categories?: string[];
+  tags?: string[];
+  minConfidence?: number;
+  minNovelty?: number;
+  sources?: FindingSource[];
+}
+
+// Registered destinations that vetted findings are routed to.
+export const distributionChannels = pgTable("distribution_channels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "set null" }),
+  kind: text("kind").notNull().$type<ChannelKind>(),
+  name: text("name").notNull(),
+  config: jsonb("config").notNull(), // Adapter config; secret fields are encrypted at rest
+  filters: jsonb("filters").$type<ChannelFilters>(),
+  acceptsSimulated: boolean("accepts_simulated").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  lastDeliveryAt: timestamp("last_delivery_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  ownerIdx: index("distribution_channels_owner_idx").on(t.ownerId),
+  kindIdx: index("distribution_channels_kind_idx").on(t.kind),
+}));
+
+export type DeliveryStatus = "queued" | "sent" | "acknowledged" | "failed" | "skipped";
+
+// Delivery ledger: one row per (finding, channel), retried with backoff.
+export const deliveries = pgTable("deliveries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  findingId: varchar("finding_id").notNull().references(() => findings.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").notNull().references(() => distributionChannels.id, { onDelete: "cascade" }),
+  status: text("status").notNull().$type<DeliveryStatus>().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at"),
+  lastError: text("last_error"),
+  receipt: jsonb("receipt"),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  queuedAt: timestamp("queued_at").defaultNow().notNull(),
+  sentAt: timestamp("sent_at"),
+  ackedAt: timestamp("acked_at"),
+}, (t) => ({
+  statusIdx: index("deliveries_status_idx").on(t.status),
+  findingIdx: index("deliveries_finding_idx").on(t.findingId),
+  channelIdx: index("deliveries_channel_idx").on(t.channelId),
+}));
+
+export type FeedbackKind = "acknowledgement" | "citation" | "replication_request" | "resonance" | "dispute" | "question" | "new_prompt";
+
+// The loop closer: anything that comes back about a delivered finding.
+export const feedbackEvents = pgTable("feedback_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  findingId: varchar("finding_id").notNull().references(() => findings.id, { onDelete: "cascade" }),
+  deliveryId: varchar("delivery_id").references(() => deliveries.id, { onDelete: "set null" }),
+  channelId: varchar("channel_id").references(() => distributionChannels.id, { onDelete: "set null" }),
+  kind: text("kind").notNull().$type<FeedbackKind>(),
+  payload: jsonb("payload"),
+  actorId: varchar("actor_id").references(() => users.id, { onDelete: "set null" }),
+  externalActor: text("external_actor"),
+  spawnedDesignId: varchar("spawned_design_id").references(() => studyDesigns.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  findingIdx: index("feedback_events_finding_idx").on(t.findingId),
+  kindIdx: index("feedback_events_kind_idx").on(t.kind),
+}));
+
+export const insertStudyDesignSchema = createInsertSchema(studyDesigns).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertFindingSchema = createInsertSchema(findings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertVettingReviewSchema = createInsertSchema(vettingReviews).omit({ id: true, createdAt: true });
+export const insertDistributionChannelSchema = createInsertSchema(distributionChannels).omit({ id: true, createdAt: true, lastDeliveryAt: true });
+export const insertDeliverySchema = createInsertSchema(deliveries).omit({ id: true, queuedAt: true, sentAt: true, ackedAt: true });
+export const insertFeedbackEventSchema = createInsertSchema(feedbackEvents).omit({ id: true, createdAt: true });
+
+export type StudyDesignRecord = typeof studyDesigns.$inferSelect;
+export type InsertStudyDesignRecord = z.infer<typeof insertStudyDesignSchema>;
+export type Finding = typeof findings.$inferSelect;
+export type InsertFinding = z.infer<typeof insertFindingSchema>;
+export type VettingReview = typeof vettingReviews.$inferSelect;
+export type InsertVettingReview = z.infer<typeof insertVettingReviewSchema>;
+export type DistributionChannel = typeof distributionChannels.$inferSelect;
+export type InsertDistributionChannel = z.infer<typeof insertDistributionChannelSchema>;
+export type Delivery = typeof deliveries.$inferSelect;
+export type InsertDelivery = z.infer<typeof insertDeliverySchema>;
+export type FeedbackEvent = typeof feedbackEvents.$inferSelect;
+export type InsertFeedbackEvent = z.infer<typeof insertFeedbackEventSchema>;

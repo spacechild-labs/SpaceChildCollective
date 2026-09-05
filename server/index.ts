@@ -9,6 +9,7 @@ import { setupMcpWebSocketServer } from "./websocket";
 import { registerMcpHttpRoutes } from "./mcp-http";
 import { taskDispatcher } from "./services/task-dispatcher";
 import { agentManager } from "./services/agent-manager";
+import { deliveryWorker } from "./services/loop/delivery";
 import { validateEnv } from "./config/env";
 import { loadUser, guardMutations } from "./middleware/auth";
 import { pool } from "./db";
@@ -141,6 +142,13 @@ app.use((req, res, next) => {
     log("Task dispatcher disabled (set ENABLE_TASK_DISPATCHER=true to enable)");
   }
 
+  // Discovery Loop delivery worker: retries queued deliveries with backoff.
+  if (process.env.LOOP_ENABLE_WORKER !== 'false') {
+    deliveryWorker.start();
+  } else {
+    log("Discovery Loop delivery worker disabled (LOOP_ENABLE_WORKER=false)");
+  }
+
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
@@ -164,6 +172,8 @@ app.use((req, res, next) => {
         log("Task dispatcher stopped");
       }
       
+      deliveryWorker.stop();
+
       // Stop agent manager
       await agentManager.stop();
       log("Agent Manager stopped");
