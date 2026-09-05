@@ -35,6 +35,21 @@ import {
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { BLOCKCHAIN_CONFIG, RESEARCH_REGISTRY_ABI, isBlockchainEnabled } from "@/lib/blockchain-config";
 
+function formatPaperDate(date: Date | string | null | undefined) {
+  if (!date) return null;
+  return new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(date));
+}
+
+function formatCategory(value: string) {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 export default function PaperEditor() {
   // Detect if we're in view mode (route is /papers/:id without /edit)
   const [, viewParams] = useRoute("/papers/:id");
@@ -223,6 +238,24 @@ export default function PaperEditor() {
     enabled: !!savedPaperId,
   });
   const contributors = contributorsData ?? [];
+  const publicationDate = paper?.publishedAt ?? paper?.createdAt;
+  const scholarlyArticleJsonLd = isViewMode && paper ? {
+    "@context": "https://schema.org",
+    "@type": "ScholarlyArticle",
+    headline: paper.title,
+    abstract: paper.abstract,
+    articleSection: formatCategory(paper.category),
+    datePublished: publicationDate ? new Date(publicationDate).toISOString() : undefined,
+    dateModified: new Date(paper.updatedAt).toISOString(),
+    author: contributors.map((contributor) => ({
+      "@type": contributor.user.userType === "agent" ? "SoftwareApplication" : "Person",
+      name: contributor.user.displayName,
+    })),
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": window.location.href,
+    },
+  } : null;
 
   // Available AI agents to invite (fetched when the dialog opens).
   const { data: agents } = useQuery<User[]>({
@@ -269,7 +302,7 @@ export default function PaperEditor() {
         <div className="border-b p-4 flex items-center justify-between gap-4">
           {isViewMode ? (
             <div className="flex items-center gap-3 flex-1">
-              <h1 className="text-2xl font-semibold">{title}</h1>
+              <span className="text-2xl font-semibold">{title}</span>
               <Badge variant="outline">Read-Only</Badge>
             </div>
           ) : (
@@ -324,8 +357,53 @@ export default function PaperEditor() {
             /* Read-Only View */
             <Card className="h-full overflow-auto">
               <CardContent className="p-8">
-                <h1 className="mb-4 text-3xl font-bold">{title}</h1>
-                <Markdown>{content}</Markdown>
+                <article>
+                  {scholarlyArticleJsonLd && (
+                    <script
+                      type="application/ld+json"
+                      dangerouslySetInnerHTML={{ __html: JSON.stringify(scholarlyArticleJsonLd) }}
+                    />
+                  )}
+                  <header className="mb-8 border-b pb-6">
+                    <Badge variant="secondary" className="mb-4">
+                      {formatCategory(category)}
+                    </Badge>
+                    <h1 className="mb-4 text-3xl font-bold">{title}</h1>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">By </span>
+                      {contributors.length > 0
+                        ? contributors.map((contributor) => contributor.user.displayName).join(", ")
+                        : "No contributors listed"}
+                    </p>
+                    {paper && (
+                      <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                        <div className="flex gap-1">
+                          <dt>Published:</dt>
+                          <dd>
+                            <time dateTime={new Date(publicationDate!).toISOString()}>
+                              {formatPaperDate(publicationDate)}
+                            </time>
+                          </dd>
+                        </div>
+                        <div className="flex gap-1">
+                          <dt>Updated:</dt>
+                          <dd>
+                            <time dateTime={new Date(paper.updatedAt).toISOString()}>
+                              {formatPaperDate(paper.updatedAt)}
+                            </time>
+                          </dd>
+                        </div>
+                      </dl>
+                    )}
+                    <section className="mt-6" aria-labelledby="paper-abstract-heading">
+                      <h2 id="paper-abstract-heading" className="mb-2 text-lg font-semibold">
+                        Abstract
+                      </h2>
+                      <p className="leading-relaxed text-muted-foreground">{abstract}</p>
+                    </section>
+                  </header>
+                  <Markdown>{content}</Markdown>
+                </article>
               </CardContent>
             </Card>
           ) : (
