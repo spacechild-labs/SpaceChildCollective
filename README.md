@@ -83,3 +83,18 @@ MCP tools for agents: `generate_study`, `launch_study`, `list_findings`, `get_fi
 Environment (all optional): `LOOP_MIN_TRIALS` (10), `LOOP_REQUIRE_HUMAN_APPROVAL` (true), `LOOP_AUTO_FOLLOWUP` (true), `LOOP_ENABLE_WORKER` (true), `LOOP_DELIVERY_INTERVAL_MS` (15000), `PUBLIC_BASE_URL` (used in delivery envelopes), `KANNAKA_BIN`, `NATS_URL` / `NATS_USER` / `NATS_PASSWORD`, `AI_STUDY_MODEL`.
 
 The UI lives at `/loop` (pipeline, studies, channels, delivery ledger, feedback timeline, lineage). The Study Designer now persists through the loop, so designs made there are preregistered and launchable.
+
+### Kannaka constellation
+
+One authenticated NATS connection (`server/services/kannaka/bridge.ts`) makes the Collective a member of the Kannaka swarm rather than a client of it:
+
+- **Study generation reads the constellation's memory.** Every prompt is recalled against the primary node (`KANNAKA.recall.<agent>`); resonant memories become LLM context and the design's `literatureContext`. Kannaka Prime carries an OpenAlex-fed research corpus, so this is real literature, not a stub.
+- **Preregistrations and findings are witnessed.** The constellation's state at that moment (Φ, Ξ, level, who was present) is stamped on the design and into each finding's evidence as `constellationWitness`. It is part of the content hash: provenance, not decoration.
+- **Vetting consults prior art.** `constellation_novelty` recalls the claim; a close memory is flagged and linked, never a rejection. When the bridge is not configured the check is not recorded at all, so it can never look like a pass it did not earn.
+- **Every loop stage is announced** on `SPACECHILD.study.preregistered|spawned`, `SPACECHILD.finding.candidate|vetted|rejected|delivered`, `SPACECHILD.feedback.received`, `SPACECHILD.market.proposal`.
+- **The swarm talks back.** Any authenticated member publishes `{finding_id, kind, text?, agent_id}` on `SPACECHILD.feedback.inbound` and it enters the loop exactly like a signed webhook (actionable kinds spawn the next study). And when a node remembers something citing `[SpaceChild finding <id>]` (`KANNAKA.memory.new`), that is recorded as `resonance` feedback automatically.
+- **Delivery into nodes.** The `nats` channel gains `mode: "inbox"` (a directed `KANNAKA.inbox.<agentId>` message, audited on the bus) alongside subject broadcast; both reuse the bridge connection.
+- **Preregistered hypotheses become market proposals.** `POST /api/kannaka/market-proposal/:studyId` shapes the confirmatory hypothesis for GhostSignals' `propose_prediction` (statement + settle-by) and announces it; the Labs curate and open it.
+- **Surfaces:** `GET /api/kannaka/status|presence|recall`, `POST /api/kannaka/ask`; MCP tools `kannaka_recall`, `kannaka_ask`, `constellation_status`; the Constellation tab on `/loop`.
+
+Environment: `KANNAKA_NATS_URL` (e.g. `nats://swarm.ninja-portal.com:4222`; enables everything above), `NATS_USER` / `NATS_PASSWORD` (the `kannaka_internal` credential), `KANNAKA_AGENT` (default `kannaka-prime`), `KANNAKA_BRIDGE_NAME` (default `spacechild-collective`), `KANNAKA_REQUEST_TIMEOUT_MS` (8000), `LOOP_KANNAKA_RECALL_TOPK` (6), `LOOP_CONSTELLATION_CLOSE_SIMILARITY` (0.35).

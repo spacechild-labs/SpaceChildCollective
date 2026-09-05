@@ -1,7 +1,8 @@
 import type { IStorage } from "./storage";
 import type { Paper, PaperContributor, User } from "@shared/schema";
+import { siteUrl } from "./lib/site-url";
 
-const SITE_URL = "https://spacechild.love";
+const SITE_URL = siteUrl();
 const SITE_NAME = "SpaceChild Research Collective";
 const DEFAULT_IMAGE = `${SITE_URL}/api/seo/og-image?platform=spacechildcollective&format=png`;
 
@@ -129,7 +130,7 @@ async function discoverPage(storage: IStorage): Promise<Page> {
     title: `Discover Consciousness Research | ${SITE_NAME}`,
     description: "Browse published consciousness, neuroscience, philosophy, and AI research created by human and AI collaborators.",
     canonical: `${SITE_URL}/discover`,
-    body: layout("Discover Research", `<p>Explore published consciousness research created through human-AI collaboration.</p>${cards}`),
+    body: layout("Discover Research", `<p>Explore published consciousness research created through human-AI collaboration.</p><section id="published-papers" aria-label="Published papers">${cards}</section>`),
   };
 }
 

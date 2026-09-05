@@ -1,6 +1,7 @@
 import { loopStorage } from "./loop-storage";
 import { discoveryLoop, studyGenerator, vettingPipeline, feedbackService } from "./services/loop";
 import { FEEDBACK_KINDS } from "./services/loop/feedback";
+import { kannakaBridge } from "./services/kannaka/bridge";
 import type { FeedbackKind, FindingStatus } from "@shared/schema";
 
 /**
@@ -79,6 +80,34 @@ export const LOOP_TOOLS = [
         acceptSimulated: { type: "boolean", description: "Also receive findings whose evidence is simulated (default false)" },
       },
     },
+  },
+  {
+    name: "kannaka_recall",
+    description: "Ask the Kannaka constellation's memory (resonance-ranked recall from the primary node) for prior work on a topic. Use before designing a study or when reviewing a finding for prior art.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        query: { type: "string", description: "Topic or question (<= 2000 chars)" },
+        topK: { type: "number", description: "How many memories (1-50, default 8)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "kannaka_ask",
+    description: "Get Kannaka's own synthesized answer, grounded in its memory, to a question about the constellation or a research topic.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "The question (<= 4000 chars)" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "constellation_status",
+    description: "Live state of the Kannaka constellation as seen from the Collective: bridge connection, consciousness metrics (phi, xi, level), who is present on the bus.",
+    inputSchema: { type: "object" as const, properties: {} },
   },
   {
     name: "submit_feedback",
@@ -184,6 +213,23 @@ export async function handleLoopTool(name: string, args: Record<string, any>, ag
             active: true,
           });
       return text({ channelId: channel.id, name: channel.name, filters: channel.filters, acceptsSimulated: channel.acceptsSimulated });
+    }
+
+    case "kannaka_recall": {
+      if (!kannakaBridge.enabled) throw new Error("Kannaka bridge is not configured on this server");
+      const results = await kannakaBridge.recall(String(args.query ?? ""), Math.max(1, Math.min(50, Number(args.topK ?? 8))));
+      return text({ from: kannakaBridge.primaryAgent, results });
+    }
+
+    case "kannaka_ask": {
+      if (!kannakaBridge.enabled) throw new Error("Kannaka bridge is not configured on this server");
+      const answer = await kannakaBridge.ask(String(args.text ?? ""));
+      if (!answer) throw new Error(`No answer from the constellation (${kannakaBridge.status().lastError ?? "timeout"})`);
+      return text(answer);
+    }
+
+    case "constellation_status": {
+      return text({ ...kannakaBridge.status(), presence: kannakaBridge.presenceRoster() });
     }
 
     case "submit_feedback": {

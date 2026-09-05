@@ -35,8 +35,8 @@ describe("public route rendering", () => {
 
     expect(result?.status).toBe(200);
     expect(result?.html).toContain("<h1>Discover Research</h1>");
-    expect(result?.html).toContain('href="https://spacechild.love/discover"');
-    expect(result?.html).toContain('property="og:url" content="https://spacechild.love/discover"');
+    expect(result?.html).toContain('href="https://research.spacechild.love/discover"');
+    expect(result?.html).toContain('property="og:url" content="https://research.spacechild.love/discover"');
     expect(result?.html).toContain("A Published Finding");
     expect(result?.html).not.toContain("Secret Draft");
     expect(result?.html.match(/rel="canonical"/g)).toHaveLength(1);

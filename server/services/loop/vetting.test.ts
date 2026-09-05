@@ -6,6 +6,7 @@ import {
   checkNovelty,
   checkSimulationDisclosure,
   checkSafety,
+  checkConstellationNovelty,
   runAutomatedChecks,
   summarize,
   zForProportion,
@@ -119,6 +120,38 @@ describe("checkNovelty", () => {
   it("jaccard is 0 for disjoint sets and 1 for identical sets", () => {
     expect(jaccard(tokenize("alpha beta gamma"), tokenize("delta epsilon"))).toBe(0);
     expect(jaccard(tokenize("alpha beta"), tokenize("beta alpha"))).toBe(1);
+  });
+});
+
+describe("checkConstellationNovelty", () => {
+  const hit = (id: string, content: string, similarity: number) => ({ id, content, similarity, strength: similarity, ageHours: 10 });
+
+  it("is not recorded at all when the bridge is not configured", async () => {
+    expect(await checkConstellationNovelty(mk(), null)).toBeNull();
+  });
+
+  it("passes with a score when nothing resonates, flags a close memory, and never fails", async () => {
+    const f = mk();
+    const none = await checkConstellationNovelty(f, async () => [], { closeSimilarity: 0.35 });
+    expect(none?.verdict).toBe("pass");
+    expect(none?.score).toBe(100);
+
+    const far = await checkConstellationNovelty(f, async () => [hit("m1", "research: recommender systems and fuzzy techniques", 0.05)], { closeSimilarity: 0.35 });
+    expect(far?.verdict).toBe("pass");
+    expect(far?.notes).toMatch(/nearest constellation memory m1/);
+
+    const close = await checkConstellationNovelty(f, async () => [hit("m2", f.claim, 0.02)], { closeSimilarity: 0.35 });
+    expect(close?.verdict).toBe("flag");
+    expect(close?.notes).toMatch(/already holds a close memory m2/);
+    expect((close?.details as any).hits[0].id).toBe("m2");
+    expect(close?.verdict).not.toBe("fail");
+  });
+
+  it("flags (does not pass) when the constellation is unreachable", async () => {
+    const r = await checkConstellationNovelty(mk(), async () => { throw new Error("TIMEOUT"); });
+    expect(r?.verdict).toBe("flag");
+    expect(r?.notes).toMatch(/unreachable: TIMEOUT/);
+    expect((r?.details as any).skipped).toBe(true);
   });
 });
 

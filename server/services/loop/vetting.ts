@@ -1,6 +1,9 @@
 import type { Finding, VettingReview, VettingVerdict } from "@shared/schema";
 import { loopStorage } from "../../loop-storage";
 import { findingContentHash } from "./canonical";
+import { loopEvents } from "./events";
+import { kannakaBridge } from "../kannaka/bridge";
+import type { RecallHit } from "../kannaka/helpers";
 
 /**
  * Vetting pipeline. A finding must survive the automated checks below and, by
@@ -207,6 +210,43 @@ export function checkSafety(f: FindingLike): CheckResult {
   return { check: "safety", verdict: "pass", notes: "no secrets or personal data patterns detected" };
 }
 
+/**
+ * Constellation novelty: does Kannaka's memory already hold this claim? Never
+ * fails a finding — a memory in the swarm is prior art to cite, not a verdict —
+ * but a very close match is flagged and linked so reviewers see it.
+ *
+ * `recall` is injected so this is testable without a bus. Returns null when the
+ * bridge is not configured (no row written: a check that cannot run must not
+ * look like a pass).
+ */
+export async function checkConstellationNovelty(
+  f: FindingLike,
+  recall: ((query: string, topK: number) => Promise<RecallHit[]>) | null,
+  opts: { closeSimilarity?: number; agent?: string } = {},
+): Promise<CheckResult | null> {
+  if (!recall) return null;
+  const close = opts.closeSimilarity ?? Number(process.env.LOOP_CONSTELLATION_CLOSE_SIMILARITY ?? 0.35);
+  let hits: RecallHit[];
+  try {
+    hits = await recall(f.claim, 5);
+  } catch (err: any) {
+    return { check: "constellation_novelty", verdict: "flag", notes: `constellation unreachable: ${err?.message ?? err}`, details: { skipped: true } };
+  }
+  const mine = tokenize(f.claim);
+  const scored = hits
+    .map((h) => ({ id: h.id, similarity: h.similarity, lexical: jaccard(mine, tokenize(h.content.slice(0, 600))), excerpt: h.content.split("\n")[0].slice(0, 160) }))
+    .sort((a, b) => Math.max(b.similarity, b.lexical) - Math.max(a.similarity, a.lexical));
+  const top = scored[0];
+  const details = { agent: opts.agent ?? kannakaBridge.primaryAgent, hits: scored.slice(0, 3) };
+  if (!top) return { check: "constellation_novelty", verdict: "pass", score: 100, notes: "no resonant memories in the constellation", details };
+  const strength = Math.max(top.similarity, top.lexical);
+  const score = Math.round((1 - Math.min(1, strength)) * 100);
+  if (strength >= close) {
+    return { check: "constellation_novelty", verdict: "flag", score, notes: `the constellation already holds a close memory ${top.id.slice(0, 8)} (resonance ${top.similarity.toFixed(3)}, lexical ${top.lexical.toFixed(2)}): "${top.excerpt}"`, details };
+  }
+  return { check: "constellation_novelty", verdict: "pass", score, notes: `nearest constellation memory ${top.id.slice(0, 8)} resonates at ${top.similarity.toFixed(3)}`, details };
+}
+
 export function runAutomatedChecks(f: FindingLike, others: Pick<Finding, "id" | "claim" | "status">[], policy: VettingPolicy): CheckResult[] {
   return [
     checkSchema(f),
@@ -264,6 +304,12 @@ export class VettingPipeline {
     await loopStorage.deleteAutomatedReviews(findingId);
     const others = await loopStorage.listFindings({ limit: 1000 });
     const results = runAutomatedChecks(finding, others, this.policy);
+    // Prior art in the constellation's memory (only when the bridge is configured).
+    const constellation = await checkConstellationNovelty(
+      finding,
+      kannakaBridge.enabled ? (q, k) => kannakaBridge.recall(q, k) : null,
+    );
+    if (constellation) results.push(constellation);
     for (const r of results) {
       await loopStorage.createVettingReview({
         findingId,
@@ -312,6 +358,10 @@ export class VettingPipeline {
       novelty: summary.novelty,
       vettingSummary: summary as unknown as Record<string, unknown>,
     });
+    if (status !== current.status) {
+      if (status === "vetted") loopEvents.emit("finding.vetted", { finding });
+      if (status === "rejected") loopEvents.emit("finding.rejected", { finding, fails: summary.fails });
+    }
     return { finding, summary, reviews };
   }
 }

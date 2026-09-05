@@ -4,6 +4,7 @@
  */
 
 import type { SitemapEntry } from './types';
+import { siteUrl } from '../lib/site-url';
 
 export interface PublishedPaperSitemapRecord {
   id: string;
@@ -150,7 +151,7 @@ Disallow: /static/build/
  */
 export function generateEcosystemSitemap(
   publishedPapers: PublishedPaperSitemapRecord[] = [],
-  baseUrl: string = process.env.BASE_URL || 'https://spacechild.love',
+  baseUrl: string = siteUrl(),
 ): string {
   const canonicalBaseUrl = baseUrl.replace(/\/+$/, '');
   const generator = new SitemapGenerator(canonicalBaseUrl);

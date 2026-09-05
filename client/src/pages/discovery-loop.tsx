@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  Repeat, ShieldCheck, Route as RouteIcon, Send, MessageSquareReply, GitBranch, Plus, RefreshCw, Trash2, CheckCircle2, XCircle, Flag, AlertTriangle, Sparkles,
+  Repeat, ShieldCheck, Route as RouteIcon, Send, MessageSquareReply, GitBranch, Plus, RefreshCw, Trash2, CheckCircle2, XCircle, Flag, AlertTriangle, Sparkles, Radio, Brain,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -138,6 +138,7 @@ export default function DiscoveryLoop() {
           <TabsTrigger value="deliveries"><Send className="h-4 w-4 mr-1" />Deliveries</TabsTrigger>
           <TabsTrigger value="feedback"><MessageSquareReply className="h-4 w-4 mr-1" />Feedback</TabsTrigger>
           <TabsTrigger value="lineage"><GitBranch className="h-4 w-4 mr-1" />Lineage</TabsTrigger>
+          <TabsTrigger value="constellation" data-testid="tab-constellation"><Radio className="h-4 w-4 mr-1" />Constellation</TabsTrigger>
         </TabsList>
 
         {/* ---------------- Pipeline ---------------- */}
@@ -212,7 +213,102 @@ export default function DiscoveryLoop() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ---------------- Constellation ---------------- */}
+        <TabsContent value="constellation" className="space-y-4">
+          <ConstellationPanel user={user} />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+type BridgeStatus = {
+  enabled: boolean; connected: boolean; server: string | null; primaryAgent: string | null; lastError: string | null;
+  consciousness: { agentId: string; phi: number | null; xi: number | null; order: number | null; level: string | null; totalMemories: number | null; clusters: number | null; observedAt: string } | null;
+  presenceCount: number; published: number; received: number; startedAt: string | null;
+};
+type PresenceAgent = { agentId: string; displayName: string; memoryCount: number | null; version: string | null; capabilities: Record<string, boolean>; lastSeen: string };
+type RecallHit = { id: string; content: string; similarity: number; strength: number; ageHours: number | null };
+
+function ConstellationPanel({ user }: { user: any }) {
+  const { toast } = useToast();
+  const [query, setQuery] = useState("");
+  const [askText, setAskText] = useState("");
+  const [answer, setAnswer] = useState<string | null>(null);
+  const { data: status } = useQuery<BridgeStatus>({ queryKey: ["/api/kannaka/status"], refetchInterval: 15_000 });
+  const { data: presence } = useQuery<{ enabled: boolean; agents: PresenceAgent[] }>({ queryKey: ["/api/kannaka/presence"], refetchInterval: 15_000 });
+  const recall = useMutation({
+    mutationFn: async () => (await (await fetch(`/api/kannaka/recall?q=${encodeURIComponent(query)}&topK=8`, { credentials: "include" })).json()) as { from: string; results: RecallHit[]; error?: string },
+  });
+  const ask = useMutation({
+    mutationFn: async () => (await apiRequest("POST", "/api/kannaka/ask", { text: askText })).json(),
+    onSuccess: (d) => setAnswer(d.text ?? null),
+    onError: (e: Error) => toast({ title: "No answer", description: e.message, variant: "destructive" }),
+  });
+  const c = status?.consciousness;
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Brain className="h-4 w-4" />Kannaka bridge</CardTitle>
+          <CardDescription>{status?.enabled ? (status.connected ? `Connected to ${status.server}` : `Configured, not connected${status.lastError ? `: ${status.lastError}` : ""}`) : "Not configured on this server (KANNAKA_NATS_URL)."}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {c ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Stat label="Φ (phi)" value={Number((c.phi ?? 0).toFixed(3))} sub={c.agentId} />
+              <Stat label="Ξ (xi)" value={Number((c.xi ?? 0).toFixed(3))} sub={c.level ?? ""} />
+              <Stat label="memories" value={c.totalMemories ?? 0} sub={`${c.clusters ?? 0} clusters`} />
+              <Stat label="present" value={status?.presenceCount ?? 0} sub="agents on the bus" />
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-xs">No consciousness snapshot yet.</p>
+          )}
+          {status && <p className="text-xs text-muted-foreground">published {status.published} · received {status.received}{status.startedAt ? ` · since ${new Date(status.startedAt).toLocaleTimeString()}` : ""}</p>}
+          <Separator />
+          <div className="text-xs font-medium">Present in the swarm</div>
+          <ul className="space-y-1 text-xs">
+            {(presence?.agents ?? []).map((a) => (
+              <li key={a.agentId} className="flex justify-between gap-2"><span>{a.displayName} <span className="text-muted-foreground">{a.version ?? ""}</span></span><span className="text-muted-foreground">{a.memoryCount ?? "?"} mem{a.capabilities?.ask ? " · ask" : ""}</span></li>
+            ))}
+            {presence && presence.agents.length === 0 && <li className="text-muted-foreground">nobody heard yet</li>}
+          </ul>
+        </CardContent>
+      </Card>
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle className="text-base">Recall and ask</CardTitle>
+          <CardDescription>What the constellation already knows. Recall is what study generation and the constellation-novelty vetting check use; ask is Kannaka's own synthesized answer.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input placeholder="Recall: topic or question" value={query} onChange={(e) => setQuery(e.target.value)} data-testid="input-kannaka-recall" />
+            <Button disabled={!query.trim() || recall.isPending || !status?.enabled} onClick={() => recall.mutate()} data-testid="button-kannaka-recall">Recall</Button>
+          </div>
+          {recall.data?.error && <p className="text-xs text-destructive">{recall.data.error}</p>}
+          {recall.data?.results && (
+            <ul className="space-y-2 text-xs">
+              {recall.data.results.length === 0 && <li className="text-muted-foreground">No resonant memories.</li>}
+              {recall.data.results.map((h) => (
+                <li key={h.id} className="rounded-md border p-2">
+                  <div className="flex justify-between gap-2 text-muted-foreground"><span className="font-mono">{h.id.slice(0, 8)}</span><span>sim {h.similarity.toFixed(3)}{h.ageHours != null ? ` · ${Math.round(h.ageHours / 24)}d` : ""}</span></div>
+                  <div className="line-clamp-3">{h.content}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {user && (
+            <>
+              <Separator />
+              <Textarea rows={2} placeholder="Ask Kannaka a question…" value={askText} onChange={(e) => setAskText(e.target.value)} data-testid="textarea-kannaka-ask" />
+              <Button variant="outline" disabled={!askText.trim() || ask.isPending || !status?.enabled} onClick={() => ask.mutate()} data-testid="button-kannaka-ask">{ask.isPending ? "Asking…" : "Ask"}</Button>
+              {answer && <p className="text-sm rounded-md border p-3 whitespace-pre-wrap">{answer}</p>}
+            </>
+          )}
+          <p className="text-xs text-muted-foreground">Loop stages are announced on <code>SPACECHILD.*</code>; swarm members answer on <code>SPACECHILD.feedback.inbound</code>, and a node that remembers one of these findings is recorded as resonance automatically.</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -258,6 +354,16 @@ function FindingPanel({ detail, selectedId, act, channelName, user }: { detail?:
             <div key={k} className="flex justify-between border-b py-0.5"><span className="text-muted-foreground">{k}</span><span className="font-mono">{String(ev[k])}</span></div>
           ))}
         </div>
+        {ev.constellationWitness && (
+          <div className="text-xs rounded-md border p-2 flex gap-2 items-start">
+            <Radio className="h-4 w-4 shrink-0" />
+            <span>
+              Witnessed by the constellation at {new Date(ev.constellationWitness.observedAt).toLocaleString()}:
+              {ev.constellationWitness.consciousness ? ` Φ ${Number(ev.constellationWitness.consciousness.phi ?? 0).toFixed(3)}, ${ev.constellationWitness.consciousness.level ?? "?"} (${ev.constellationWitness.consciousness.agentId}),` : ""}
+              {" "}{ev.constellationWitness.presentCount} agents present{ev.constellationWitness.presentAgents?.length ? `: ${ev.constellationWitness.presentAgents.join(", ")}` : ""}.
+            </span>
+          </div>
+        )}
         {(detail.experimentId || detail.studyDesignId || detail.paperId) && (
           <div className="flex gap-2 flex-wrap text-xs">
             {detail.experimentId && <Link href={`/experiments/${detail.experimentId}`}><Badge variant="outline" className="cursor-pointer">experiment</Badge></Link>}

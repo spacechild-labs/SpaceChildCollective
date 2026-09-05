@@ -4,8 +4,12 @@ import type { Delivery, DistributionChannel, Finding } from "@shared/schema";
 import { loopStorage } from "../../loop-storage";
 import { storage } from "../../storage";
 import { openFields } from "../../lib/secretbox";
+import { siteUrl } from "../../lib/site-url";
 import { connectionRegistry } from "../../websocket";
 import { publishToBase, publishToNeoX } from "../blockchain";
+import { loopEvents } from "./events";
+import { kannakaBridge } from "../kannaka/bridge";
+import { buildInboxMessage } from "../kannaka/helpers";
 
 /**
  * Delivery: push a routed finding to a channel through the adapter for its
@@ -101,7 +105,7 @@ export function buildEnvelope(finding: Finding, delivery: Pick<Delivery, "id" | 
 }
 
 function baseUrl(): string {
-  return (process.env.PUBLIC_BASE_URL || process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`).replace(/\/$/, "");
+  return siteUrl();
 }
 
 export function findingAsText(f: Finding): string {
@@ -166,11 +170,32 @@ const kannakaAdapter: Adapter = async (_channel, finding, _envelope, config) => 
   }
 };
 
-/** Publish the envelope on a NATS subject (plain publish — not JetStream-retained). */
+/**
+ * Publish on NATS (plain publish — not JetStream-retained).
+ *   mode "subject" (default): the envelope on config.subject or SPACECHILD.findings.<category>
+ *   mode "inbox": a directed KANNAKA.inbox.<agentId> message to one constellation node
+ * Uses the shared Kannaka bridge connection when it is up; otherwise a short-lived connection.
+ */
 const natsAdapter: Adapter = async (_channel, finding, envelope, config) => {
-  const servers = String(config.servers || process.env.NATS_URL || "");
-  if (!servers) return { ok: false, error: "NATS servers not configured (channel config.servers or NATS_URL)", retryable: false };
-  const subject = String(config.subject || `SPACECHILD.findings.${finding.category}`);
+  const mode = config.mode === "inbox" ? "inbox" : "subject";
+  let subject: string;
+  let body: unknown;
+  if (mode === "inbox") {
+    const agentId = String(config.agentId ?? "");
+    if (!agentId) return { ok: false, error: "inbox mode needs config.agentId (a constellation agent id)", retryable: false };
+    subject = `KANNAKA.inbox.${agentId}`;
+    body = buildInboxMessage(finding, agentId);
+  } else {
+    subject = String(config.subject || `SPACECHILD.findings.${finding.category}`);
+    body = envelope;
+  }
+  if (kannakaBridge.enabled && !config.servers) {
+    const ok = await kannakaBridge.publish(subject, body);
+    if (ok) return { ok: true, receipt: { subject, mode, via: "kannaka-bridge" } };
+    return { ok: false, error: `bridge publish failed: ${kannakaBridge.status().lastError ?? "unknown"}`, retryable: true };
+  }
+  const servers = String(config.servers || process.env.KANNAKA_NATS_URL || process.env.NATS_URL || "");
+  if (!servers) return { ok: false, error: "NATS servers not configured (channel config.servers, KANNAKA_NATS_URL or NATS_URL)", retryable: false };
   try {
     const { connect, StringCodec } = await import("nats");
     const nc = await connect({
@@ -180,12 +205,12 @@ const natsAdapter: Adapter = async (_channel, finding, envelope, config) => {
       timeout: Number(config.timeoutMs ?? 5_000),
     });
     try {
-      nc.publish(subject, StringCodec().encode(JSON.stringify(envelope)));
+      nc.publish(subject, StringCodec().encode(JSON.stringify(body)));
       await nc.flush();
     } finally {
       await nc.close();
     }
-    return { ok: true, receipt: { subject, servers } };
+    return { ok: true, receipt: { subject, mode, servers } };
   } catch (err: any) {
     return { ok: false, error: String(err?.message ?? err), retryable: true };
   }
@@ -337,6 +362,7 @@ export class DeliveryWorker {
       const updated = await loopStorage.updateDelivery(deliveryId, { status: "sent", attempts, lastError: null, receipt: result.receipt ?? {}, sentAt: new Date(), nextAttemptAt: null });
       await loopStorage.updateChannel(channel.id, { lastDeliveryAt: new Date() });
       await this.markFindingDelivered(finding.id);
+      loopEvents.emit("finding.delivered", { finding, delivery: updated, channelKind: channel.kind, channelName: channel.name });
       return updated;
     }
 

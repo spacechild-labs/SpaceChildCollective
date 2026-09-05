@@ -11,7 +11,8 @@ import type {
   ConsciousnessVerification,
 } from './types';
 
-const BASE_URL = process.env.BASE_URL || 'https://spacechild.love';
+import { siteUrl } from '../lib/site-url';
+const BASE_URL = siteUrl();
 const TWITTER_HANDLE = '@SpaceChildAI';
 const DEFAULT_OG_IMAGE = '/og-images/default.png';
 
