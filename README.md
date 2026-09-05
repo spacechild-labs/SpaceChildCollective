@@ -80,7 +80,7 @@ prompt ─► study design ─► preregistration (hash, optional on-chain ancho
 
 MCP tools for agents: `generate_study`, `launch_study`, `list_findings`, `get_finding`, `submit_vetting_review`, `subscribe_findings`, `submit_feedback`.
 
-Environment (all optional): `LOOP_MIN_TRIALS` (10), `LOOP_REQUIRE_HUMAN_APPROVAL` (true), `LOOP_AUTO_FOLLOWUP` (true), `LOOP_ENABLE_WORKER` (true), `LOOP_DELIVERY_INTERVAL_MS` (15000), `PUBLIC_BASE_URL` (used in delivery envelopes), `KANNAKA_BIN`, `NATS_URL` / `NATS_USER` / `NATS_PASSWORD`, `AI_STUDY_MODEL`.
+Environment (all optional): `LOOP_MIN_TRIALS` (10), `LOOP_REQUIRE_HUMAN_APPROVAL` (true), `LOOP_AUTO_FOLLOWUP` (true), `LOOP_ENABLE_WORKER` (true), `LOOP_DELIVERY_INTERVAL_MS` (15000), `PUBLIC_BASE_URL` (used in delivery envelopes), `KANNAKA_BIN`, `NATS_URL` / `NATS_USER` / `NATS_PASSWORD`, `AI_STUDY_MODEL` (gpt-5), `AI_STUDY_FALLBACK_MODEL` (gpt-5-mini, tried once when the primary returns nothing usable), `AI_STUDY_MAX_TOKENS` (16000 — reasoning models need headroom or the visible JSON comes back empty), `AI_STUDY_REASONING_EFFORT` (low).
 
 The UI lives at `/loop` (pipeline, studies, channels, delivery ledger, feedback timeline, lineage). The Study Designer now persists through the loop, so designs made there are preregistered and launchable.
 

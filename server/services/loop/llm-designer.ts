@@ -208,25 +208,46 @@ export async function llmRefineDesign(
   opts: LlmDesignerOptions = {},
 ): Promise<{ design: StudyDesign; used: boolean; error?: string }> {
   if (!llmConfigured()) return { design: base, used: false };
-  const model = opts.model || process.env.AI_STUDY_MODEL || "gpt-5";
-  try {
-    const completion = await client().chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: "You design rigorous, preregistrable studies. Output strict JSON only." },
-        { role: "user", content: buildPrompt(base, prompt, opts.context ?? []) },
-      ],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 4096,
-    });
-    const text = completion.choices[0]?.message?.content?.trim();
-    if (!text) return { design: base, used: false, error: "empty model response" };
-    const parsed = JSON.parse(text);
-    const refinement = validateRefinement(parsed);
-    if (Object.keys(refinement).length === 0) return { design: base, used: false, error: "model returned nothing usable" };
-    return { design: mergeRefinement(base, refinement), used: true };
-  } catch (err: any) {
-    console.warn(`[llm-designer] refinement failed (${model}): ${err?.message ?? err}`);
-    return { design: base, used: false, error: String(err?.message ?? err) };
+  const primary = opts.model || process.env.AI_STUDY_MODEL || "gpt-5";
+  const fallback = process.env.AI_STUDY_FALLBACK_MODEL || "gpt-5-mini";
+  const messages = [
+    { role: "system" as const, content: "You design rigorous, preregistrable studies. Output strict JSON only." },
+    { role: "user" as const, content: buildPrompt(base, prompt, opts.context ?? []) },
+  ];
+
+  // Reasoning models spend completion tokens on hidden reasoning first; with a
+  // small cap and JSON mode the visible message comes back EMPTY (seen on Replit's
+  // OpenAI integration with gpt-5 at 4096). Low effort + a generous cap, and one
+  // retry on a different model if the first answer is unusable.
+  const attempt = async (model: string): Promise<{ refinement?: LlmRefinement; error?: string }> => {
+    try {
+      const params: Record<string, unknown> = {
+        model,
+        messages,
+        response_format: { type: "json_object" },
+        max_completion_tokens: Number(process.env.AI_STUDY_MAX_TOKENS ?? 16_000),
+      };
+      if (/^(gpt-5|o\d)/i.test(model)) params.reasoning_effort = process.env.AI_STUDY_REASONING_EFFORT || "low";
+      const completion = await client().chat.completions.create(params as any);
+      const choice = completion.choices[0];
+      const text = choice?.message?.content?.trim();
+      if (!text) return { error: `empty model response (finish_reason=${choice?.finish_reason ?? "unknown"})` };
+      const refinement = validateRefinement(JSON.parse(text));
+      if (Object.keys(refinement).length === 0) return { error: "model returned nothing usable" };
+      return { refinement };
+    } catch (err: any) {
+      return { error: String(err?.message ?? err) };
+    }
+  };
+
+  const first = await attempt(primary);
+  if (first.refinement) return { design: mergeRefinement(base, first.refinement), used: true };
+  console.warn(`[llm-designer] refinement failed (${primary}): ${first.error}`);
+  if (fallback && fallback !== primary) {
+    const second = await attempt(fallback);
+    if (second.refinement) return { design: mergeRefinement(base, second.refinement), used: true };
+    console.warn(`[llm-designer] fallback failed (${fallback}): ${second.error}`);
+    return { design: base, used: false, error: `${primary}: ${first.error}; ${fallback}: ${second.error}` };
   }
+  return { design: base, used: false, error: first.error };
 }
