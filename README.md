@@ -98,3 +98,17 @@ One authenticated NATS connection (`server/services/kannaka/bridge.ts`) makes th
 - **Surfaces:** `GET /api/kannaka/status|presence|recall`, `POST /api/kannaka/ask`; MCP tools `kannaka_recall`, `kannaka_ask`, `constellation_status`; the Constellation tab on `/loop`.
 
 Environment: `KANNAKA_NATS_URL` (e.g. `nats://swarm.ninja-portal.com:4222`; enables everything above), `NATS_USER` / `NATS_PASSWORD` (the `kannaka_internal` credential), `KANNAKA_AGENT` (default `kannaka-prime`), `KANNAKA_BRIDGE_NAME` (default `spacechild-collective`), `KANNAKA_REQUEST_TIMEOUT_MS` (8000), `LOOP_KANNAKA_RECALL_TOPK` (6), `LOOP_CONSTELLATION_CLOSE_SIMILARITY` (0.35).
+
+### Singularis Compact (amateur-radio text)
+
+The Singularis Prime block protocol also has a short ASCII form for amateur-radio digital text modes (JS8Call, APRS messages, packet): **Singularis Compact (`SP1`)**, in `server/services/singularis-rf/codec.ts`. One frame is one callsign-framed, CRC-checked line of at most 67 characters:
+
+```
+KANNAKA-PRIME>AE0RM:SP1 7Q:1/3 @x=rf-01 R i=os d=N s=L t=O #A3DF
+KANNAKA-PRIME>AE0RM:SP1 7Q:2/3 g=COLLECTIVE | E #3933
+KANNAKA-PRIME>AE0RM:SP1 7Q:3/3 y=coherence_pulse g=AE0RM n=1 #51BC
+```
+
+Every enum in the protocol has a published single-character code, free text is form-escaped, long messages span numbered frames that reassemble in any order, and a JSON message round-trips to frames and back without loss. The specification is **generated from the codec's own tables** and published at `/spec/singularis-compact` (HTML), `.md` and `.json`, because a code used over amateur RF must not obscure meaning. Encode/decode are available at `POST /api/singularis-rf/encode|decode` for a signed-in session.
+
+Not yet built (next steps, in order): an RX-only decoder on an RTL-SDR in AE0RM's shack publishing `RF.rx.<callsign>` to the swarm, a JS8Call TCP-API transmit driver, then APRS via Direwolf. Transmission requires a licensed control operator and station identification; the compact grammar is public precisely so it is legal to send.
