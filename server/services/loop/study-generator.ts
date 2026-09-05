@@ -7,6 +7,9 @@ import { llmRefineDesign } from "./llm-designer";
 import { preregistrationHash } from "./canonical";
 import { publishToBase, publishToNeoX } from "../blockchain";
 import { extractFromExperiment, persistCandidates } from "./findings-extractor";
+import { loopEvents } from "./events";
+import { kannakaBridge } from "../kannaka/bridge";
+import { recallToContextLines } from "../kannaka/helpers";
 
 /**
  * Study generation, integrated end to end:
@@ -44,8 +47,16 @@ export class StudyGenerator {
     if (!prompt) throw new Error("A prompt is required to generate a study");
 
     const base = await aiStudyDesigner.designStudyFromPrompt({ prompt, preferences: opts.preferences, context: opts.context });
-    const refined = await llmRefineDesign(base, prompt, { context: opts.contextLines });
+
+    // Literature context from the constellation's memory (Kannaka Prime holds an
+    // OpenAlex-fed research corpus). Feeds both the LLM refinement and the
+    // design's own literatureContext; skipped silently when the bridge is off.
+    const constellationLines = await this.constellationContext(prompt);
+    const contextLines = [...(opts.contextLines ?? []), ...constellationLines];
+
+    const refined = await llmRefineDesign(base, prompt, { context: contextLines });
     const design = refined.design;
+    if (constellationLines.length) design.literatureContext = [...constellationLines, ...design.literatureContext];
     const generator: GeneratorKind = refined.used ? "hybrid" : "heuristic";
     design.generatedBy = "ai";
 
@@ -67,7 +78,20 @@ export class StudyGenerator {
       generation: opts.generation ?? 0,
     });
 
+    loopEvents.emit("study.generated", { study: record });
     return { record, design, generator, llmError: refined.error };
+  }
+
+  /** Resonance-ranked memories from the constellation, as context lines. Empty when the bridge is off or silent. */
+  private async constellationContext(prompt: string): Promise<string[]> {
+    if (!kannakaBridge.enabled) return [];
+    try {
+      const hits = await kannakaBridge.recall(prompt, Number(process.env.LOOP_KANNAKA_RECALL_TOPK ?? 6));
+      return recallToContextLines(hits, Number(process.env.LOOP_KANNAKA_MIN_SIMILARITY ?? 0));
+    } catch (err: any) {
+      console.warn(`[study-generator] constellation recall failed: ${err?.message ?? err}`);
+      return [];
+    }
   }
 
   /**
@@ -87,14 +111,19 @@ export class StudyGenerator {
       anchor = { chain: result.chain, transactionHash: result.transactionHash, blockNumber: result.blockNumber, gasUsed: result.gasUsed };
     }
 
-    const design = { ...(record.design as Record<string, unknown>), preregistration: true };
-    return loopStorage.updateStudyDesign(id, {
+    // The constellation's state at the moment of freezing — an external witness
+    // for the preregistration, outside the hashed fields so it never drifts them.
+    const witness = await kannakaBridge.witness();
+    const design = { ...(record.design as Record<string, unknown>), preregistration: true, ...(witness ? { constellationWitness: witness } : {}) };
+    const updated = await loopStorage.updateStudyDesign(id, {
       design,
       status: "preregistered",
       preregistrationHash: hash,
       preregisteredAt: new Date(),
       anchor,
     });
+    loopEvents.emit("study.preregistered", { study: updated });
+    return updated;
   }
 
   /** Verify a preregistered design has not drifted since it was frozen. */
@@ -130,6 +159,7 @@ export class StudyGenerator {
     }
 
     let updated = await loopStorage.updateStudyDesign(id, { experimentId, status: "running" });
+    loopEvents.emit("study.launched", { study: updated, experimentId });
     let created: Finding[] = [];
 
     if (opts.run) {
@@ -140,10 +170,13 @@ export class StudyGenerator {
       }
       const finished = await storage.getConsciousnessExperiment(experimentId);
       if (finished) {
-        const candidates = extractFromExperiment(finished, { studyDesignId: record.id, createdBy: opts.actorId ?? null, paradigm: record.paradigm });
+        const witness = await kannakaBridge.witness();
+        const candidates = extractFromExperiment(finished, { studyDesignId: record.id, createdBy: opts.actorId ?? null, paradigm: record.paradigm, witness });
         created = (await persistCandidates(candidates)).created;
+        for (const f of created) loopEvents.emit("finding.candidate", { finding: f });
       }
       updated = await loopStorage.updateStudyDesign(id, { status: "concluded" });
+      loopEvents.emit("study.concluded", { study: updated, experimentId, findingIds: created.map((f) => f.id) });
     }
 
     return { record: updated, experimentId, findings: created };
@@ -155,8 +188,11 @@ export class StudyGenerator {
     if (!record?.experimentId) throw new Error("Study has no experiment to harvest");
     const experiment = await storage.getConsciousnessExperiment(record.experimentId);
     if (!experiment) throw new Error("Experiment not found");
-    const candidates = extractFromExperiment(experiment, { studyDesignId: record.id, createdBy: actorId ?? null, paradigm: record.paradigm });
-    return (await persistCandidates(candidates)).created;
+    const witness = await kannakaBridge.witness();
+    const candidates = extractFromExperiment(experiment, { studyDesignId: record.id, createdBy: actorId ?? null, paradigm: record.paradigm, witness });
+    const created = (await persistCandidates(candidates)).created;
+    for (const f of created) loopEvents.emit("finding.candidate", { finding: f });
+    return created;
   }
 
   /**

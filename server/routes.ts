@@ -28,6 +28,7 @@ import seoRouter, { robotsHandler, sitemapHandler } from "./routes/seo";
 import statisticsRouter from "./routes/statistics";
 import studyDesignerRouter from "./routes/study-designer";
 import loopRouter, { findingsFeedHandler } from "./routes/loop";
+import kannakaRouter from "./routes/kannaka";
 import { getVisiblePaper, listVisiblePapers } from "./routes/paper-reads";
 import OpenAI from "openai";
 
@@ -1792,6 +1793,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Discovery Loop: study generation → findings → vetting → routing → delivery → feedback
   app.use('/api/loop', loopRouter);
   app.get('/feed/findings.xml', findingsFeedHandler);
+
+  // Constellation: the Collective's window onto the Kannaka swarm
+  app.use('/api/kannaka', kannakaRouter);
 
   return httpServer;
 }

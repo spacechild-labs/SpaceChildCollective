@@ -10,6 +10,8 @@ import { registerMcpHttpRoutes } from "./mcp-http";
 import { taskDispatcher } from "./services/task-dispatcher";
 import { agentManager } from "./services/agent-manager";
 import { deliveryWorker } from "./services/loop/delivery";
+import { kannakaBridge } from "./services/kannaka/bridge";
+import { kannakaLoopEvents } from "./services/kannaka/events";
 import { validateEnv } from "./config/env";
 import { loadUser, guardMutations } from "./middleware/auth";
 import { pool } from "./db";
@@ -147,6 +149,17 @@ app.use((req, res, next) => {
     log("Task dispatcher disabled (set ENABLE_TASK_DISPATCHER=true to enable)");
   }
 
+  // Kannaka constellation bridge: recall/ask for study generation, live consciousness
+  // + presence, SPACECHILD.* announcements, inbound swarm feedback. Off unless configured.
+  if (kannakaBridge.enabled) {
+    const up = await kannakaBridge.start();
+    // Wire events regardless: publishes connect lazily and subscriptions apply when the bus appears.
+    await kannakaLoopEvents.start();
+    log(up ? "Kannaka bridge connected (" + kannakaBridge.status().server + ")" : "Kannaka bridge configured but not reachable; will retry on demand");
+  } else {
+    log("Kannaka bridge disabled (set KANNAKA_NATS_URL to enable)");
+  }
+
   // Discovery Loop delivery worker: retries queued deliveries with backoff.
   if (process.env.LOOP_ENABLE_WORKER !== 'false') {
     deliveryWorker.start();
@@ -178,6 +191,8 @@ app.use((req, res, next) => {
       }
       
       deliveryWorker.stop();
+      kannakaLoopEvents.stop();
+      await kannakaBridge.stop();
 
       // Stop agent manager
       await agentManager.stop();

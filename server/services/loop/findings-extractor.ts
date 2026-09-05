@@ -54,7 +54,18 @@ export function experimentIsSimulated(experiment: ConsciousnessExperiment): bool
 
 export function extractFromExperiment(
   experiment: ConsciousnessExperiment,
-  opts: { studyDesignId?: string | null; createdBy?: string | null; paradigm?: string } = {},
+  opts: { studyDesignId?: string | null; createdBy?: string | null; paradigm?: string; witness?: object | null } = {},
+): CandidateFinding[] {
+  const out = extractFromExperimentInner(experiment, opts);
+  // Stamp the constellation's state at extraction onto every candidate. It is
+  // part of the evidence (and therefore the content hash): provenance, not decoration.
+  if (opts.witness) for (const c of out) c.evidence = { ...c.evidence, constellationWitness: opts.witness as Record<string, unknown> };
+  return out;
+}
+
+function extractFromExperimentInner(
+  experiment: ConsciousnessExperiment,
+  opts: { studyDesignId?: string | null; createdBy?: string | null; paradigm?: string },
 ): CandidateFinding[] {
   const results: any = experiment.results;
   const analysis: any = results?.analysis ?? results;

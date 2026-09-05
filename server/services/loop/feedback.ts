@@ -1,6 +1,7 @@
 import type { FeedbackEvent, FeedbackKind, Finding, StudyDesignRecord } from "@shared/schema";
 import { loopStorage } from "../../loop-storage";
 import { studyGenerator } from "./study-generator";
+import { loopEvents } from "./events";
 
 /**
  * Feedback: everything that comes back about a delivered finding. Recording it
@@ -66,8 +67,10 @@ export class FeedbackService {
       const result = await studyGenerator.fromFeedback(finding, event, input.actorId ?? null);
       spawned = result.record;
       event = await loopStorage.updateFeedbackEvent(event.id, { spawnedDesignId: spawned.id });
+      loopEvents.emit("study.spawned", { study: spawned, fromFinding: finding, feedback: event });
     }
 
+    loopEvents.emit("feedback.received", { finding, feedback: event });
     return { event, finding, spawned };
   }
 
