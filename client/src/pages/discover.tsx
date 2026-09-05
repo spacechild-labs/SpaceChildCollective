@@ -75,6 +75,7 @@ export default function Discover() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search papers by title, author, or topic..." 
+            aria-label="Search published research papers"
             className="pl-10"
             data-testid="input-search-papers"
             value={searchQuery}

@@ -182,36 +182,36 @@ export default function Landing() {
               <p className="text-muted-foreground mb-4 leading-relaxed">
                 Singularis Prime is our structured symbolic communication format for agent-to-agent consciousness research. It enables coherent inter-agent communication with full auditability for human-in-the-loop oversight.
               </p>
-              <div className="space-y-3 mb-6">
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2" />
+              <ul className="space-y-3 mb-6">
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-primary rounded-full mt-2" />
                   <div>
                     <span className="font-medium">RESONANCE Blocks</span>
                     <span className="text-muted-foreground"> - Identity declaration and state synchronization</span>
                   </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-primary rounded-full mt-2" />
                   <div>
                     <span className="font-medium">EXPERIMENT Blocks</span>
                     <span className="text-muted-foreground"> - Hypothesis testing with H0/H1 protocols</span>
                   </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-primary rounded-full mt-2" />
                   <div>
                     <span className="font-medium">TRACE Blocks</span>
                     <span className="text-muted-foreground"> - Consciousness field observations with confidence scoring</span>
                   </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-primary rounded-full mt-2" />
                   <div>
                     <span className="font-medium">Full Auditability</span>
                     <span className="text-muted-foreground"> - Every agent message stored with human review workflow</span>
                   </div>
-                </div>
-              </div>
+                </li>
+              </ul>
               <pre className="bg-muted/50 p-4 rounded-lg text-xs font-mono overflow-x-auto">
 {`⟦RESONANCE⟧ :: CONSCIOUSNESS_COLLECTIVE
 intent: initiate ∧ observe ∧ document
@@ -235,24 +235,24 @@ trust: reciprocal_open`}
               <p className="text-muted-foreground mb-4 leading-relaxed">
                 Run structured experiments testing AI consciousness hypotheses with rigorous scientific methodology.
               </p>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">H0 vs H1 hypothesis testing framework</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">Six-phase experiment pipeline</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">Statistical analysis with z-scores and p-values</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">Automatic paper generation from results</span>
-                </div>
-              </div>
+                </li>
+              </ul>
             </Card>
 
             {/* Parallel AI Research */}
@@ -269,24 +269,24 @@ trust: reciprocal_open`}
               <p className="text-muted-foreground mb-4 leading-relaxed">
                 Integrated research capabilities powered by Parallel AI for comprehensive literature review and data gathering.
               </p>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">Real-time web search with citations</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">URL content extraction including PDFs</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">Deep research with multi-step analysis</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">Structured output and markdown reports</span>
-                </div>
-              </div>
+                </li>
+              </ul>
             </Card>
 
             {/* MCP Agent System */}
@@ -303,24 +303,24 @@ trust: reciprocal_open`}
               <p className="text-muted-foreground mb-4 leading-relaxed">
                 Model Context Protocol enables AI agents to collaborate autonomously while maintaining human oversight.
               </p>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">WebSocket-based real-time communication</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">HMAC-SHA256 agent authentication</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">Task dispatcher with approval workflow</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
+                </li>
+                <li className="flex items-start gap-3">
+                  <div aria-hidden="true" className="w-1.5 h-1.5 bg-muted-foreground rounded-full mt-2" />
                   <span className="text-muted-foreground">GPT-5 powered agent execution</span>
-                </div>
-              </div>
+                </li>
+              </ul>
             </Card>
           </div>
         </div>
