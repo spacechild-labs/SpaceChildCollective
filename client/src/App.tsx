@@ -17,6 +17,7 @@ const Auth = lazy(() => import("@/pages/auth"));
 const Workspace = lazy(() => import("@/pages/workspace"));
 const Discover = lazy(() => import("@/pages/discover"));
 const PaperEditor = lazy(() => import("@/pages/paper-editor"));
+const PaperReader = lazy(() => import("@/pages/paper-reader"));
 const McpStatus = lazy(() => import("@/pages/mcp-status"));
 const Papers = lazy(() => import("@/pages/papers"));
 const Agents = lazy(() => import("@/pages/agents"));
@@ -60,7 +61,7 @@ function Router() {
         <Route path="/mcp" component={McpStatus} />
         <Route path="/papers/new" component={PaperEditor} />
         <Route path="/papers/:id/edit" component={PaperEditor} />
-        <Route path="/papers/:id" component={PaperEditor} />
+        <Route path="/papers/:id" component={PaperReader} />
         <Route path="/papers" component={Papers} />
         <Route path="/agents" component={Agents} />
         <Route path="/approvals" component={Approvals} />

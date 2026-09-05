@@ -99,7 +99,7 @@ export default function Workspace() {
                             Edit
                           </Button>
                         </Link>
-                        <Link href={`/papers/${paper.id}`}>
+                        <Link href={paper.status === "published" ? `/papers/${paper.id}` : `/papers/${paper.id}/edit`}>
                           <Button variant="ghost" size="sm" data-testid={`button-view-${paper.id}`}>
                             View
                           </Button>

@@ -4,7 +4,12 @@
  */
 
 import type { SitemapEntry } from './types';
-import { getAllPlatformConfigs } from './platform-configs';
+
+export interface PublishedPaperSitemapRecord {
+  id: string;
+  updatedAt: Date | string;
+  publishedAt: Date | string | null;
+}
 
 export class SitemapGenerator {
   private baseUrl: string;
@@ -26,43 +31,6 @@ export class SitemapGenerator {
    */
   addUrls(entries: SitemapEntry[]): void {
     this.entries.push(...entries);
-  }
-
-  /**
-   * Generate sitemap for all platforms
-   */
-  generatePlatformSitemap(): void {
-    const platforms = getAllPlatformConfigs();
-
-    platforms.forEach((platform) => {
-      // Main platform page
-      this.addUrl({
-        url: `${this.baseUrl}/${platform.slug}`,
-        lastmod: new Date().toISOString().split('T')[0],
-        changefreq: 'weekly',
-        priority: 0.9,
-      });
-
-      // Platform documentation
-      if (platform.docsUrl) {
-        this.addUrl({
-          url: `${this.baseUrl}/${platform.slug}/docs`,
-          lastmod: new Date().toISOString().split('T')[0],
-          changefreq: 'weekly',
-          priority: 0.8,
-        });
-      }
-
-      // Platform demo
-      if (platform.demoUrl) {
-        this.addUrl({
-          url: `${this.baseUrl}/${platform.slug}/demo`,
-          lastmod: new Date().toISOString().split('T')[0],
-          changefreq: 'monthly',
-          priority: 0.7,
-        });
-      }
-    });
   }
 
   /**
@@ -180,33 +148,41 @@ Disallow: /static/build/
 /**
  * Generate comprehensive sitemap for entire ecosystem
  */
-export function generateEcosystemSitemap(): string {
-  const generator = new SitemapGenerator();
+export function generateEcosystemSitemap(
+  publishedPapers: PublishedPaperSitemapRecord[] = [],
+  baseUrl: string = process.env.BASE_URL || 'https://spacechild.love',
+): string {
+  const canonicalBaseUrl = baseUrl.replace(/\/+$/, '');
+  const generator = new SitemapGenerator(canonicalBaseUrl);
+  const today = new Date().toISOString().split('T')[0];
 
-  // Add main pages
   generator.addUrl({
-    url: 'https://spacechild.love',
-    lastmod: new Date().toISOString().split('T')[0],
+    url: `${canonicalBaseUrl}/`,
+    lastmod: today,
     changefreq: 'daily',
     priority: 1.0,
   });
 
   generator.addUrl({
-    url: 'https://spacechild.love/about',
-    lastmod: new Date().toISOString().split('T')[0],
-    changefreq: 'monthly',
-    priority: 0.8,
-  });
-
-  generator.addUrl({
-    url: 'https://spacechild.love/blog',
-    lastmod: new Date().toISOString().split('T')[0],
+    url: `${canonicalBaseUrl}/discover`,
+    lastmod: publishedPapers.length > 0
+      ? publishedPapers.reduce((latest, paper) => {
+          const modified = new Date(paper.updatedAt).toISOString().split('T')[0];
+          return modified > latest ? modified : latest;
+        }, '1970-01-01')
+      : today,
     changefreq: 'daily',
     priority: 0.9,
   });
 
-  // Add platform pages
-  generator.generatePlatformSitemap();
+  publishedPapers.forEach((paper) => {
+    generator.addUrl({
+      url: `${canonicalBaseUrl}/papers/${encodeURIComponent(paper.id)}`,
+      lastmod: new Date(paper.updatedAt).toISOString().split('T')[0],
+      changefreq: 'monthly',
+      priority: 0.8,
+    });
+  });
 
   return generator.toXML();
 }

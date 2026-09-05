@@ -261,7 +261,7 @@ function FindingPanel({ detail, selectedId, act, channelName, user }: { detail?:
         {(detail.experimentId || detail.studyDesignId || detail.paperId) && (
           <div className="flex gap-2 flex-wrap text-xs">
             {detail.experimentId && <Link href={`/experiments/${detail.experimentId}`}><Badge variant="outline" className="cursor-pointer">experiment</Badge></Link>}
-            {detail.paperId && <Link href={`/papers/${detail.paperId}`}><Badge variant="outline" className="cursor-pointer">paper</Badge></Link>}
+            {detail.paperId && <Link href={`/papers/${detail.paperId}/edit`}><Badge variant="outline" className="cursor-pointer">paper</Badge></Link>}
             {detail.studyDesignId && <Badge variant="outline">study {detail.studyDesignId.slice(0, 8)}</Badge>}
           </div>
         )}

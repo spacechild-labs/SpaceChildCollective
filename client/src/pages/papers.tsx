@@ -52,8 +52,8 @@ export default function Papers() {
     },
   });
 
-  const handleView = (paperId: string) => {
-    setLocation(`/papers/${paperId}`);
+  const handleView = (paper: Paper) => {
+    setLocation(paper.status === "published" ? `/papers/${paper.id}` : `/papers/${paper.id}/edit`);
   };
 
   const handleDelete = (paperId: string) => {
@@ -158,7 +158,7 @@ export default function Papers() {
                     <Button 
                       variant="ghost" 
                       size="sm"
-                      onClick={() => handleView(paper.id)}
+                      onClick={() => handleView(paper)}
                       data-testid={`button-view-${paper.id}`}
                     >
                       View

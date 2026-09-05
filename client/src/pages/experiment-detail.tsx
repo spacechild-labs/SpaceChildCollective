@@ -443,7 +443,7 @@ export default function ExperimentDetail() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center gap-3">
-                      <Link href={`/papers/${experiment.paperId}`}>
+                      <Link href={paper?.status === "published" ? `/papers/${experiment.paperId}` : `/papers/${experiment.paperId}/edit`}>
                         <Button variant="outline" data-testid="button-view-paper">View Paper</Button>
                       </Link>
                       {paper?.status === "published" ? (

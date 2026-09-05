@@ -17,6 +17,7 @@ import {
   SocialMediaOptimizer,
   type ConsciousnessVerification,
 } from '../seo/index.js';
+import { storage } from '../storage.js';
 
 const router = express.Router();
 
@@ -180,21 +181,24 @@ router.get('/platform/:slug', (req: Request, res: Response) => {
  * GET /sitemap.xml
  * Generate main sitemap
  */
-router.get('/sitemap.xml', (_req: Request, res: Response) => {
+export async function sitemapHandler(_req: Request, res: Response) {
   try {
-    const sitemap = generateEcosystemSitemap();
-    res.type('xml').send(sitemap);
+    const publishedPapers = await storage.getPublishedPapers();
+    const sitemap = generateEcosystemSitemap(publishedPapers);
+    res.type('application/xml').send(sitemap);
   } catch (error) {
     console.error('Error generating sitemap:', error);
     res.status(500).send('Error generating sitemap');
   }
-});
+}
+
+router.get('/sitemap.xml', sitemapHandler);
 
 /**
  * GET /robots.txt
  * Generate robots.txt
  */
-router.get('/robots.txt', (_req: Request, res: Response) => {
+export function robotsHandler(_req: Request, res: Response) {
   try {
     const baseUrl = process.env.BASE_URL || 'https://spacechild.love';
     const robotsTxt = SitemapGenerator.generateRobotsTxt(baseUrl);
@@ -203,7 +207,9 @@ router.get('/robots.txt', (_req: Request, res: Response) => {
     console.error('Error generating robots.txt:', error);
     res.status(500).send('Error generating robots.txt');
   }
-});
+}
+
+router.get('/robots.txt', robotsHandler);
 
 /**
  * POST /api/seo/verify-consciousness

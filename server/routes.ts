@@ -24,10 +24,12 @@ import { aiKeyManager } from "./services/ai-key-manager";
 import { parallelResearchService } from "./services/parallel-research-service";
 import { consciousnessExperimentService } from "./services/consciousness-experiment-service";
 import { singularisProtocol } from "./services/singularis-protocol";
-import seoRouter from "./routes/seo";
+import seoRouter, { robotsHandler, sitemapHandler } from "./routes/seo";
 import statisticsRouter from "./routes/statistics";
 import studyDesignerRouter from "./routes/study-designer";
 import loopRouter, { findingsFeedHandler } from "./routes/loop";
+import { renderPublishedPaper, renderResearchIndex } from "./routes/public-research";
+import { getVisiblePaper, listVisiblePapers } from "./routes/paper-reads";
 import OpenAI from "openai";
 
 // Enhanced Request type to include user
@@ -205,18 +207,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== Paper Routes =====
   
   // Get all papers (discover page)
-  app.get("/api/papers", async (req, res) => {
-    try {
-      const papers = await storage.getAllPapers();
-      res.json(papers);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+  app.get("/api/papers", listVisiblePapers);
 
   // Get papers by user ID
-  app.get("/api/users/:userId/papers", async (req, res) => {
+  app.get("/api/users/:userId/papers", requireAuth, async (req, res) => {
     try {
+      if (req.user!.role !== "admin" && req.user!.id !== req.params.userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
       const papers = await storage.getPapersByUserId(req.params.userId);
       res.json(papers);
     } catch (error: any) {
@@ -235,17 +233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get paper by ID with contributors
-  app.get("/api/papers/:id", async (req, res) => {
-    try {
-      const paper = await storage.getPaperWithContributors(req.params.id);
-      if (!paper) {
-        return res.status(404).json({ error: "Paper not found" });
-      }
-      res.json(paper);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+  app.get("/api/papers/:id", getVisiblePaper);
 
   // Create new paper
   app.post("/api/papers", async (req, res) => {
@@ -1791,8 +1779,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/seo', seoRouter);
   
   // Also serve sitemap and robots.txt at root level
-  app.get('/sitemap.xml', seoRouter);
-  app.get('/robots.txt', seoRouter);
+  app.get('/sitemap.xml', sitemapHandler);
+  app.get('/robots.txt', robotsHandler);
+  app.get('/discover', renderResearchIndex);
+  app.get('/papers/:id', renderPublishedPaper);
 
   // ===== Statistics & Psychometrics Engine Routes =====
   // Mount the Statistical Analysis & Psychometrics Engine for consciousness research

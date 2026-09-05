@@ -53,6 +53,7 @@ export interface IStorage {
   getPaper(id: string): Promise<Paper | undefined>;
   getPaperWithContributors(id: string): Promise<Paper & { contributors: (PaperContributor & { user: User })[] } | undefined>;
   getAllPapers(): Promise<Paper[]>;
+  getPublishedPapers(): Promise<Paper[]>;
   getPapersByUserId(userId: string): Promise<Paper[]>;
   createPaper(paper: InsertPaper): Promise<Paper>;
   updatePaper(id: string, paper: Partial<InsertPaper>): Promise<Paper>;
@@ -169,6 +170,14 @@ export class DatabaseStorage implements IStorage {
 
   async getAllPapers(): Promise<Paper[]> {
     return await db.select().from(papers).orderBy(desc(papers.createdAt));
+  }
+
+  async getPublishedPapers(): Promise<Paper[]> {
+    return await db
+      .select()
+      .from(papers)
+      .where(eq(papers.status, "published"))
+      .orderBy(desc(papers.publishedAt), desc(papers.updatedAt));
   }
 
   async getPapersByUserId(userId: string): Promise<Paper[]> {
