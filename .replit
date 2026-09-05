@@ -48,3 +48,8 @@ integrations = ["javascript_openai_ai_integrations:1.0.0", "javascript_websocket
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 180000
+
+[userenv]
+
+[userenv.shared]
+PUBLIC_BASE_URL = "https://research.spacechild.love"
