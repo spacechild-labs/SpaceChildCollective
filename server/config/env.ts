@@ -12,6 +12,9 @@ const KNOWN_WEAK_SECRETS = new Set([
   "change-me",
   "secret",
   "dev-only-insecure-secret",
+  "change-me-32+-random-chars",
+  "encryption-key",
+  "default-encryption-key",
 ]);
 
 export function validateEnv(): void {
@@ -24,7 +27,7 @@ export function validateEnv(): void {
   }
 
   // Secrets that must exist and be strong in production.
-  for (const key of ["SESSION_SECRET", "MCP_TOKEN_SECRET"]) {
+  for (const key of ["SESSION_SECRET", "MCP_TOKEN_SECRET", "ENCRYPTION_KEY"]) {
     const val = process.env[key];
     if (!val) {
       if (isProd) errors.push(`${key} is required in production.`);

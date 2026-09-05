@@ -38,6 +38,23 @@ export const userSessions = pgTable("user_sessions", {
   expireIdx: index("IDX_session_expire").on(t.expire),
 }));
 
+// Global AI provider credentials. API keys are stored exclusively as AES-GCM
+// ciphertext; plaintext keys must never be written to this table.
+export const aiProviderConfigs = pgTable("ai_provider_configs", {
+  id: varchar("id").primaryKey(),
+  name: text("name").notNull(),
+  encryptedApiKey: text("encrypted_api_key").notNull(),
+  baseUrl: text("base_url"),
+  models: text("models").array().notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  rateLimit: jsonb("rate_limit").$type<{ requestsPerMinute: number; tokensPerMinute: number }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastUsed: timestamp("last_used").defaultNow().notNull(),
+  usageCount: integer("usage_count").notNull().default(0),
+}, (t) => ({
+  activeIdx: index("ai_provider_configs_active_idx").on(t.isActive),
+}));
+
 // Research papers
 export const papers = pgTable("papers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

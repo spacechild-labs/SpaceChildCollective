@@ -1040,7 +1040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/ai-keys/providers/:providerId", requireAdmin, async (req, res) => {
     try {
       const { providerId } = req.params;
-      const removed = aiKeyManager.removeProvider(providerId);
+      const removed = await aiKeyManager.removeProvider(providerId);
       
       if (!removed) {
         return res.status(404).json({ error: "Provider not found" });
@@ -1074,7 +1074,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Test AI provider connection
-  app.post("/api/ai-keys/providers/:providerId/test", async (req, res) => {
+  app.post("/api/ai-keys/providers/:providerId/test", requireAdmin, async (req, res) => {
     try {
       const { providerId } = req.params;
       const provider = aiKeyManager.getProviders().find(p => p.id === providerId);
@@ -1135,7 +1135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Configure Parallel AI
-  app.post("/api/parallel/configure", async (req, res) => {
+  app.post("/api/parallel/configure", requireAdmin, async (req, res) => {
     try {
       const { apiKey } = req.body;
       

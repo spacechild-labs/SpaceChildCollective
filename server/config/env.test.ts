@@ -22,13 +22,18 @@ describe("validateEnv", () => {
   });
 
   it("throws on weak secrets in production", () => {
-    withEnv({ NODE_ENV: "production", DATABASE_URL: "postgres://x", SESSION_SECRET: "secret", MCP_TOKEN_SECRET: "secret" });
+    withEnv({ NODE_ENV: "production", DATABASE_URL: "postgres://x", SESSION_SECRET: "secret", MCP_TOKEN_SECRET: "secret", ENCRYPTION_KEY: "secret" });
     expect(() => validateEnv()).toThrow(/Environment validation failed/);
   });
 
   it("passes with strong config in production", () => {
-    withEnv({ NODE_ENV: "production", DATABASE_URL: "postgres://x", SESSION_SECRET: "a".repeat(40), MCP_TOKEN_SECRET: "b".repeat(40) });
+    withEnv({ NODE_ENV: "production", DATABASE_URL: "postgres://x", SESSION_SECRET: "a".repeat(40), MCP_TOKEN_SECRET: "b".repeat(40), ENCRYPTION_KEY: "c".repeat(40) });
     expect(() => validateEnv()).not.toThrow();
+  });
+
+  it("requires a non-default ENCRYPTION_KEY in production", () => {
+    withEnv({ NODE_ENV: "production", DATABASE_URL: "postgres://x", SESSION_SECRET: "a".repeat(40), MCP_TOKEN_SECRET: "b".repeat(40), ENCRYPTION_KEY: "change-me-32+-random-chars" });
+    expect(() => validateEnv()).toThrow(/Environment validation failed/);
   });
 
   it("is lenient in development (warns, does not throw)", () => {

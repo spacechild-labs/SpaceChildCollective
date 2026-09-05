@@ -3,7 +3,7 @@ import crypto from 'crypto';
 /**
  * AI Provider Configuration
  */
-interface AIProvider {
+export interface AIProvider {
   id: string;
   name: string;
   apiKey: string;
@@ -30,6 +30,28 @@ interface UsageStats {
   lastUsed: Date;
 }
 
+/** The deliberately keyless shape that may be sent to persistent storage. */
+export interface PersistedAIProvider {
+  id: string;
+  name: string;
+  encryptedApiKey: string;
+  baseUrl?: string | null;
+  models: string[];
+  isActive: boolean;
+  createdAt: Date;
+  lastUsed: Date;
+  usageCount: number;
+  rateLimit?: { requestsPerMinute: number; tokensPerMinute: number } | null;
+}
+
+export interface AIProviderConfigRepository {
+  list(): Promise<PersistedAIProvider[]>;
+  save(provider: PersistedAIProvider): Promise<void>;
+  /** Atomically update usage fields only; never accepts credential/config data. */
+  recordUsage(id: string, lastUsed: Date): Promise<void>;
+  delete(id: string): Promise<boolean>;
+}
+
 /**
  * AI Key Manager Service
  * Manages user-provided AI keys with security and usage tracking
@@ -38,16 +60,57 @@ export class AIKeyManager {
   private providers = new Map<string, AIProvider>();
   private usageStats = new Map<string, UsageStats>();
   private encryptionKey: string;
+  private repository?: AIProviderConfigRepository;
 
-  constructor() {
+  constructor(repository?: AIProviderConfigRepository, encryptionKey = process.env.ENCRYPTION_KEY) {
     // Initialize encryption key from environment, or generate an ephemeral one.
-    const envKey = process.env.ENCRYPTION_KEY;
-    if (!envKey) {
+    if (!encryptionKey) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("ENCRYPTION_KEY is required in production to protect persisted AI provider keys");
+      }
       console.warn(
         "[ai-key-manager] ENCRYPTION_KEY not set — using an ephemeral key; encrypted provider keys will not survive a restart. Set ENCRYPTION_KEY for persistence.",
       );
     }
-    this.encryptionKey = envKey || this.generateEncryptionKey();
+    this.encryptionKey = encryptionKey || this.generateEncryptionKey();
+    this.repository = repository;
+  }
+
+  /**
+   * Load encrypted provider records before routes or agents access this manager.
+   * The default repository is imported lazily so isolated unit tests do not
+   * require DATABASE_URL or a live database.
+   */
+  async initialize(): Promise<void> {
+    if (!this.repository) {
+      const { DrizzleAIProviderConfigRepository } = await import("./ai-provider-config-repository");
+      this.repository = new DrizzleAIProviderConfigRepository();
+    }
+    const persisted = await this.repository.list();
+    this.providers.clear();
+    for (const record of persisted) {
+      try {
+        // Fail during boot rather than discovering an encryption-key mismatch
+        // later in an agent request. Do not include ciphertext in this error.
+        this.decryptApiKey(record.encryptedApiKey);
+      } catch {
+        throw new Error(
+          `Unable to decrypt stored AI provider "${record.name}". Verify ENCRYPTION_KEY matches the key used when it was saved, or replace the stored credential.`,
+        );
+      }
+      this.providers.set(record.id, {
+        id: record.id,
+        name: record.name,
+        apiKey: record.encryptedApiKey,
+        baseUrl: record.baseUrl ?? undefined,
+        models: record.models,
+        isActive: record.isActive,
+        createdAt: new Date(record.createdAt),
+        lastUsed: new Date(record.lastUsed),
+        usageCount: record.usageCount,
+        rateLimit: record.rateLimit ?? undefined,
+      });
+    }
   }
 
   /**
@@ -65,6 +128,7 @@ export class AIKeyManager {
       usageCount: 0
     };
 
+    await this.saveProvider(provider);
     this.providers.set(providerId, provider);
     
     console.log(`🔑 Added AI provider: ${provider.name} (${providerId})`);
@@ -84,6 +148,15 @@ export class AIKeyManager {
     // Update usage
     provider.lastUsed = new Date();
     provider.usageCount++;
+    // Preserve the synchronous public API while durably recording access
+    // metadata. This intentionally uses a narrow atomic operation, rather than
+    // an upsert of the in-memory provider, so it cannot undo a concurrent key
+    // rotation or configuration update.
+    if (this.repository) {
+      void this.repository.recordUsage(providerId, provider.lastUsed).catch((error) => {
+        console.error(`[ai-key-manager] Failed to persist usage for ${providerId}:`, error);
+      });
+    }
 
     return this.decryptApiKey(provider.apiKey);
   }
@@ -115,11 +188,18 @@ export class AIKeyManager {
       return false;
     }
 
-    if (updates.apiKey) {
-      updates.apiKey = this.encryptApiKey(updates.apiKey);
+    const nextUpdates = { ...updates };
+    if (typeof nextUpdates.apiKey === "string") {
+      if (nextUpdates.apiKey.length === 0) {
+        delete nextUpdates.apiKey;
+      } else {
+        nextUpdates.apiKey = this.encryptApiKey(nextUpdates.apiKey);
+      }
     }
 
-    Object.assign(provider, updates);
+    const nextProvider = { ...provider, ...nextUpdates };
+    await this.saveProvider(nextProvider);
+    Object.assign(provider, nextProvider);
     
     console.log(`🔧 Updated AI provider: ${provider.name} (${providerId})`);
     
@@ -129,8 +209,12 @@ export class AIKeyManager {
   /**
    * Remove provider
    */
-  removeProvider(providerId: string): boolean {
-    const removed = this.providers.delete(providerId);
+  async removeProvider(providerId: string): Promise<boolean> {
+    if (!this.providers.has(providerId)) {
+      return false;
+    }
+    const removed = this.repository ? await this.repository.delete(providerId) : true;
+    if (removed) this.providers.delete(providerId);
     
     if (removed) {
       console.log(`🗑️ Removed AI provider: ${providerId}`);
@@ -628,6 +712,24 @@ export class AIKeyManager {
 
   private generateId(): string {
     return crypto.randomBytes(16).toString('hex');
+  }
+
+  private async saveProvider(provider: AIProvider): Promise<void> {
+    if (!this.repository) {
+      throw new Error("AIKeyManager has not been initialized");
+    }
+    await this.repository.save({
+      id: provider.id,
+      name: provider.name,
+      encryptedApiKey: provider.apiKey,
+      baseUrl: provider.baseUrl,
+      models: provider.models,
+      isActive: provider.isActive,
+      createdAt: provider.createdAt,
+      lastUsed: provider.lastUsed,
+      usageCount: provider.usageCount,
+      rateLimit: provider.rateLimit,
+    });
   }
 
   private generateEncryptionKey(): string {

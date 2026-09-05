@@ -1,4 +1,4 @@
-import { aiKeyManager } from './ai-key-manager';
+import { aiKeyManager, type AIKeyManager } from './ai-key-manager';
 
 interface ParallelSearchResult {
   url: string;
@@ -123,23 +123,26 @@ export class ParallelResearchService {
   private baseUrl = 'https://api.parallel.ai';
   private providerId: string | null = null;
 
-  constructor() {
-    this.initializeProvider();
+  constructor(private readonly keyManager: AIKeyManager = aiKeyManager) {
+    // Provider records are loaded asynchronously by AIKeyManager. Resolving in
+    // the constructor would permanently miss records that have not loaded yet.
   }
 
-  private async initializeProvider(): Promise<void> {
-    const providers = aiKeyManager.getProviders();
-    const parallelProvider = providers.find(p => p.name === 'Parallel AI');
-    
-    if (parallelProvider) {
-      this.providerId = parallelProvider.id;
-      console.log('🔬 Parallel Research Service initialized with existing provider');
-    }
+  async initialize(): Promise<void> {
+    this.resolveProvider();
+  }
+
+  private resolveProvider(): void {
+    const parallelProviders = this.keyManager.getProviders()
+      .filter((provider) => provider.name === 'Parallel AI')
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
+    this.providerId = parallelProviders[0]?.id ?? null;
   }
 
   private getApiKey(): string {
+    this.resolveProvider();
     if (this.providerId) {
-      const key = aiKeyManager.getApiKey(this.providerId);
+      const key = this.keyManager.getApiKey(this.providerId);
       if (key) return key;
     }
     
@@ -179,7 +182,7 @@ export class ParallelResearchService {
     const result = await response.json() as ParallelSearchResponse;
     
     if (this.providerId) {
-      aiKeyManager.trackUsage(this.providerId, 1000, 0.01);
+      this.keyManager.trackUsage(this.providerId, 1000, 0.01);
     }
     
     console.log(`🔍 Parallel Search completed: ${result.results.length} results`);
@@ -214,7 +217,7 @@ export class ParallelResearchService {
     const result = await response.json() as ParallelExtractResponse;
     
     if (this.providerId) {
-      aiKeyManager.trackUsage(this.providerId, options.urls.length * 500, 0.005 * options.urls.length);
+      this.keyManager.trackUsage(this.providerId, options.urls.length * 500, 0.005 * options.urls.length);
     }
     
     console.log(`📄 Parallel Extract completed: ${result.results.length} pages extracted`);
@@ -251,7 +254,7 @@ export class ParallelResearchService {
     const result = await response.json() as ParallelChatResponse;
     
     if (this.providerId && result.usage) {
-      aiKeyManager.trackUsage(this.providerId, result.usage.total_tokens, 0.001 * result.usage.total_tokens / 1000);
+      this.keyManager.trackUsage(this.providerId, result.usage.total_tokens, 0.001 * result.usage.total_tokens / 1000);
     }
     
     console.log(`💬 Parallel Chat completed`);
@@ -312,7 +315,7 @@ export class ParallelResearchService {
     const result = await response.json() as ParallelDeepResearchResponse;
     
     if (result.status === 'completed' && this.providerId) {
-      aiKeyManager.trackUsage(this.providerId, 50000, 5.0);
+      this.keyManager.trackUsage(this.providerId, 50000, 5.0);
     }
     
     return result;
@@ -507,8 +510,8 @@ export class ParallelResearchService {
   }
 
   async setApiKey(apiKey: string): Promise<string> {
-    const providerId = await aiKeyManager.addProvider({
-      id: '',
+    this.resolveProvider();
+    const providerConfig = {
       name: 'Parallel AI',
       apiKey,
       baseUrl: this.baseUrl,
@@ -522,7 +525,14 @@ export class ParallelResearchService {
         requestsPerMinute: 300,
         tokensPerMinute: 100000
       }
-    });
+    };
+    if (this.providerId) {
+      await this.keyManager.updateProvider(this.providerId, providerConfig);
+      console.log('✅ Parallel AI provider configured');
+      return this.providerId;
+    }
+
+    const providerId = await this.keyManager.addProvider({ ...providerConfig, id: '' });
     
     this.providerId = providerId;
     console.log('✅ Parallel AI provider configured');
@@ -530,8 +540,9 @@ export class ParallelResearchService {
   }
 
   isConfigured(): boolean {
+    this.resolveProvider();
     if (this.providerId) {
-      const key = aiKeyManager.getApiKey(this.providerId);
+      const key = this.keyManager.getApiKey(this.providerId);
       if (key) return true;
     }
     return !!process.env.PARALLEL_API_KEY;

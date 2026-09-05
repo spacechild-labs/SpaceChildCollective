@@ -13,6 +13,8 @@ import { deliveryWorker } from "./services/loop/delivery";
 import { validateEnv } from "./config/env";
 import { loadUser, guardMutations } from "./middleware/auth";
 import { pool } from "./db";
+import { aiKeyManager } from "./services/ai-key-manager";
+import { parallelResearchService } from "./services/parallel-research-service";
 
 // Fail fast on missing/insecure configuration before doing any work.
 validateEnv();
@@ -107,6 +109,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await aiKeyManager.initialize();
+  log("AI provider configurations loaded");
+  await parallelResearchService.initialize();
   const server = await registerRoutes(app);
 
   // MCP servers: WebSocket for agents + HTTP for external clients. Register the
