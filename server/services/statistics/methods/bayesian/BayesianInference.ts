@@ -115,7 +115,7 @@ export class BayesianTTestMethod implements AnalysisMethod {
     const ciUpper = d + 1.96 * dSE;
     
     // Frequentist p-value for comparison
-    const pValue = 2 * StatUtils.tPValue(Math.abs(t), df);
+    const pValue = StatUtils.tPValue(Math.abs(t), df);
     
     const parameters = [
       { name: "BF₁₀", estimate: bf10 },
@@ -231,7 +231,7 @@ export class BayesianPairedTTestMethod implements AnalysisMethod {
     const ciLower = dz - 1.96 * dzSE;
     const ciUpper = dz + 1.96 * dzSE;
     
-    const pValue = 2 * StatUtils.tPValue(Math.abs(t), df);
+    const pValue = StatUtils.tPValue(Math.abs(t), df);
     
     const parameters = [
       { name: "BF₁₀", estimate: bf10 },
@@ -351,7 +351,7 @@ export class BayesianCorrelationMethod implements AnalysisMethod {
     
     // Frequentist p-value
     const t = r * Math.sqrt((n - 2) / (1 - rSq));
-    const pValue = 2 * StatUtils.tPValue(Math.abs(t), n - 2);
+    const pValue = StatUtils.tPValue(Math.abs(t), n - 2);
     
     const parameters = [
       { name: "BF₁₀", estimate: bf10 },

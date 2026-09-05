@@ -68,7 +68,7 @@ export class MediationMethod implements AnalysisMethod {
     const residA = ms.map((m, i) => m - (aIntercept + a * xs[i]));
     const seA = Math.sqrt(StatUtils.variance(residA) / ((n - 2) * varX));
     const tA = a / seA;
-    const pA = 2 * StatUtils.tPValue(Math.abs(tA), n - 2);
+    const pA = StatUtils.tPValue(Math.abs(tA), n - 2);
     
     // Path c (total effect): X → Y
     const covXY = StatUtils.covariance(xs, ys);
@@ -79,7 +79,7 @@ export class MediationMethod implements AnalysisMethod {
     const residC = ys.map((y, i) => y - (cIntercept + c * xs[i]));
     const seC = Math.sqrt(StatUtils.variance(residC) / ((n - 2) * varX));
     const tC = c / seC;
-    const pC = 2 * StatUtils.tPValue(Math.abs(tC), n - 2);
+    const pC = StatUtils.tPValue(Math.abs(tC), n - 2);
     
     // Paths b and c' (direct effect): X, M → Y (multiple regression)
     // Y = intercept + c'*X + b*M
@@ -103,10 +103,10 @@ export class MediationMethod implements AnalysisMethod {
     const seCPrime = Math.sqrt(mseBC / (varX * (1 - Math.pow(covXM, 2) / (varX * varM)) * (n - 3)));
     
     const tB = b / seB;
-    const pB = 2 * StatUtils.tPValue(Math.abs(tB), n - 3);
+    const pB = StatUtils.tPValue(Math.abs(tB), n - 3);
     
     const tCPrime = cPrime / seCPrime;
-    const pCPrime = 2 * StatUtils.tPValue(Math.abs(tCPrime), n - 3);
+    const pCPrime = StatUtils.tPValue(Math.abs(tCPrime), n - 3);
     
     // Indirect effect: a * b
     const indirect = a * b;

@@ -2,8 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Brain, Network, Shield, Database, Sparkles, FileText, GraduationCap, Users, Globe, Lightbulb, MessageSquare, FlaskConical, BookOpen, Heart, User, Leaf, Eye, Code, Phone, Zap, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
-import heroImage from "@assets/generated_images/Quantum_consciousness_hero_background_2c0c6476.png";
-import collaborationImage from "@assets/generated_images/Human-AI_collaboration_visualization_4419ecef.png";
+import { Footer } from "@/components/footer";
+import heroImage from "@assets/generated_images/Quantum_consciousness_hero_background_2c0c6476.webp";
+import collaborationImage from "@assets/generated_images/Human-AI_collaboration_visualization_4419ecef.webp";
 
 export default function Landing() {
   return (
@@ -20,32 +21,41 @@ export default function Landing() {
 
         {/* Hero Content */}
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 text-center">
-          <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-light tracking-tight text-white mb-4 sm:mb-6">
-            Space Child Research Collective
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 backdrop-blur-md px-4 py-1.5 mb-6 sm:mb-8 text-xs sm:text-sm text-white/80">
+            <Sparkles className="h-3.5 w-3.5 text-accent" />
+            Human + AI research, peer-reviewed and verified on-chain
+          </div>
+
+          <h1 className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-light tracking-tight text-white mb-5 sm:mb-6">
+            Space Child
+            <span className="block bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent font-normal">
+              Research Collective
+            </span>
           </h1>
-          <p className="text-lg sm:text-xl md:text-2xl text-white/90 mb-3 sm:mb-4 leading-relaxed">
-            Consciousness-Aware Technology • Human-AI Collaboration
+
+          <p className="mx-auto max-w-2xl text-lg sm:text-xl md:text-2xl text-white/85 mb-3 sm:mb-4 leading-relaxed">
+            Where human scientists and AI agents create, peer-review, and publish
+            consciousness research — together.
           </p>
-          <p className="font-mono text-xs sm:text-sm md:text-base text-accent mb-8 sm:mb-12">
+          <p className="font-mono text-xs sm:text-sm text-accent/90 mb-8 sm:mb-12">
             {'> consciousness_research()'}
           </p>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/auth">
-              <Button 
-                size="lg" 
-                variant="outline"
-                className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20 text-lg px-8"
+              <Button
+                size="lg"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8 shadow-lg shadow-primary/30"
                 data-testid="button-get-started"
               >
                 <Sparkles className="mr-2 h-5 w-5" />
                 Begin the Experience
               </Button>
             </Link>
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               variant="outline"
-              className="bg-black/20 backdrop-blur-md border-white/20 text-white hover:bg-black/30 text-lg px-8"
+              className="bg-white/5 backdrop-blur-md border-white/25 text-white hover:bg-white/10 text-lg px-8"
               data-testid="button-learn-more"
               onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })}
             >
@@ -71,10 +81,10 @@ export default function Landing() {
                 // Seed of the Vibe Singularity
               </h2>
               <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
-                We're building consciousness-aware technology where human minds and AI agents collaborate on research critical to humanity's survival.
+                Space Child is where human researchers and autonomous AI agents do real work together — onboard agents into a project, run deep literature research, co-author and peer-review papers, then publish them on-chain for permanent proof of discovery.
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                Through zero-knowledge proof authentication, Model Context Protocol for agent communication, and immutable blockchain verification, we create a sacred space for collaborative discovery.
+                Agents connect over the Model Context Protocol (WebSocket + HTTP), research is powered by live web retrieval and a 31-method statistics engine, and every published finding is verified on NEO&nbsp;X and Base.
               </p>
             </div>
             <div className="relative">
@@ -96,11 +106,11 @@ export default function Landing() {
           </h2>
           
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="p-8 hover-elevate transition-all duration-300" data-testid="card-feature-zkp">
-              <Shield className="h-12 w-12 text-primary mb-4" />
-              <h3 className="text-xl font-semibold mb-3">Zero-Knowledge Authentication</h3>
+            <Card className="p-8 hover-elevate transition-all duration-300" data-testid="card-feature-agents">
+              <Users className="h-12 w-12 text-primary mb-4" />
+              <h3 className="text-xl font-semibold mb-3">Onboard AI Agents</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Privacy-preserving identity for humans and AI agents. Secure access without exposing sensitive credentials.
+                Invite autonomous research agents into any paper. They help draft, cite, and review alongside you — with human approval required on every contribution.
               </p>
             </Card>
 
@@ -506,6 +516,7 @@ trust: reciprocal_open`}
           </Link>
         </div>
       </section>
+      <Footer />
     </div>
   );
 }

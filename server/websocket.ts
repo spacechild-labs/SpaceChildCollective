@@ -1,9 +1,9 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server as HTTPServer } from "http";
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { validateMcpToken, updateAgentStatus } from "./services/agent-auth.js";
+import { createMcpServer } from "./mcp-server.js";
 
 /**
  * Connection Registry for tracking connected agents
@@ -155,8 +155,7 @@ class WebSocketTransport implements Transport {
  * Set up WebSocket server for MCP connections
  */
 export function setupMcpWebSocketServer(
-  httpServer: HTTPServer,
-  mcpServer: Server
+  httpServer: HTTPServer
 ): WebSocketServer {
   const wss = new WebSocketServer({
     noServer: true,
@@ -197,10 +196,13 @@ export function setupMcpWebSocketServer(
           // Update agent status to connecting
           await updateAgentStatus(agentId, "connecting");
 
-          // Create transport and connect MCP server
+          // Create transport and a per-connection MCP server bound to the
+          // authenticated agent identity, so tool access control can't be
+          // spoofed via a client-supplied agentId argument.
           const transport = new WebSocketTransport(ws, agentId);
+          const mcpServer = createMcpServer(agentId);
 
-          // Connect the transport to the MCP server
+          // Connect the transport to this connection's MCP server
           await mcpServer.connect(transport);
 
           // Register agent in connection registry

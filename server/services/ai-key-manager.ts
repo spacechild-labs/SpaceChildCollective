@@ -40,8 +40,14 @@ export class AIKeyManager {
   private encryptionKey: string;
 
   constructor() {
-    // Initialize encryption key from environment or generate one
-    this.encryptionKey = process.env.ENCRYPTION_KEY || this.generateEncryptionKey();
+    // Initialize encryption key from environment, or generate an ephemeral one.
+    const envKey = process.env.ENCRYPTION_KEY;
+    if (!envKey) {
+      console.warn(
+        "[ai-key-manager] ENCRYPTION_KEY not set — using an ephemeral key; encrypted provider keys will not survive a restart. Set ENCRYPTION_KEY for persistence.",
+      );
+    }
+    this.encryptionKey = envKey || this.generateEncryptionKey();
   }
 
   /**
@@ -628,18 +634,29 @@ export class AIKeyManager {
     return crypto.randomBytes(32).toString('hex');
   }
 
+  /** Derive a stable 32-byte AES key from the configured secret. */
+  private getKey(): Buffer {
+    return crypto.createHash('sha256').update(this.encryptionKey).digest();
+  }
+
   private encryptApiKey(apiKey: string): string {
-    const cipher = crypto.createCipher('aes-256-cbc', this.encryptionKey);
-    let encrypted = cipher.update(apiKey, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return encrypted;
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', this.getKey(), iv);
+    const encrypted = Buffer.concat([cipher.update(apiKey, 'utf8'), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+    // Authenticated format: iv:authTag:ciphertext (hex).
+    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
   }
 
   private decryptApiKey(encryptedApiKey: string): string {
-    const decipher = crypto.createDecipher('aes-256-cbc', this.encryptionKey);
-    let decrypted = decipher.update(encryptedApiKey, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+    const [ivHex, tagHex, dataHex] = encryptedApiKey.split(':');
+    if (!ivHex || !tagHex || !dataHex) {
+      throw new Error('Malformed encrypted API key');
+    }
+    const decipher = crypto.createDecipheriv('aes-256-gcm', this.getKey(), Buffer.from(ivHex, 'hex'));
+    decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]);
+    return decrypted.toString('utf8');
   }
 
   private validateOpenAIKey(apiKey: string): boolean {

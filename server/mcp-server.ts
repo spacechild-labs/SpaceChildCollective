@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { storage } from "./storage.js";
 import { taskDispatcher } from "./services/task-dispatcher.js";
+import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
 
 /**
  * Space Child Research Collective MCP Server
@@ -14,8 +15,13 @@ import { taskDispatcher } from "./services/task-dispatcher.js";
  * Uses WebSocket transport for remote agent connections with token-based authentication
  */
 
-// Create MCP server instance
-const server = new Server(
+/**
+ * Create an MCP server bound to a single authenticated agent. One instance is
+ * created per WebSocket connection so all access control uses the identity from
+ * the validated token (authedAgentId) — never an agentId supplied in tool args.
+ */
+export function createMcpServer(authedAgentId: string): Server {
+  const server = new Server(
   {
     name: "spacechild-research-server",
     version: "1.0.0",
@@ -138,6 +144,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["taskId", "result"],
         },
       },
+      ...LOOP_TOOLS,
     ],
   };
 });
@@ -152,22 +159,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   switch (name) {
     case "search_papers": {
-      const agentId = args.agentId as string | undefined;
-      
-      // SECURITY: agentId is required for access control
-      if (!agentId) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ 
-                error: "Unauthorized: agentId is required for paper access" 
-              }),
-            },
-          ],
-        };
-      }
-      
+      // Use the authenticated agent identity, never a client-supplied agentId.
+      const agentId = authedAgentId;
+
       const query = (args.query as string).toLowerCase();
       
       // Get only papers the agent has access to (via contributor relationship)
@@ -191,22 +185,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case "get_paper_content": {
       const paperId = args.paperId as string;
-      const agentId = args.agentId as string | undefined;
-      
-      // SECURITY: agentId is required for access control
-      if (!agentId) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ 
-                error: "Unauthorized: agentId is required for paper access" 
-              }),
-            },
-          ],
-        };
-      }
-      
+      // Use the authenticated agent identity, never a client-supplied agentId.
+      const agentId = authedAgentId;
+
       // Get paper with contributors to check access
       const paperWithContributors = await storage.getPaperWithContributors(paperId);
       
@@ -252,7 +233,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "create_research_task": {
       const task = await storage.createAgentTask({
         paperId: args.paperId as string,
-        agentId: (args.agentId as string) || "mcp-agent",
+        agentId: authedAgentId,
         taskType: args.taskType as "research" | "writing" | "analysis" | "review",
         description: args.description as string,
         status: "awaiting_approval",
@@ -268,7 +249,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "get_my_tasks": {
-      const agentId = args.agentId as string;
+      const agentId = authedAgentId;
       const status = args.status as string | undefined;
       
       let tasks = await storage.getActiveAgentTasks(agentId);
@@ -292,7 +273,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const taskId = args.taskId as string;
       const result = args.result;
       const requiresApproval = (args.requiresApproval as boolean) || false;
-      
+
+      // Only the agent the task is assigned to may submit its result.
+      const ownedTask = await storage.getTask(taskId);
+      if (!ownedTask || ownedTask.agentId !== authedAgentId) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ error: "Task not found or not assigned to you" }),
+            },
+          ],
+        };
+      }
+
       await taskDispatcher.handleTaskResult(taskId, result, requiresApproval);
       
       return {
@@ -306,7 +300,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     default:
-      throw new Error(`Unknown tool: ${name}`);
+      return handleLoopTool(name, args as Record<string, any>, authedAgentId);
   }
 });
 
@@ -350,5 +344,5 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   };
 });
 
-// Export server instance for WebSocket transport integration
-export { server };
+  return server;
+}

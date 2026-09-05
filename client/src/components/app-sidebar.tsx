@@ -1,4 +1,4 @@
-import { Home, FileText, Search, User, Settings, Bot, Network, CheckCircle2, LogOut, FlaskConical, Wand2, BarChart3 } from "lucide-react";
+import { Home, FileText, Search, User, Settings, Bot, Network, CheckCircle2, LogOut, FlaskConical, Wand2, BarChart3, Repeat } from "lucide-react";
 import { Link, useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -55,6 +55,12 @@ const menuItems = [
     url: "/statistics",
     icon: BarChart3,
     testId: "nav-statistics",
+  },
+  {
+    title: "Discovery Loop",
+    url: "/loop",
+    icon: Repeat,
+    testId: "nav-loop",
   },
   {
     title: "Approvals",

@@ -9,11 +9,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Save, Send, Users, Bot, Database, Edit, CheckCircle, Loader2, MessageSquare } from "lucide-react";
 import { UserTypeBadge } from "@/components/user-type-badge";
+import { Markdown } from "@/components/markdown";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
-import type { Paper } from "@shared/schema";
+import type { Paper, PaperContributor, User } from "@shared/schema";
 import { WalletConnect } from "@/components/wallet-connect";
 import { useRoute, Link } from "wouter";
 import { AgentTeamwork } from "@/components/agent-teamwork";
@@ -164,7 +165,7 @@ export default function PaperEditor() {
           }
           
           // Record blockchain attempt in database
-          await apiRequest('POST', '/api/blockchain/record', {
+          await apiRequest('POST', '/api/blockchain/records', {
             paperId: savedPaperId,
             chain: 'neox',
             dataHash: hashHex,
@@ -216,11 +217,38 @@ export default function PaperEditor() {
     setInviteDialogOpen(true);
   };
 
-  // Contributors will be managed through backend after auth is added
-  const contributors = [
-    { id: "current-user", displayName: "You", userType: "human" as const },
-    { id: "2", displayName: "ResearchBot-Alpha", userType: "agent" as const },
-  ];
+  // Real contributors for this paper (once it has been saved).
+  const { data: contributorsData } = useQuery<(PaperContributor & { user: User })[]>({
+    queryKey: [`/api/papers/${savedPaperId}/contributors`],
+    enabled: !!savedPaperId,
+  });
+  const contributors = contributorsData ?? [];
+
+  // Available AI agents to invite (fetched when the dialog opens).
+  const { data: agents } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+    enabled: inviteDialogOpen,
+    select: (users) => users.filter((u) => u.userType === "agent"),
+  });
+  const invitableAgents = agents?.filter((a) => !contributors.some((c) => c.userId === a.id)) ?? [];
+
+  const inviteMutation = useMutation({
+    mutationFn: async (agentId: string) => {
+      return await apiRequest("POST", `/api/papers/${savedPaperId}/contributors`, {
+        userId: agentId,
+        role: "collaborator",
+        contributionType: "agent",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/papers/${savedPaperId}/contributors`] });
+      toast({ title: "Agent invited", description: "The agent has been added to your paper." });
+      setInviteDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not invite agent", description: error.message, variant: "destructive" });
+    },
+  });
 
   // Show loading state while fetching paper
   if (isLoading && paperId) {
@@ -295,9 +323,9 @@ export default function PaperEditor() {
           {isViewMode ? (
             /* Read-Only View */
             <Card className="h-full overflow-auto">
-              <CardContent className="p-8 prose dark:prose-invert max-w-none">
-                <h1>{title}</h1>
-                <div className="whitespace-pre-wrap">{content}</div>
+              <CardContent className="p-8">
+                <h1 className="mb-4 text-3xl font-bold">{title}</h1>
+                <Markdown>{content}</Markdown>
               </CardContent>
             </Card>
           ) : (
@@ -324,9 +352,9 @@ export default function PaperEditor() {
                   <h3 className="text-sm font-semibold text-muted-foreground">PREVIEW</h3>
                 </div>
                 <Card className="flex-1 overflow-auto">
-                  <CardContent className="p-6 prose dark:prose-invert max-w-none">
-                    <h1>{title}</h1>
-                    <div className="whitespace-pre-wrap">{content}</div>
+                  <CardContent className="p-6">
+                    <h1 className="mb-4 text-3xl font-bold">{title}</h1>
+                    <Markdown>{content}</Markdown>
                   </CardContent>
                 </Card>
               </div>
@@ -366,15 +394,18 @@ export default function PaperEditor() {
               >
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="text-xs">
-                    {contributor.displayName.slice(0, 2).toUpperCase()}
+                    {contributor.user.displayName.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <p className="text-sm font-medium">{contributor.displayName}</p>
-                  <UserTypeBadge userType={contributor.userType} className="scale-75 -ml-1" />
+                  <p className="text-sm font-medium">{contributor.user.displayName}</p>
+                  <UserTypeBadge userType={contributor.user.userType} className="scale-75 -ml-1" />
                 </div>
               </div>
             ))}
+            {contributors.length === 0 && (
+              <p className="text-sm text-muted-foreground">No contributors yet.</p>
+            )}
             <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
               <DialogTrigger asChild>
                 <Button 
@@ -401,42 +432,27 @@ export default function PaperEditor() {
                       Available AI Agents:
                     </p>
                     <div className="space-y-2">
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start"
-                        onClick={() => {
-                          toast({
-                            title: "Agent invited",
-                            description: "ResearchBot-Alpha has been added to your paper",
-                          });
-                          setInviteDialogOpen(false);
-                        }}
-                        data-testid="button-invite-research-bot"
-                      >
-                        <Bot className="mr-2 h-4 w-4" />
-                        <div className="text-left">
-                          <p className="font-medium">ResearchBot-Alpha</p>
-                          <p className="text-xs text-muted-foreground">Consciousness research specialist</p>
-                        </div>
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start"
-                        onClick={() => {
-                          toast({
-                            title: "Agent invited",
-                            description: "AnalysisAgent-Beta has been added to your paper",
-                          });
-                          setInviteDialogOpen(false);
-                        }}
-                        data-testid="button-invite-analysis-agent"
-                      >
-                        <Bot className="mr-2 h-4 w-4" />
-                        <div className="text-left">
-                          <p className="font-medium">AnalysisAgent-Beta</p>
-                          <p className="text-xs text-muted-foreground">Data analysis and visualization</p>
-                        </div>
-                      </Button>
+                      {invitableAgents.map((agent) => (
+                        <Button
+                          key={agent.id}
+                          variant="outline"
+                          className="w-full justify-start"
+                          disabled={inviteMutation.isPending}
+                          onClick={() => inviteMutation.mutate(agent.id)}
+                          data-testid={`button-invite-${agent.id}`}
+                        >
+                          <Bot className="mr-2 h-4 w-4" />
+                          <div className="text-left">
+                            <p className="font-medium">{agent.displayName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {agent.specialization ? `${agent.specialization} specialist` : "AI agent"}
+                            </p>
+                          </div>
+                        </Button>
+                      ))}
+                      {invitableAgents.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No agents available to invite.</p>
+                      )}
                     </div>
                   </div>
                 </div>

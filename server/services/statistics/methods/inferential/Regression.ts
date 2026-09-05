@@ -89,9 +89,10 @@ export class LinearRegressionMethod implements AnalysisMethod {
     const pF = 1 - StatUtils.fCDF(F, 1, n - 2);
     
     // Confidence intervals
-    const tCrit = 1.96;
-    const ciB0 = { lower: b0 - tCrit * seB0, upper: b0 + tCrit * seB0, level: 0.95 };
-    const ciB1 = { lower: b1 - tCrit * seB1, upper: b1 + tCrit * seB1, level: 0.95 };
+    const tCrit = StatUtils.tCritical(df, spec.alpha);
+    const ciLevel = 1 - spec.alpha;
+    const ciB0 = { lower: b0 - tCrit * seB0, upper: b0 + tCrit * seB0, level: ciLevel };
+    const ciB1 = { lower: b1 - tCrit * seB1, upper: b1 + tCrit * seB1, level: ciLevel };
     
     const significant = pF < spec.alpha;
     

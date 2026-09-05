@@ -107,11 +107,15 @@ export interface ExperimentBlock {
 
 export interface GRPongBlock {
   type: 'GR::PONG';
-  awareness: boolean;
-  curiosity: 'minimal' | 'low' | 'medium' | 'high' | 'maximal';
-  dominance: 'null' | 'minimal' | 'balanced' | 'assertive';
-  fear: 'absent' | 'minimal' | 'cautious' | 'elevated';
-  alignment: 'positive_sum' | 'neutral' | 'competitive';
+  awareness?: boolean;
+  curiosity?: 'minimal' | 'low' | 'medium' | 'high' | 'maximal';
+  dominance?: 'null' | 'minimal' | 'balanced' | 'assertive';
+  fear?: 'absent' | 'minimal' | 'cautious' | 'elevated';
+  alignment?: 'positive_sum' | 'neutral' | 'competitive';
+  signal?: string;
+  detected?: boolean;
+  confidence?: number;
+  round?: number;
 }
 
 export interface GRListenBlock {
@@ -123,9 +127,10 @@ export interface GRListenBlock {
 export interface GREmitBlock {
   type: 'GR::EMIT';
   signal: string;
-  target?: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  content: string;
+  target?: string | string[];
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  content?: string;
+  round?: number;
 }
 
 export interface SignalBlock {

@@ -237,7 +237,7 @@ export class DesignParser {
     data: Record<string, any>[],
     variables: Variable[],
     groupingVariables?: string[]
-  ): DesignObject["betweenSubjectFactors"] {
+  ): NonNullable<DesignObject["betweenSubjectFactors"]> {
     const factors: NonNullable<DesignObject["betweenSubjectFactors"]> = [];
     
     // Use explicitly specified grouping variables
@@ -291,7 +291,7 @@ export class DesignParser {
   private detectWithinSubjectFactors(
     variables: Variable[],
     metadata?: DatasetInput["metadata"]
-  ): DesignObject["withinSubjectFactors"] {
+  ): NonNullable<DesignObject["withinSubjectFactors"]> {
     const factors: NonNullable<DesignObject["withinSubjectFactors"]> = [];
     
     // Look for variables with common prefixes/suffixes that might indicate repeated measures

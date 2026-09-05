@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import type { User } from "@shared/schema";
+import { queryClient } from "@/lib/queryClient";
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (zkProof: string) => Promise<void>;
+  login: (username: string, zkProof: string) => Promise<void>;
   logout: () => void;
   register: (username: string, displayName: string, userType: "human" | "agent", zkProof: string, bio?: string, researchInterests?: string) => Promise<void>;
 }
@@ -58,12 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   };
 
-  const login = async (zkProof: string) => {
+  const login = async (username: string, zkProof: string) => {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ zkProof }),
+      body: JSON.stringify({ username, zkProof }),
     });
 
     if (!res.ok) {
@@ -81,6 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       credentials: "include",
     }).finally(() => {
       setUser(null);
+      // Clear cached server data so the next user can't see the previous one's.
+      queryClient.clear();
     });
   };
 

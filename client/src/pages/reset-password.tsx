@@ -4,16 +4,57 @@
  */
 
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Loader2, Shield, Eye, EyeOff } from "lucide-react";
 import { useSpaceChildAuth } from "@/hooks/useSpaceChildAuth";
 
+interface PasswordInputProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  show: boolean;
+  onToggle: () => void;
+  testId: string;
+}
+
+// Defined at module scope (not inside the page) so it isn't recreated every
+// render — otherwise React remounts the input and it loses focus per keystroke.
+function PasswordInput({ id, label, value, onChange, show, onToggle, testId }: PasswordInputProps) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id} className="text-gray-300">{label}</Label>
+      <div className="relative">
+        <Input
+          id={id}
+          type={show ? "text" : "password"}
+          placeholder="••••••••"
+          value={value}
+          onChange={onChange}
+          className="bg-slate-800 border-white/10 text-white pr-10"
+          required
+          minLength={8}
+          data-testid={testId}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+          data-testid={`${testId}-toggle`}
+        >
+          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ResetPasswordPage() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [, navigate] = useLocation();
+  const searchParams = new URLSearchParams(useSearch());
   const { resetPassword } = useSpaceChildAuth();
   
   const [status, setStatus] = useState<"form" | "loading" | "success" | "error">("form");
@@ -63,49 +104,6 @@ export default function ResetPasswordPage() {
       setErrorMessage(error.message || "An error occurred");
     }
   };
-
-  const PasswordInput = ({ 
-    id, 
-    label,
-    value, 
-    onChange, 
-    show, 
-    onToggle,
-    testId,
-  }: { 
-    id: string; 
-    label: string;
-    value: string; 
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    show: boolean;
-    onToggle: () => void;
-    testId: string;
-  }) => (
-    <div className="space-y-2">
-      <Label htmlFor={id} className="text-gray-300">{label}</Label>
-      <div className="relative">
-        <Input
-          id={id}
-          type={show ? "text" : "password"}
-          placeholder="••••••••"
-          value={value}
-          onChange={onChange}
-          className="bg-slate-800 border-white/10 text-white pr-10"
-          required
-          minLength={8}
-          data-testid={testId}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-          data-testid={`${testId}-toggle`}
-        >
-          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-        </button>
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900/20 to-slate-900 flex items-center justify-center p-4">

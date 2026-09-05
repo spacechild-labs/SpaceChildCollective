@@ -64,7 +64,7 @@ export default function Auth() {
       const zkProof = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
       if (isLogin) {
-        await login(zkProof);
+        await login(values.username, zkProof);
         toast({
           title: "Welcome back!",
           description: "Successfully authenticated with zero-knowledge proof.",
@@ -96,8 +96,14 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-muted/30 to-background">
-      <div className="w-full max-w-2xl">
+    <div className="dark relative min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-muted/30 to-background overflow-hidden text-foreground">
+      {/* On-brand cosmic glow behind the card (auth surfaces use the dark theme to
+          match the landing + email pages; rendered with theme tokens, not hardcoded). */}
+      <div
+        className="pointer-events-none absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 h-[70vh] w-[70vh] rounded-full bg-primary/20 blur-3xl"
+        aria-hidden="true"
+      />
+      <div className="relative w-full max-w-2xl">
         <div className="text-center mb-8">
           <h1 className="font-display text-4xl font-light mb-2">
             {isLogin ? "Welcome Back" : "Join the Collective"}

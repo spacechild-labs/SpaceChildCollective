@@ -85,7 +85,7 @@ export class EFAMethod implements AnalysisMethod {
       for (let f = 0; f < nFactors; f++) {
         factorLoadings.push({
           item: items[i],
-          factor: f + 1,
+          factor: `Factor ${f + 1}`,
           loading: rotatedLoadings[i][f],
           standardError: this.estimateLoadingSE(rotatedLoadings[i][f], validN)
         });
@@ -133,7 +133,11 @@ export class EFAMethod implements AnalysisMethod {
       nFactors,
       loadings: factorLoadings,
       eigenvalues,
-      varianceExplained,
+      varianceExplained: varianceExplained.map((variance, i) => ({
+        factor: `Factor ${i + 1}`,
+        variance,
+        cumulative: cumulativeVariance[i],
+      })),
       cumulativeVariance,
       communalities: Object.fromEntries(items.map((item, i) => [item, communalities[i]])),
       kmo,

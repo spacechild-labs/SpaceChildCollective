@@ -11,6 +11,9 @@ import {
   User,
 } from "@shared/schema";
 import { createHash } from "crypto";
+import bcrypt from "bcryptjs";
+import { sanitizeUser, sanitizeUsers } from "./lib/sanitize";
+import { requireAuth, requireAdmin } from "./middleware/auth";
 import { performAgentResearch, generatePaperTitle } from "./services/ai";
 import { publishToNeoX, publishToBase, generatePaperHash, verifyBlockchainRecord, estimateGasCost } from "./services/blockchain";
 import { agentManager } from "./services/agent-manager";
@@ -24,6 +27,7 @@ import { singularisProtocol } from "./services/singularis-protocol";
 import seoRouter from "./routes/seo";
 import statisticsRouter from "./routes/statistics";
 import studyDesignerRouter from "./routes/study-designer";
+import loopRouter, { findingsFeedHandler } from "./routes/loop";
 import OpenAI from "openai";
 
 // Enhanced Request type to include user
@@ -31,42 +35,58 @@ interface AuthenticatedRequest extends Express.Request {
   user?: User;
 }
 
+// Stable invalid hash so login always runs a bcrypt comparison even when the
+// username is unknown — reduces the username-enumeration timing signal.
+const DUMMY_BCRYPT_HASH = bcrypt.hashSync("invalid-placeholder", 12);
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
   // Note: MCP WebSocket server is set up separately in server/index.ts
   // using setupMcpWebSocketServer() with path '/mcp'
 
+  // ===== Health =====
+  // Lightweight public health check for load balancers / uptime monitoring.
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+  });
+
   // ===== Auth Routes =====
-  
+
   // Register with ZKP (creates user and sets session)
   app.post("/api/auth/register", async (req, res) => {
     try {
       const { username, displayName, userType, zkProof, bio, researchInterests } = req.body;
-      
-      if (!displayName || !userType || !zkProof) {
+
+      if (!username || !displayName || !userType || !zkProof) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // Generate username if not provided
-      const finalUsername = username || `user_${Date.now()}`;
-
-      // Check if user already exists with this ZKP
-      const existingUser = await storage.getUserByZkProof(zkProof);
+      // Username must be unique — credentials are looked up by username at login.
+      const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
-        return res.status(400).json({ error: "User already exists" });
+        return res.status(400).json({ error: "Username already taken" });
       }
 
       // Parse research interests from comma-separated string to array
-      const interestsArray = researchInterests 
+      const interestsArray = researchInterests
         ? researchInterests.split(',').map((s: string) => s.trim()).filter(Boolean)
         : [];
 
-      // Create user with correct field names
+      // Hash the client-provided proof with bcrypt (salted) before storage, so a
+      // database leak does not expose a replayable login credential.
+      const zkpCommitment = await bcrypt.hash(zkProof, 12);
+
+      // Bootstrap: the first user (or the first registrant while no admin exists)
+      // becomes an admin, so platform settings are never left unmanageable.
+      const existingUsers = await storage.getAllUsers();
+      const role = existingUsers.some((u) => u.role === "admin") ? "user" : "admin";
+
       const user = await storage.createUser({
-        username: finalUsername,
-        zkpCommitment: zkProof,
+        username,
+        zkpCommitment,
         userType,
+        role,
         displayName,
         bio: bio || null,
         researchInterests: interestsArray,
@@ -74,8 +94,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Set session
       (req.session as any).userId = user.id;
-      
-      res.json({ user });
+
+      res.json({ user: sanitizeUser(user) });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -84,21 +104,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Login with ZKP
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { zkProof } = req.body;
-      
-      if (!zkProof) {
-        return res.status(400).json({ error: "ZKP required" });
+      const { username, zkProof } = req.body;
+
+      if (!username || !zkProof) {
+        return res.status(400).json({ error: "Username and proof required" });
       }
 
-      const user = await storage.getUserByZkProof(zkProof);
-      if (!user) {
+      const user = await storage.getUserByUsername(username);
+      // Always run a comparison (against a dummy hash if the user is unknown) so
+      // response timing doesn't reveal whether the username exists.
+      const ok = await bcrypt.compare(zkProof, user?.zkpCommitment ?? DUMMY_BCRYPT_HASH);
+      if (!user || !ok) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
       // Set session
       (req.session as any).userId = user.id;
-      
-      res.json({ user });
+
+      res.json({ user: sanitizeUser(user) });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -117,7 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
-      res.json({ user });
+      res.json({ user: sanitizeUser(user) });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -133,10 +156,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== User & Auth Routes =====
   
   // Get all users
-  app.get("/api/users", async (req, res) => {
+  app.get("/api/users", requireAuth, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
-      res.json(users);
+      res.json(sanitizeUsers(users));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -147,7 +170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userData = insertUserSchema.parse(req.body);
       const user = await storage.createUser(userData);
-      res.json(user);
+      res.json(sanitizeUser(user));
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -160,20 +183,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      res.json(user);
+      res.json(sanitizeUser(user));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
   // Get user by ID
-  app.get("/api/users/:id", async (req, res) => {
+  app.get("/api/users/:id", requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.params.id);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      res.json(user);
+      res.json(sanitizeUser(user));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -196,6 +219,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const papers = await storage.getPapersByUserId(req.params.userId);
       res.json(papers);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Published paper IDs with a confirmed on-chain record (for the "verified" filter).
+  app.get("/api/papers/verified-ids", async (_req, res) => {
+    try {
+      const ids = await storage.getVerifiedPaperIds();
+      res.json(ids);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -238,8 +271,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update paper
-  app.patch("/api/papers/:id", async (req, res) => {
+  app.patch("/api/papers/:id", requireAuth, async (req, res) => {
     try {
+      const contributors = await storage.getContributorsByPaperId(req.params.id);
+      if (!contributors.some((c) => c.userId === req.user!.id)) {
+        return res.status(403).json({ error: "You are not a contributor to this paper" });
+      }
       const paperData = insertPaperSchema.partial().parse(req.body);
       const paper = await storage.updatePaper(req.params.id, paperData);
       res.json(paper);
@@ -249,8 +286,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete a paper
-  app.delete("/api/papers/:id", async (req, res) => {
+  app.delete("/api/papers/:id", requireAuth, async (req, res) => {
     try {
+      const contributors = await storage.getContributorsByPaperId(req.params.id);
+      if (!contributors.some((c) => c.userId === req.user!.id && c.role === "author")) {
+        return res.status(403).json({ error: "Only an author can delete this paper" });
+      }
       await storage.deletePaper(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
@@ -259,8 +300,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add contributor to paper
-  app.post("/api/papers/:paperId/contributors", async (req, res) => {
+  app.post("/api/papers/:paperId/contributors", requireAuth, async (req, res) => {
     try {
+      // Only an author of the paper may add contributors. A brand-new paper with
+      // no contributors yet is allowed, to bootstrap the first author.
+      const existing = await storage.getContributorsByPaperId(req.params.paperId);
+      if (existing.length > 0 && !existing.some((c) => c.userId === req.user!.id && c.role === "author")) {
+        return res.status(403).json({ error: "Only an author can add contributors" });
+      }
       const contributorData = insertPaperContributorSchema.parse({
         ...req.body,
         paperId: req.params.paperId,
@@ -936,7 +983,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== AI Key Management Routes =====
 
   // Add AI provider
-  app.post("/api/ai-keys/providers", async (req, res) => {
+  app.post("/api/ai-keys/providers", requireAdmin, async (req, res) => {
     try {
       const providerData = req.body;
       
@@ -964,7 +1011,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update AI provider
-  app.put("/api/ai-keys/providers/:providerId", async (req, res) => {
+  app.put("/api/ai-keys/providers/:providerId", requireAdmin, async (req, res) => {
     try {
       const { providerId } = req.params;
       const updates = req.body;
@@ -990,7 +1037,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Remove AI provider
-  app.delete("/api/ai-keys/providers/:providerId", async (req, res) => {
+  app.delete("/api/ai-keys/providers/:providerId", requireAdmin, async (req, res) => {
     try {
       const { providerId } = req.params;
       const removed = aiKeyManager.removeProvider(providerId);
@@ -1605,9 +1652,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Publish to NEO X
   app.post("/api/blockchain/publish/neox", async (req, res) => {
     try {
-      const { paperHash, title, authors, timestamp, privateKey } = req.body;
-      
-      if (!paperHash || !title || !authors || !privateKey) {
+      const { paperHash, title, authors, timestamp } = req.body;
+
+      if (!paperHash || !title || !authors) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -1616,7 +1663,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         title,
         authors,
         timestamp: timestamp ? new Date(timestamp) : new Date(),
-        privateKey,
       });
       
       res.json(result);
@@ -1628,9 +1674,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Publish to Base
   app.post("/api/blockchain/publish/base", async (req, res) => {
     try {
-      const { paperHash, title, authors, timestamp, privateKey } = req.body;
-      
-      if (!paperHash || !title || !authors || !privateKey) {
+      const { paperHash, title, authors, timestamp } = req.body;
+
+      if (!paperHash || !title || !authors) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -1639,7 +1685,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         title,
         authors,
         timestamp: timestamp ? new Date(timestamp) : new Date(),
-        privateKey,
       });
       
       res.json(result);
@@ -1756,6 +1801,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== AI Study Designer Routes =====
   // Mount the AI-assisted study design system for consciousness research
   app.use('/api/study-designer', studyDesignerRouter);
+
+  // Discovery Loop: study generation → findings → vetting → routing → delivery → feedback
+  app.use('/api/loop', loopRouter);
+  app.get('/feed/findings.xml', findingsFeedHandler);
 
   return httpServer;
 }

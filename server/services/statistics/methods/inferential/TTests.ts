@@ -56,7 +56,7 @@ export class TTestMethod implements AnalysisMethod {
     const cohensD = (mean1 - mean2) / pooledSD;
     
     // 95% CI for mean difference
-    const tCrit = 1.96; // Approximation for large df
+    const tCrit = StatUtils.tCritical(df, spec.alpha);
     const ciLower = (mean1 - mean2) - tCrit * se;
     const ciUpper = (mean1 - mean2) + tCrit * se;
     
@@ -157,7 +157,7 @@ export class PairedTTestMethod implements AnalysisMethod {
     const cohensD = meanDiff / sdDiff;
     
     // 95% CI
-    const tCrit = 1.96;
+    const tCrit = StatUtils.tCritical(df, spec.alpha);
     const ciLower = meanDiff - tCrit * se;
     const ciUpper = meanDiff + tCrit * se;
     
@@ -255,7 +255,7 @@ export class WelchTTestMethod implements AnalysisMethod {
     const cohensD = (m1 - m2) / pooledSD;
     
     // 95% CI
-    const tCrit = 1.96;
+    const tCrit = StatUtils.tCritical(df, spec.alpha);
     const ciLower = (m1 - m2) - tCrit * se;
     const ciUpper = (m1 - m2) + tCrit * se;
     

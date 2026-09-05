@@ -256,11 +256,18 @@ class ConsciousnessExperimentService {
     phase.data = phaseData;
     
     const isLastPhase = phaseIndex + 1 >= phases.length;
-    
+    // The PUBLICATION phase sets a more specific "published" status (and links the
+    // paper); don't clobber it here with the generic terminal "concluded" status.
+    const isPublication = phase.name === "PUBLICATION";
+
     await storage.updateConsciousnessExperiment(experimentId, {
       observations: { phases },
-      status: isLastPhase ? "concluded" : "running",
-      concludedAt: isLastPhase ? new Date() : undefined,
+      ...(isPublication
+        ? { concludedAt: new Date() }
+        : {
+            status: isLastPhase ? "concluded" : "running",
+            concludedAt: isLastPhase ? new Date() : undefined,
+          }),
     });
     
     return phaseData;
@@ -434,6 +441,8 @@ class ConsciousnessExperimentService {
         detections: signalingTrials.filter(t => t.detected).length,
         uniqueSenders: [...new Set(signalingTrials.map(t => t.sender))].length,
         uniqueReceivers: [...new Set(signalingTrials.map(t => t.receiver))].length,
+        simulated: true,
+        generator: "deterministic_hash",
       }
     };
   }

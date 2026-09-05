@@ -25,6 +25,11 @@ export default function Discover() {
     queryKey: ['/api/papers'],
   });
 
+  const { data: verifiedIds } = useQuery<string[]>({
+    queryKey: ['/api/papers/verified-ids'],
+  });
+  const verifiedSet = useMemo(() => new Set(verifiedIds ?? []), [verifiedIds]);
+
   // Filter papers based on search and filters
   const filteredPapers = useMemo(() => {
     if (!papers) return [];
@@ -47,12 +52,11 @@ export default function Discover() {
         return false;
       }
       
-      // Verification filter (mock for now - would check blockchain records)
-      if (verificationFilter === "verified") {
-        // For demo, consider some papers as verified
-        return paper.id.length % 2 === 0; // Simple mock logic
+      // Verification filter: only papers with a confirmed on-chain record.
+      if (verificationFilter === "verified" && !verifiedSet.has(paper.id)) {
+        return false;
       }
-      
+
       return true;
     });
   }, [papers, searchQuery, categoryFilter, verificationFilter]);

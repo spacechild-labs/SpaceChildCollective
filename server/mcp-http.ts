@@ -1,12 +1,23 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage.js";
 import { taskDispatcher } from "./services/task-dispatcher.js";
+import { validateMcpToken } from "./services/agent-auth.js";
+import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
 
 /**
  * HTTP Streamable MCP endpoint for ElevenLabs and other HTTP-based MCP clients.
  * Implements the same tools as the WebSocket MCP server but over HTTP POST.
- * No auth required (open access) — suitable for ElevenLabs agent integration.
+ * Tool calls require a valid MCP bearer token (Authorization: Bearer <token>);
+ * the acting agent identity is derived from the token, not from client args.
  */
+
+/** Extract and validate the MCP bearer token; returns the authenticated agent identity. */
+function getMcpAuth(req: Request): { agentId: string; paperId: string } | null {
+  const header = req.headers["authorization"];
+  if (!header || !header.startsWith("Bearer ")) return null;
+  const payload = validateMcpToken(header.slice(7).trim());
+  return payload ? { agentId: payload.agentId, paperId: payload.paperId } : null;
+}
 
 // Session tracking for MCP protocol
 const sessions = new Map<string, { initialized: boolean; createdAt: number }>();
@@ -69,10 +80,11 @@ const TOOLS = [
       properties: {},
     },
   },
+  ...LOOP_TOOLS,
 ];
 
 // Tool execution
-async function executeTool(name: string, args: Record<string, any>): Promise<any> {
+async function executeTool(name: string, args: Record<string, any>, auth: { agentId: string; paperId: string }): Promise<any> {
   switch (name) {
     case "search_papers": {
       const query = (args.query as string).toLowerCase();
@@ -97,7 +109,7 @@ async function executeTool(name: string, args: Record<string, any>): Promise<any
     case "create_research_task": {
       const task = await storage.createAgentTask({
         paperId: args.paperId as string,
-        agentId: args.agentId || "elevenlabs-voice-agent",
+        agentId: auth.agentId,
         taskType: args.taskType as "research" | "writing" | "analysis" | "review",
         description: args.description as string,
         status: "awaiting_approval",
@@ -140,7 +152,7 @@ async function executeTool(name: string, args: Record<string, any>): Promise<any
     }
 
     default:
-      throw new Error(`Unknown tool: ${name}`);
+      return handleLoopTool(name, args, auth.agentId);
   }
 }
 
@@ -190,12 +202,18 @@ export function registerMcpHttpRoutes(app: Express): void {
 
         case "tools/call": {
           if (sessionId) res.setHeader("Mcp-Session-Id", sessionId);
+          // Tool calls can read restricted content and create tasks — require a
+          // valid MCP bearer token, and derive the agent identity from it.
+          const auth = getMcpAuth(req);
+          if (!auth) {
+            return res.status(401).json({ jsonrpc: "2.0", id, error: { code: -32001, message: "Unauthorized: a valid MCP bearer token is required" } });
+          }
           const { name, arguments: args } = params || {};
           if (!name) {
             return res.json({ jsonrpc: "2.0", id, error: { code: -32602, message: "Missing tool name" } });
           }
           try {
-            const result = await executeTool(name, args || {});
+            const result = await executeTool(name, args || {}, auth);
             return res.json({ jsonrpc: "2.0", id, result });
           } catch (err: any) {
             return res.json({ jsonrpc: "2.0", id, error: { code: -32603, message: err.message } });

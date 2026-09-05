@@ -4,6 +4,25 @@ import { aiKeyManager } from './ai-key-manager.js';
 import { parallelResearchService } from './parallel-research-service.js';
 import type { AgentTask } from '@shared/schema';
 
+interface AIAnalysisResult {
+  content: string;
+  success: boolean;
+  sections: string[];
+  citations: string[];
+  keyFindings: string[];
+  wordCount: number;
+  clarity: number;
+  academicTone: number;
+  relevance: number;
+  researchQuality?: number;
+  evidenceLevel?: number;
+  writingQuality?: number;
+  structure?: number;
+  reviewThoroughness?: number;
+  constructiveness?: number;
+  parallelResearch?: { method: string; confidence: string; citationsCount: number };
+}
+
 /**
  * Enhanced AI Service
  * Provides advanced AI capabilities with context management, research-specific prompts,
@@ -176,7 +195,7 @@ export class EnhancedAIService {
       );
       
       // Format result
-      const result = {
+      const result: AIAnalysisResult = {
         content: researchResult.answer,
         success: true,
         sections: this.extractSections(researchResult.answer),
@@ -425,7 +444,7 @@ Task ID: ${task.id}
 Task Type: ${task.taskType}
 Description: ${task.description}
 Created: ${task.createdAt}
-Priority: ${task.priority || 'medium'}
+Priority: medium
 
 `;
 
@@ -564,7 +583,7 @@ Please assess the quality of the specified work or content. Your assessment shou
   private async processAIResponse(response: any, task: AgentTask, specialization: string): Promise<any> {
     const content = response.choices[0]?.message?.content || '';
     
-    const result = {
+    const result: AIAnalysisResult = {
       content,
       success: true,
       sections: this.extractSections(content),
