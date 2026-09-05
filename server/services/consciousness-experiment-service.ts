@@ -441,6 +441,8 @@ class ConsciousnessExperimentService {
         detections: signalingTrials.filter(t => t.detected).length,
         uniqueSenders: [...new Set(signalingTrials.map(t => t.sender))].length,
         uniqueReceivers: [...new Set(signalingTrials.map(t => t.receiver))].length,
+        simulated: true,
+        generator: "deterministic_hash",
       }
     };
   }

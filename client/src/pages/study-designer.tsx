@@ -186,13 +186,17 @@ export default function StudyDesigner() {
   // Design mutation
   const designMutation = useMutation({
     mutationFn: async (data: { prompt: string; preferences?: any; autoStart?: boolean }) => {
-      const endpoint = data.autoStart ? "/api/study-designer/design-and-create" : "/api/study-designer/design";
-      const res = await apiRequest("POST", endpoint, {
+      // Persist through the Discovery Loop so the design is first-class (preregistered,
+      // launchable, harvestable) rather than a blob inside the experiment.
+      const res = await apiRequest("POST", "/api/loop/studies", {
         prompt: data.prompt,
         preferences: data.preferences,
-        autoStart: data.autoStart,
+        preregister: true,
+        launch: data.autoStart,
+        run: data.autoStart,
       });
-      return res.json();
+      const json = await res.json();
+      return { ...json, experimentId: json.launch?.experimentId ?? null, studyId: json.study?.id };
     },
     onSuccess: (data) => {
       setGeneratedDesign(data.design);

@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { storage } from "./storage.js";
 import { taskDispatcher } from "./services/task-dispatcher.js";
+import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
 
 /**
  * Space Child Research Collective MCP Server
@@ -143,6 +144,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["taskId", "result"],
         },
       },
+      ...LOOP_TOOLS,
     ],
   };
 });
@@ -298,7 +300,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     default:
-      throw new Error(`Unknown tool: ${name}`);
+      return handleLoopTool(name, args as Record<string, any>, authedAgentId);
   }
 });
 

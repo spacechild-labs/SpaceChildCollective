@@ -11,6 +11,9 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Modules that import the db handle need a URL at import time; a localhost URL
+    // selects the plain pg driver, which does not connect until first query.
+    env: { DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://localhost:5432/spacechild_test" },
     include: ["**/*.test.ts"],
     exclude: ["node_modules/**", "dist/**"],
   },

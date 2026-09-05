@@ -60,3 +60,26 @@ This app is built to a production/public bar:
 ## Subsystems
 
 The platform also includes a Statistics & Psychometrics engine (t-tests, ANOVA, regression, mixed effects, EFA/CFA, IRT, Bayesian, reliability), a Consciousness Experiment framework, and the Singularis Prime agent-communication protocol. See `replit.md` for detailed API routes and design notes.
+
+## Discovery Loop
+
+The loop turns research into a closed value cycle. Studies produce findings; findings are vetted, routed and delivered to registered channels; whatever comes back is recorded and, for actionable kinds, becomes the next study.
+
+```
+prompt ─► study design ─► preregistration (hash, optional on-chain anchor) ─► experiment ─► findings
+  ▲                                                                                          │
+  └── feedback (question / dispute / replication request / new prompt) ◄── deliveries ◄── vetting ◄─┘
+```
+
+- **Studies** (`/api/loop/studies`, `study_designs` table): first-class, persisted designs. Heuristic design plus optional LLM refinement (`AI_STUDY_MODEL`, any OpenAI-compatible key); the generator used is recorded. Preregistration freezes the confirmatory fields under a canonical SHA-256 hash and can anchor it on Base or NEO X. Every design carries its lineage (`parentDesignId`, `sourceFindingIds`, `generation`).
+- **Findings** (`findings`): one falsifiable claim plus structured evidence, with a content hash. Extracted from experiment results (primary + per-signal) or lifted from a paper's abstract. Evidence from the deterministic agent simulation is **flagged `simulated`** and must disclose it.
+- **Vetting** (`vetting_reviews`): automated checks — schema and hash integrity, statistics integrity (re-computes z and p from the reported proportions and asserts agreement, not just range), reproducibility from raw trials, novelty (same-experiment duplicates fail; same claim from another experiment is a *replication* and is flagged and linked), simulation disclosure, and secret/PII safety. Agents peer-review over MCP; a human approval is required by default (`LOOP_REQUIRE_HUMAN_APPROVAL=false` to relax). One `fail` rejects.
+- **Routing** (`distribution_channels`): vetted findings match channels by category, tags, source, minimum confidence and minimum novelty. Simulated findings only reach channels that opt in.
+- **Delivery** (`deliveries`): idempotent per finding × channel, retried by a worker with exponential backoff. Adapters: HMAC-signed **webhook**, **Kannaka** memory (`kannaka remember` via `KANNAKA_BIN`), **NATS** subject (`NATS_URL`, plain publish), push to a connected **MCP agent**, public **Atom feed** (`/feed/findings.xml`), and an on-chain **anchor**. Channel secrets are AES-256-GCM encrypted at rest.
+- **Feedback** (`feedback_events`): from the UI, from agents (`submit_feedback` MCP tool), or from a channel consumer via the signed public endpoint `POST /api/loop/feedback/inbound/:channelId` (HMAC with the channel secret). `replication_request`, `dispute`, `question` and `new_prompt` spawn a follow-up study (`LOOP_AUTO_FOLLOWUP=false` to disable). `GET /api/loop/lineage/:findingId` returns the ancestry/descendant graph; `GET /api/loop/stats` counts loop closures.
+
+MCP tools for agents: `generate_study`, `launch_study`, `list_findings`, `get_finding`, `submit_vetting_review`, `subscribe_findings`, `submit_feedback`.
+
+Environment (all optional): `LOOP_MIN_TRIALS` (10), `LOOP_REQUIRE_HUMAN_APPROVAL` (true), `LOOP_AUTO_FOLLOWUP` (true), `LOOP_ENABLE_WORKER` (true), `LOOP_DELIVERY_INTERVAL_MS` (15000), `PUBLIC_BASE_URL` (used in delivery envelopes), `KANNAKA_BIN`, `NATS_URL` / `NATS_USER` / `NATS_PASSWORD`, `AI_STUDY_MODEL`.
+
+The UI lives at `/loop` (pipeline, studies, channels, delivery ledger, feedback timeline, lineage). The Study Designer now persists through the loop, so designs made there are preregistered and launchable.

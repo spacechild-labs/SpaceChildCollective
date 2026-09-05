@@ -165,7 +165,7 @@ export default function PaperEditor() {
           }
           
           // Record blockchain attempt in database
-          await apiRequest('POST', '/api/blockchain/record', {
+          await apiRequest('POST', '/api/blockchain/records', {
             paperId: savedPaperId,
             chain: 'neox',
             dataHash: hashHex,

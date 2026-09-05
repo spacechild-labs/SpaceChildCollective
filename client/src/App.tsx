@@ -28,6 +28,7 @@ const Settings = lazy(() => import("@/pages/settings"));
 const SEODemo = lazy(() => import("@/pages/seo-demo"));
 const StudyDesigner = lazy(() => import("@/pages/study-designer"));
 const Statistics = lazy(() => import("@/pages/statistics"));
+const DiscoveryLoop = lazy(() => import("@/pages/discovery-loop"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const SSOCallbackPage = lazy(() => import("@/pages/sso-callback"));
 const PrivacyPage = lazy(() => import("@/pages/privacy"));
@@ -67,6 +68,7 @@ function Router() {
         <Route path="/experiments" component={Experiments} />
         <Route path="/study-designer" component={StudyDesigner} />
         <Route path="/statistics" component={Statistics} />
+        <Route path="/loop" component={DiscoveryLoop} />
         <Route path="/profile" component={Profile} />
         <Route path="/settings" component={Settings} />
         <Route path="/seo-demo" component={SEODemo} />

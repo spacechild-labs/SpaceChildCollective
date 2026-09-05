@@ -65,6 +65,8 @@ const PUBLIC_MUTATION_PATHS: RegExp[] = [
   /^\/api\/auth\/register$/,
   /^\/api\/auth\/login$/,
   /^\/api\/auth\/logout$/,
+  // Signed inbound feedback from delivery channels (HMAC-verified in the handler).
+  /^\/api\/loop\/feedback\/inbound\/[^/]+$/,
 ];
 
 /**
