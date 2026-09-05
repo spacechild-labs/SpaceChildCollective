@@ -4,6 +4,7 @@ import type { Delivery, DistributionChannel, Finding } from "@shared/schema";
 import { loopStorage } from "../../loop-storage";
 import { storage } from "../../storage";
 import { openFields } from "../../lib/secretbox";
+import { siteUrl } from "../../lib/site-url";
 import { connectionRegistry } from "../../websocket";
 import { publishToBase, publishToNeoX } from "../blockchain";
 
@@ -101,7 +102,7 @@ export function buildEnvelope(finding: Finding, delivery: Pick<Delivery, "id" | 
 }
 
 function baseUrl(): string {
-  return (process.env.PUBLIC_BASE_URL || process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`).replace(/\/$/, "");
+  return siteUrl();
 }
 
 export function findingAsText(f: Finding): string {

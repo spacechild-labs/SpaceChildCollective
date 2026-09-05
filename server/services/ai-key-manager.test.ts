@@ -55,14 +55,16 @@ describe("AIKeyManager persistence", () => {
     expect(restarted.getApiKey(id)).toBe(provider.apiKey);
   });
 
-  it("fails initialization with a different encryption key", async () => {
+  it("skips (does not brick boot on) a provider stored under a different encryption key", async () => {
     const repository = new MemoryProviderRepository();
     const first = new AIKeyManager(repository, "original-secret");
     await first.initialize();
     await first.addProvider(provider);
 
     const restarted = new AIKeyManager(repository, "different-secret");
-    await expect(restarted.initialize()).rejects.toThrow(/Unable to decrypt stored AI provider/);
+    await expect(restarted.initialize()).resolves.toBeUndefined();
+    expect(restarted.getProviders()).toEqual([]);
+    expect(restarted.undecryptable.map((p) => p.name)).toEqual([provider.name]);
   });
 
   it("persists provider deletion", async () => {

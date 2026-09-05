@@ -61,6 +61,8 @@ export class AIKeyManager {
   private usageStats = new Map<string, UsageStats>();
   private encryptionKey: string;
   private repository?: AIProviderConfigRepository;
+  /** Stored providers skipped at boot because they could not be decrypted. */
+  readonly undecryptable: { id: string; name: string }[] = [];
 
   constructor(repository?: AIProviderConfigRepository, encryptionKey = process.env.ENCRYPTION_KEY) {
     // Initialize encryption key from environment, or generate an ephemeral one.
@@ -90,13 +92,17 @@ export class AIKeyManager {
     this.providers.clear();
     for (const record of persisted) {
       try {
-        // Fail during boot rather than discovering an encryption-key mismatch
-        // later in an agent request. Do not include ciphertext in this error.
+        // Detect an encryption-key mismatch at boot, not later inside an agent
+        // request. Do not include ciphertext in this message.
         this.decryptApiKey(record.encryptedApiKey);
       } catch {
-        throw new Error(
-          `Unable to decrypt stored AI provider "${record.name}". Verify ENCRYPTION_KEY matches the key used when it was saved, or replace the stored credential.`,
+        // Skip the record instead of refusing to boot: one rotated key must not
+        // take the whole collective down. The operator re-enters the credential.
+        this.undecryptable.push({ id: record.id, name: record.name });
+        console.error(
+          `[ai-key-manager] Unable to decrypt stored AI provider "${record.name}" (${record.id}); skipping it. Verify ENCRYPTION_KEY matches the key used when it was saved, or replace the stored credential.`,
         );
+        continue;
       }
       this.providers.set(record.id, {
         id: record.id,

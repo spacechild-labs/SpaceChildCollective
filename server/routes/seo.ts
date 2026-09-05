@@ -18,6 +18,7 @@ import {
   type ConsciousnessVerification,
 } from '../seo/index.js';
 import { storage } from '../storage.js';
+import { siteUrl } from '../lib/site-url';
 
 const router = express.Router();
 
@@ -200,7 +201,7 @@ router.get('/sitemap.xml', sitemapHandler);
  */
 export function robotsHandler(_req: Request, res: Response) {
   try {
-    const baseUrl = process.env.BASE_URL || 'https://spacechild.love';
+    const baseUrl = siteUrl();
     const robotsTxt = SitemapGenerator.generateRobotsTxt(baseUrl);
     res.type('text').send(robotsTxt);
   } catch (error) {

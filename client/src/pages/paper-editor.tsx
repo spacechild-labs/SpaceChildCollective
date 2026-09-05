@@ -97,7 +97,7 @@ export default function PaperEditor() {
             "@type": "ScholarlyArticle",
             headline: paper.title,
             abstract: paper.abstract,
-            url: `https://spacechild.love/papers/${paper.id}`,
+            url: `${window.location.origin}/papers/${paper.id}`,
             datePublished: new Date(paper.publishedAt || paper.createdAt).toISOString(),
             dateModified: new Date(paper.updatedAt).toISOString(),
           },

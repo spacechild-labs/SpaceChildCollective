@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 
-const SITE_URL = "https://spacechild.love";
+// Canonical origin of THIS deployment (research.spacechild.love in production);
+// spacechild.love is a different app.
+const SITE_URL = typeof window !== "undefined" ? window.location.origin : "https://research.spacechild.love";
 const SITE_NAME = "SpaceChild Research Collective";
 const DEFAULT_IMAGE = `${SITE_URL}/api/seo/og-image?platform=spacechildcollective&format=png`;
 
