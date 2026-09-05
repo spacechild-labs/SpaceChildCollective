@@ -87,7 +87,6 @@ Allow: /
 
 # Sitemaps
 Sitemap: ${baseUrl}/sitemap.xml
-Sitemap: ${baseUrl}/sitemap-blog.xml
 
 # Fast crawl rate for verified bots
 User-agent: Googlebot

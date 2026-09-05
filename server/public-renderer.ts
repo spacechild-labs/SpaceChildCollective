@@ -49,7 +49,8 @@ function markdownToHtml(markdown: string): string {
     const heading = /^(#{1,6})\s+(.+)$/.exec(line);
     if (heading) {
       flush();
-      const level = heading[1].length;
+      // The page already has one <h1> (the paper title); demote markdown headings by one level.
+      const level = Math.min(6, heading[1].length + 1);
       output.push(`<h${level}>${escapeHtml(heading[2])}</h${level}>`);
     } else if (line.trim()) {
       paragraph.push(line.trim());
