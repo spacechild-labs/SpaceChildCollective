@@ -573,7 +573,7 @@ export const vettingReviews = pgTable("vetting_reviews", {
   findingIdx: index("vetting_reviews_finding_idx").on(t.findingId),
 }));
 
-export type ChannelKind = "webhook" | "kannaka" | "nats" | "mcp_subscriber" | "feed" | "blockchain";
+export type ChannelKind = "webhook" | "kannaka" | "nats" | "mcp_subscriber" | "feed" | "blockchain" | "rf";
 
 export interface ChannelFilters {
   categories?: string[];

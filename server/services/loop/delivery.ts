@@ -10,6 +10,7 @@ import { publishToBase, publishToNeoX } from "../blockchain";
 import { loopEvents } from "./events";
 import { kannakaBridge } from "../kannaka/bridge";
 import { buildInboxMessage } from "../kannaka/helpers";
+import { planRfMessage, rfTxRequest, type RfChannelConfig } from "../kannaka/rf";
 
 /**
  * Delivery: push a routed finding to a channel through the adapter for its
@@ -257,6 +258,25 @@ const blockchainAdapter: Adapter = async (_channel, finding, _envelope, config) 
   }
 };
 
+/**
+ * Amateur radio via a singularis-rf station. Hands a Singularis Compact request to
+ * RF.tx.<station> over the Kannaka bridge and returns "sent" immediately: air time
+ * is minutes per frame, so completion arrives later as RF.tx.<station>.status events
+ * (ref = delivery id) which move the delivery to acknowledged or failed.
+ */
+const rfAdapter: Adapter = async (_channel, finding, envelope, config) => {
+  const cfg = config as RfChannelConfig;
+  if (!cfg.station) return { ok: false, error: "rf channel needs config.station (the singularis-rf station id / callsign)", retryable: false };
+  if (!kannakaBridge.enabled) return { ok: false, error: "rf delivery needs the Kannaka bridge (KANNAKA_NATS_URL)", retryable: false };
+  const plan = planRfMessage(finding, cfg);
+  if (!plan.fits) return { ok: false, error: `finding cannot fit in ${cfg.maxFrames ?? 6} frame(s) even as a bare SIGNAL (${plan.frames.length} needed); raise config.maxFrames`, retryable: false };
+  const request = rfTxRequest(finding, cfg, envelope.deliveryId, plan);
+  const subject = `RF.tx.${String(cfg.station).toUpperCase().replace(/[^A-Z0-9-]/g, "-")}`;
+  const ok = await kannakaBridge.publish(subject, request);
+  if (!ok) return { ok: false, error: `bridge publish failed: ${kannakaBridge.status().lastError ?? "unknown"}`, retryable: true };
+  return { ok: true, receipt: { subject, to: request.to, frames: plan.frames.length, claimChars: plan.claimChars, trimmed: plan.trimmed, preview: plan.frames, awaitingStation: true } };
+};
+
 export const ADAPTERS: Record<DistributionChannel["kind"], Adapter> = {
   webhook: webhookAdapter,
   kannaka: kannakaAdapter,
@@ -264,6 +284,7 @@ export const ADAPTERS: Record<DistributionChannel["kind"], Adapter> = {
   mcp_subscriber: mcpSubscriberAdapter,
   feed: feedAdapter,
   blockchain: blockchainAdapter,
+  rf: rfAdapter,
 };
 
 // ---------------------------------------------------------------------------

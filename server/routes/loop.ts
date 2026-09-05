@@ -318,7 +318,7 @@ loopRouter.post("/findings/:id/archive", requireAuth, async (req, res) => {
 // Channels
 // ---------------------------------------------------------------------------
 
-const CHANNEL_KINDS: ChannelKind[] = ["webhook", "kannaka", "nats", "mcp_subscriber", "feed", "blockchain"];
+const CHANNEL_KINDS: ChannelKind[] = ["webhook", "kannaka", "nats", "mcp_subscriber", "feed", "blockchain", "rf"];
 
 const channelSchema = z.object({
   kind: z.enum(CHANNEL_KINDS as [ChannelKind, ...ChannelKind[]]),
@@ -345,6 +345,11 @@ function validateChannelConfig(kind: ChannelKind, config: Record<string, any>): 
       return config.agentId ? null : "mcp_subscriber channels need config.agentId";
     case "blockchain":
       return config.chain === undefined || config.chain === "base" || config.chain === "neox" ? null : "config.chain must be base or neox";
+    case "rf":
+      if (!config.station || !/^[A-Za-z0-9-]{1,16}$/.test(String(config.station))) return "rf channels need config.station (the singularis-rf station id / callsign, A-Z 0-9 -)";
+      if (config.to && String(config.to) !== "*" && !/^[@A-Za-z0-9-]{1,16}$/.test(String(config.to))) return "config.to must be a callsign, @ALLCALL or *";
+      if (config.maxFrames !== undefined && !(Number(config.maxFrames) >= 1 && Number(config.maxFrames) <= 40)) return "config.maxFrames must be 1-40";
+      return null;
     default:
       return null;
   }

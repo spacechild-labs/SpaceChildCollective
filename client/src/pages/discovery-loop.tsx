@@ -51,6 +51,7 @@ const CHANNEL_KINDS: { kind: ChannelKind; label: string; fields: { key: string; 
   { kind: "mcp_subscriber", label: "Connected MCP agent", fields: [{ key: "agentId", label: "Agent id", placeholder: "user id of the agent" }] },
   { kind: "feed", label: "Public Atom feed", fields: [] },
   { kind: "blockchain", label: "On-chain anchor", fields: [{ key: "chain", label: "Chain", placeholder: "base | neox" }] },
+  { kind: "rf", label: "Amateur radio (singularis-rf station)", fields: [{ key: "station", label: "Station id / callsign (RF.tx.<station>)", placeholder: "AE0RM" }, { key: "to", label: "Destination callsign", placeholder: "* or @ALLCALL for everyone" }, { key: "maxFrames", label: "Frame budget (≈2 min each on JS8)", placeholder: "6" }] },
 ];
 
 const FEEDBACK_KINDS: FeedbackKind[] = ["acknowledgement", "citation", "replication_request", "resonance", "dispute", "question", "new_prompt"];
