@@ -5,6 +5,8 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
+import { renderPublicPage } from "./public-renderer";
+import { storage } from "./storage";
 
 const viteLogger = createLogger();
 
@@ -59,7 +61,13 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
       const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      const pathname = new URL(req.originalUrl, "http://localhost").pathname;
+      const rendered = req.method === "GET"
+        ? await renderPublicPage(page, pathname, storage)
+        : undefined;
+      res.status(rendered?.status ?? 200)
+        .set({ "Content-Type": "text/html" })
+        .end(rendered?.html ?? page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);
@@ -76,10 +84,22 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Assets are static, but index.html must pass through the route-aware renderer.
+  app.use(express.static(distPath, { index: false }));
 
   // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  app.use("*", async (req, res, next) => {
+    try {
+      const template = await fs.promises.readFile(path.resolve(distPath, "index.html"), "utf-8");
+      const pathname = new URL(req.originalUrl, "http://localhost").pathname;
+      const rendered = req.method === "GET"
+        ? await renderPublicPage(template, pathname, storage)
+        : undefined;
+      res.status(rendered?.status ?? 200)
+        .type("html")
+        .send(rendered?.html ?? template);
+    } catch (error) {
+      next(error);
+    }
   });
 }

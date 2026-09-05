@@ -40,6 +40,7 @@ import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi-config";
 import { AuthProvider } from "@/contexts/auth-context";
 import { useAnalytics } from "@/hooks/use-analytics";
+import { publicRouteMetadata, usePageMetadata } from "@/lib/page-metadata";
 
 function PageLoader() {
   return (
@@ -86,6 +87,18 @@ const sidebarRoutes = ["/workspace", "/discover", "/papers", "/profile", "/setti
 
 function AppContent() {
   const [location] = useLocation();
+  const isPublicPaper = /^\/papers\/[^/]+$/.test(location);
+  usePageMetadata(
+    publicRouteMetadata[location] ??
+      (isPublicPaper
+        ? undefined
+        : {
+            title: `Private Application | SpaceChild Research Collective`,
+            description: "SpaceChild Research Collective application.",
+            path: location,
+            noindex: true,
+          }),
+  );
   
   // Track page views for analytics
   useAnalytics();

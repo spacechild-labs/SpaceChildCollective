@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/tabs";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { BLOCKCHAIN_CONFIG, RESEARCH_REGISTRY_ABI, isBlockchainEnabled } from "@/lib/blockchain-config";
+import { usePageMetadata } from "@/lib/page-metadata";
 
 function formatPaperDate(date: Date | string | null | undefined) {
   if (!date) return null;
@@ -82,6 +83,34 @@ export default function PaperEditor() {
     },
     enabled: !!paperId && paperId !== "new",
   });
+
+  usePageMetadata(
+    isViewMode && paper?.status === "published"
+      ? {
+          title: `${paper.title} | SpaceChild Research Collective`,
+          description: paper.abstract.slice(0, 300),
+          path: `/papers/${paper.id}`,
+          image: paper.featuredImageUrl || undefined,
+          type: "article",
+          jsonLd: {
+            "@context": "https://schema.org",
+            "@type": "ScholarlyArticle",
+            headline: paper.title,
+            abstract: paper.abstract,
+            url: `https://spacechild.love/papers/${paper.id}`,
+            datePublished: new Date(paper.publishedAt || paper.createdAt).toISOString(),
+            dateModified: new Date(paper.updatedAt).toISOString(),
+          },
+        }
+      : isViewMode && paper
+        ? {
+            title: "Research Paper Not Public | SpaceChild Research Collective",
+            description: "This research paper is not publicly available.",
+            path: `/papers/${paper.id}`,
+            noindex: true,
+          }
+        : undefined,
+  );
 
   // Populate form when paper data loads
   useEffect(() => {

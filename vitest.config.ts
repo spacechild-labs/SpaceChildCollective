@@ -15,6 +15,6 @@ export default defineConfig({
     // selects the plain pg driver, which does not connect until first query.
     env: { DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://localhost:5432/spacechild_test" },
     include: ["**/*.test.ts"],
-    exclude: ["node_modules/**", "dist/**"],
+    exclude: ["node_modules/**", "dist/**", ".cache/**"],
   },
 });
