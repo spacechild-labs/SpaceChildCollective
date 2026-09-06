@@ -4,6 +4,7 @@ import { feedbackService, FEEDBACK_KINDS } from "../loop/feedback";
 import { loopStorage } from "../../loop-storage";
 import { kannakaBridge, type KannakaBridge } from "./bridge";
 import { SPACECHILD_SUBJECTS, findingEventPayload, findingIdsInText, studyEventPayload } from "./helpers";
+import { deliveryOutcomeForStatus, repliesFromRfMessage } from "./rf";
 
 /**
  * The two directions of the constellation link.
@@ -46,8 +47,58 @@ export class KannakaLoopEvents {
 
     await this.bridge.subscribe(S.feedbackInbound, (p) => this.onInboundFeedback(p));
     await this.bridge.subscribe("KANNAKA.memory.new", (p) => this.onSwarmMemory(p));
-    console.log("[kannaka] loop events wired (outbound SPACECHILD.*, inbound feedback + memory watch)");
+    // Amateur radio: messages heard by any singularis-rf station, and our own transmit outcomes.
+    await this.bridge.subscribe("RF.rx.>", (p, subject) => this.onRfMessage(p, subject));
+    await this.bridge.subscribe("RF.tx.*.status", (p) => this.onRfTxStatus(p));
+    console.log("[kannaka] loop events wired (outbound SPACECHILD.*, inbound feedback + memory watch + RF)");
     return true;
+  }
+
+  /** A Singularis message heard on the air. Blocks that cite SC:<8hex> become feedback on that finding. */
+  async onRfMessage(p: any, subject: string): Promise<void> {
+    const message = p?.message;
+    if (!message || !Array.isArray(message.blocks)) return;
+    const replies = repliesFromRfMessage(message);
+    if (!replies.length) return;
+    const candidates = await loopStorage.listFindings({ limit: 1000 });
+    for (const r of replies) {
+      const finding = candidates.find((f) => f.id.replace(/-/g, "").toLowerCase().startsWith(r.shortId));
+      if (!finding) continue;
+      await feedbackService.ingest({
+        findingId: finding.id,
+        kind: r.kind,
+        payload: {
+          via: "rf",
+          text: r.text || undefined,
+          block_type: r.blockType,
+          from: message.from,
+          to: message.to,
+          message_id: message.messageId,
+          station: p.station ?? subject.split(".").pop(),
+          heard_via: p.heard_via ?? null,
+          frames: Array.isArray(p.frames) ? p.frames.length : undefined,
+        },
+        externalActor: `rf:${message.from}`,
+        // Questions and replication requests from the air spawn follow-ups like any other feedback;
+        // acknowledgements and resonance do not.
+        spawnFollowUp: undefined,
+      });
+    }
+  }
+
+  /** The station's progress on one of our rf deliveries (ref = delivery id). */
+  async onRfTxStatus(p: any): Promise<void> {
+    const ref = typeof p?.ref === "string" ? p.ref : null;
+    if (!ref) return;
+    const outcome = deliveryOutcomeForStatus(p);
+    if (!outcome) return;
+    const delivery = await loopStorage.getDelivery(ref);
+    if (!delivery) return;
+    if (outcome.status === "acknowledged") {
+      if (delivery.status === "sent") await loopStorage.updateDelivery(ref, { status: "acknowledged", ackedAt: new Date(), receipt: { ...(delivery.receipt as object ?? {}), station: p.station, messageId: p.message_id, framesOnAir: p.frames } });
+    } else if (delivery.status === "sent" || delivery.status === "queued") {
+      await loopStorage.updateDelivery(ref, { status: "failed", lastError: `station: ${outcome.error}`, nextAttemptAt: null });
+    }
   }
 
   stop(): void {
