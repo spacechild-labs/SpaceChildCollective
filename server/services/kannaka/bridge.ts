@@ -235,6 +235,11 @@ export class KannakaBridge {
   // Write side
   // ---------------------------------------------------------------------------
 
+  /** Operator-visible diagnostics on SPACECHILD.diag.<kind>: no secrets, short strings only. */
+  async diag(kind: string, payload: Record<string, unknown>): Promise<void> {
+    await this.publish(`SPACECHILD.diag.${kind}`, { node: this.config?.name ?? "unknown", ts: new Date().toISOString(), ...payload });
+  }
+
   async publish(subject: string, payload: unknown): Promise<boolean> {
     const nc = await this.connection();
     if (!nc || !this.codec) return false;
@@ -308,7 +313,13 @@ export class KannakaBridge {
         this.received += 1;
         let payload: any;
         try { payload = JSON.parse(codec.decode(m.data)); } catch { payload = { raw: codec.decode(m.data) }; }
-        try { await handler(payload, m.subject); } catch (err: any) { console.error(`[kannaka] handler for ${m.subject} failed: ${err?.message ?? err}`); }
+        try {
+          await handler(payload, m.subject);
+        } catch (err: any) {
+          console.error(`[kannaka] handler for ${m.subject} failed: ${err?.message ?? err}`);
+          // Deployed logs are not always reachable; put the failure where the operator can hear it.
+          if (!m.subject.startsWith("SPACECHILD.diag.")) void this.diag("handler_error", { subject: m.subject, error: String(err?.message ?? err), stack: String(err?.stack ?? "").split("\n").slice(0, 4).join(" | ") });
+        }
       }
     })().catch(() => { /* unsubscribed */ });
   }
