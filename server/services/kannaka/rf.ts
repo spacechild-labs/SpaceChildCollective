@@ -16,8 +16,10 @@ import { encodeMessage } from "../singularis-rf/codec";
  * tagged `SC:xxxxxxxx`, which fits in a frame and is what a reply must cite.
  */
 
-export const RF_TAG_PREFIX = "SC:";
-const RF_TAG_RE = /\bSC:([0-9a-f]{8})\b/gi;
+// 'SC-' rather than 'SC:' because ':' is reserved in Singularis Compact and would be escaped
+// to %3A on the air; '-' is literal, so the tag reads the same in a raw frame and when decoded.
+export const RF_TAG_PREFIX = "SC-";
+const RF_TAG_RE = /\bSC-([0-9a-f]{8})\b/gi;
 
 export function rfTag(findingId: string): string {
   return `${RF_TAG_PREFIX}${findingId.replace(/-/g, "").slice(0, 8).toLowerCase()}`;
@@ -64,13 +66,15 @@ export function findingToBlocks(finding: Finding, to: string, claimChars: number
   if (ev.effectSize != null) stats.push(`h=${ev.effectSize}`);
   if (finding.simulated) stats.push("simulated");
   const claim = finding.claim.length > claimChars ? `${finding.claim.slice(0, Math.max(0, claimChars - 1)).trimEnd()}…` : finding.claim;
+  // The short id rides in `source`, a short token the encoder never splits across frames, so a
+  // station that hears a single frame still sees which finding it is; the claim is the content.
   const blocks: SingularisBlock[] = [
     {
       type: "SIGNAL",
-      source: "collective",
+      source: rfTag(finding.id),
       destination: to === "*" ? "ALLCALL" : to,
       coherence: Math.max(0, Math.min(100, Math.round(finding.confidence))),
-      content: `${rfTag(finding.id)} ${claim}`,
+      content: claim,
     },
   ];
   if (shape.withTrace) {
@@ -163,7 +167,7 @@ export interface RfReply {
 
 function blockText(b: any): string {
   const parts: string[] = [];
-  for (const k of ["content", "expectation", "subject", "signal", "action", "signalType", "target"]) if (typeof b[k] === "string") parts.push(b[k]);
+  for (const k of ["content", "expectation", "subject", "signal", "action", "signalType", "target", "source"]) if (typeof b[k] === "string") parts.push(b[k]);
   for (const k of ["insights", "observations", "findings", "detect"]) if (Array.isArray(b[k])) parts.push(...b[k].map(String));
   return parts.join(" ");
 }
