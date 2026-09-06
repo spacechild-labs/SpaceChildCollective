@@ -15,9 +15,9 @@ const finding = {
 
 describe("rf tags", () => {
   it("derives an 8-hex short id and finds it in text", () => {
-    expect(rfTag(finding.id)).toBe("SC:8999c7ce");
-    expect(rfTagsInText("ack SC:8999C7CE and SC:deadbeef twice SC:8999c7ce")).toEqual(["8999c7ce", "deadbeef"]);
-    expect(rfTagsInText("no tags here SC:123")).toEqual([]);
+    expect(rfTag(finding.id)).toBe("SC-8999c7ce");
+    expect(rfTagsInText("ack SC-8999C7CE and SC-deadbeef twice SC-8999c7ce")).toEqual(["8999c7ce", "deadbeef"]);
+    expect(rfTagsInText("no tags here SC-123")).toEqual([]);
   });
 
   it("maps confidence to TRACE confidence codes with separation at the boundaries", () => {
@@ -31,13 +31,14 @@ describe("findingToBlocks", () => {
   it("emits SIGNAL + TRACE + AWAIT with the tag, stats and the simulation flag", () => {
     const blocks = findingToBlocks(finding, "AE0RM", 60) as any[];
     expect(blocks.map((b) => b.type)).toEqual(["SIGNAL", "TRACE", "AWAIT"]);
-    expect(blocks[0].content.startsWith("SC:8999c7ce Evidence suggests")).toBe(true);
+    expect(blocks[0].source).toBe("SC-8999c7ce"); // short token: never split across frames
+    expect(blocks[0].content.startsWith("Evidence suggests")).toBe(true);
     expect(blocks[0].content.endsWith("…")).toBe(true);
     expect(blocks[0].coherence).toBe(85);
     expect(blocks[0].destination).toBe("AE0RM");
     expect(blocks[1].observations).toEqual(["n=10", "p=0.21", "h=0.34", "simulated"]);
     expect(blocks[1].confidence).toBe("high");
-    expect(blocks[2].expectation).toBe("reply citing SC:8999c7ce");
+    expect(blocks[2].expectation).toBe("reply citing SC-8999c7ce");
     expect(findingToBlocks(finding, "*", 600)[0]).toMatchObject({ destination: "ALLCALL" });
   });
 });
@@ -51,7 +52,9 @@ describe("planRfMessage", () => {
     for (const f of plan.frames) { expect(f.length).toBeLessThanOrEqual(67); expect(parseFrame(f).crcOk).toBe(true); }
     const decoded = decodeFrames(plan.frames);
     expect(decoded.blocks[0].type).toBe("SIGNAL");
-    expect((decoded.blocks[0] as any).content).toContain("SC:8999c7ce");
+    expect((decoded.blocks[0] as any).source).toBe("SC-8999c7ce");
+    // A station hearing only one frame still sees the whole tag: it must not be split by '~'.
+    expect(plan.frames.some((f) => f.includes("f=SC-8999c7ce"))).toBe(true);
     expect(decoded.blocks.map((b) => b.type)).not.toContain("AWAIT");
   });
 
@@ -89,9 +92,9 @@ describe("planRfMessage", () => {
 describe("repliesFromRfMessage", () => {
   it("turns blocks citing the tag into feedback of the right kind, dropping the tag from the text", () => {
     const replies = repliesFromRfMessage({ blocks: [
-      { type: "GR::PONG", signal: "SC:8999c7ce", detected: true, confidence: 0.8 },
-      { type: "REFLECT", subject: "SC:8999c7ce", insights: ["baseline too generous", "try heterogeneous agents"], confidence: 60 },
-      { type: "AWAIT", expectation: "SC:8999c7ce how was n chosen?", sensitivity: "medium", bias: "none", time: "bounded" },
+      { type: "GR::PONG", signal: "SC-8999c7ce", detected: true, confidence: 0.8 },
+      { type: "REFLECT", subject: "SC-8999c7ce", insights: ["baseline too generous", "try heterogeneous agents"], confidence: 60 },
+      { type: "AWAIT", expectation: "SC-8999c7ce how was n chosen?", sensitivity: "medium", bias: "none", time: "bounded" },
       { type: "OBSERVE", target: "40m", duration: "1h", findings: ["quiet"] },
     ] });
     expect(replies.map((r) => [r.kind, r.blockType])).toEqual([["acknowledgement", "GR::PONG"], ["resonance", "REFLECT"], ["question", "AWAIT"]]);
@@ -102,7 +105,7 @@ describe("repliesFromRfMessage", () => {
 
   it("lets a bare PONG or REFLECT inherit a tag cited elsewhere in the message, and ignores untagged messages", () => {
     const replies = repliesFromRfMessage({ blocks: [
-      { type: "SIGNAL", source: "AE0RM", destination: "COLLECTIVE", coherence: 70, content: "re SC:8999c7ce" },
+      { type: "SIGNAL", source: "AE0RM", destination: "COLLECTIVE", coherence: 70, content: "re SC-8999c7ce" },
       { type: "GR::PONG", detected: true },
     ] });
     expect(replies.map((r) => r.kind)).toEqual(["acknowledgement", "acknowledgement"]);
