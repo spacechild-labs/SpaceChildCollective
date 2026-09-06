@@ -5,6 +5,7 @@ import { loopStorage } from "../../loop-storage";
 import { kannakaBridge, type KannakaBridge } from "./bridge";
 import { SPACECHILD_SUBJECTS, findingEventPayload, findingIdsInText, studyEventPayload } from "./helpers";
 import { deliveryOutcomeForStatus, repliesFromRfMessage } from "./rf";
+import { classifyRfMessage, kannakaWake, parseRfHeard } from "./wake";
 
 /**
  * The two directions of the constellation link.
@@ -50,16 +51,29 @@ export class KannakaLoopEvents {
     // Amateur radio: messages heard by any singularis-rf station, and our own transmit outcomes.
     await this.bridge.subscribe("RF.rx.>", (p, subject) => this.onRfMessage(p, subject));
     await this.bridge.subscribe("RF.tx.*.status", (p) => this.onRfTxStatus(p));
-    console.log("[kannaka] loop events wired (outbound SPACECHILD.*, inbound feedback + memory watch + RF)");
+    // A KAX machine's answer to a wake we sent about an RF-borne finding.
+    await this.bridge.subscribe("KAX.machine.*.outbox", async (p, subject) => { await kannakaWake.onKaxOutbox(p, subject); });
+    console.log("[kannaka] loop events wired (outbound SPACECHILD.*, inbound feedback + memory watch + RF + KAX outbox)");
     return true;
   }
 
-  /** A Singularis message heard on the air. Blocks that cite SC:<8hex> become feedback on that finding. */
+  /**
+   * A Singularis message heard on the air. Blocks that cite one of our findings become feedback
+   * on it; a message that carries its own content is a finding arriving over RF: it enters the
+   * loop as a candidate and wakes Kannaka.
+   */
   async onRfMessage(p: any, subject: string): Promise<void> {
     const message = p?.message;
     if (!message || !Array.isArray(message.blocks)) return;
     const replies = repliesFromRfMessage(message);
-    if (!replies.length) return;
+    if (!replies.length) {
+      const heard = parseRfHeard(p, subject);
+      if (heard && classifyRfMessage(heard.message.blocks).isFinding) {
+        const r = await kannakaWake.onRfFinding(heard);
+        if (r.finding) console.log(`[kannaka] RF finding ${r.finding.id} from ${heard.message.from}; woke: ${r.woke.join(", ") || "nobody (bridge idle)"}`);
+      }
+      return;
+    }
     const candidates = await loopStorage.listFindings({ limit: 1000 });
     for (const r of replies) {
       const finding = candidates.find((f) => f.id.replace(/-/g, "").toLowerCase().startsWith(r.shortId));
