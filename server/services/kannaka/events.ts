@@ -68,9 +68,18 @@ export class KannakaLoopEvents {
     const replies = repliesFromRfMessage(message);
     if (!replies.length) {
       const heard = parseRfHeard(p, subject);
-      if (heard && classifyRfMessage(heard.message.blocks).isFinding) {
-        const r = await kannakaWake.onRfFinding(heard);
-        if (r.finding) console.log(`[kannaka] RF finding ${r.finding.id} from ${heard.message.from}; woke: ${r.woke.join(", ") || "nobody (bridge idle)"}`);
+      const cls = heard ? classifyRfMessage(heard.message.blocks) : null;
+      if (heard && cls?.isFinding) {
+        try {
+          const r = await kannakaWake.onRfFinding(heard);
+          console.log(`[kannaka] RF finding ${r.finding?.id ?? "?"} from ${heard.message.from}; woke: ${r.woke.join(", ") || "nobody (bridge idle)"}`);
+          await this.bridge.diag("rf", { subject, from: heard.message.from, isFinding: true, findingId: r.finding?.id ?? null, woke: r.woke });
+        } catch (err: any) {
+          await this.bridge.diag("rf", { subject, from: heard.message.from, isFinding: true, error: String(err?.message ?? err), stack: String(err?.stack ?? "").split("\n").slice(0, 4).join(" | ") });
+          throw err;
+        }
+      } else {
+        await this.bridge.diag("rf", { subject, parsed: Boolean(heard), isFinding: false, kinds: cls?.kinds ?? [], claim: cls?.claim ?? null });
       }
       return;
     }
