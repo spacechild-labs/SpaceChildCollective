@@ -95,6 +95,17 @@ describe("wakePrompt / reflectionBlocks", () => {
     const [long] = reflectionBlocks("x".repeat(200), finding.id) as any[];
     expect(long.insights[0].length).toBeLessThanOrEqual(90);
   });
+
+  it("drops Kannaka's recall scaffolding so air time carries only the reflection (seen live 09-06: 2 of 3 insights were preamble)", () => {
+    const answer = "`recall` — let me surface what the medium holds on phase lock. [pulling 3 resonant wavefronts from the HRM...] **Phase lock after link loss**: The heartbeat channel carries a shared clock. Four minutes matches the decay I measured in the coupled-LFO run. I would ask W1AW whether the agents were co-located.";
+    const [b] = reflectionBlocks(answer, finding.id) as any[];
+    expect(b.insights).toEqual([
+      "The heartbeat channel carries a shared clock.",
+      "Four minutes matches the decay I measured in the coupled-LFO run.",
+      "I would ask W1AW whether the agents were co-located.",
+    ]);
+    for (const s of b.insights) expect(s).not.toMatch(/recall|\[|\*\*/);
+  });
 });
 
 describe("wakeConfigFromEnv", () => {

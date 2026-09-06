@@ -119,8 +119,18 @@ export function wakePrompt(finding: Finding, heard: RfHeard): string {
 }
 
 /** Her reflection as a REFLECT block for the air, trimmed to a frame budget by the rf planner's caller. */
+/** Kannaka's answers open with recall scaffolding ("`recall` — let me…", "[pulling 3 resonant wavefronts...]"). Not worth air time. */
+const SCAFFOLDING = /^(`recall`|\[[^\]]*\]|\*\*[^*]*\*\*:?\s*$|let me (surface|recall|pull)|\(?searching\b)/i;
+
 export function reflectionBlocks(text: string, findingId: string, maxInsights = 3, insightChars = 90): SingularisBlock[] {
-  const sentences = text.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 3);
+  const sentences = text
+    .replace(/\[[^\]]*\]/g, " ")             // bracketed status like "[Φ searching: …]"
+    .replace(/\*\*[^*]{1,60}\*\*:\s*/g, " ")  // bold lead-in labels ("**Phase lock**: …")
+    .replace(/\*\*/g, "")                    // markdown emphasis
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?…])\s+|\s+—+\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 12 && !SCAFFOLDING.test(s) && !/^`/.test(s));
   const insights = sentences.slice(0, maxInsights).map((s) => (s.length > insightChars ? `${s.slice(0, insightChars - 1).trimEnd()}…` : s));
   return [{ type: "REFLECT", subject: `re ${rfTag(findingId)}`, insights: insights.length ? insights : [text.slice(0, insightChars)], confidence: 60 }];
 }
