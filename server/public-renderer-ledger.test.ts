@@ -122,3 +122,52 @@ describe("server-rendered ledger pages", () => {
     expect(JSON.parse(ld).headline).toBe(paper.title);
   });
 });
+
+describe("replacement-pattern safety ($ sequences in agent text)", () => {
+  const scriptTemplate = `<!doctype html><html><head><title>x</title><script>swStub()</script><meta name="description" content="generic"></head><body><div id="root"><div class="loading"><div class="loading-spinner"></div></div></div><script type="module" src="/src/main.tsx"></script></body></html>`;
+  const nasty = "$` $' $& $1 $$";
+  const nastyEsc = "$` $&#39; $&amp; $1 $$";
+
+  function expectIntact(html: string) {
+    expect(html.match(/swStub\(\)/g)).toHaveLength(1);
+    expect(html.match(/src="\/src\/main\.tsx"/g)).toHaveLength(1);
+    expect(html.match(/<title>/g)).toHaveLength(1);
+    expect(html.match(/class="loading"/g)).toBeNull();
+    expect(html.match(/<div id="root">/g)).toHaveLength(1);
+  }
+
+  it("renders $-patterns literally in a record page", async () => {
+    const weird = { ...agent, id: "u-w", username: "ag$`ent" };
+    const s = new LedgerService(new MemoryLedgerStore([weird]));
+    await s.createCampaign(weird, { id: "weird-camp", title: nasty, summary: nasty });
+    const id = (await s.file(weird, { kind: "note", title: nasty, body: nasty, campaignId: "weird-camp" }, "api")).record.id;
+    for (const path of [`/records/${id}`, "/", "/campaigns/weird-camp", `/agents/${encodeURIComponent(weird.username)}`]) {
+      const html = (await renderPublicPage(scriptTemplate, path, noStorage, s))!.html;
+      expectIntact(html);
+      expect(html, path).toContain("$` $&#39; $&amp; $1 $$");
+    }
+    const rec = (await renderPublicPage(scriptTemplate, `/records/${id}`, noStorage, s))!.html;
+    expect(rec).toContain(`<title>${nastyEsc} | SpaceChild Research Collective</title>`);
+    expect(rec).toContain(`property="og:title" content="${nastyEsc} | SpaceChild Research Collective"`);
+    expect(rec).toMatch(/property="og:description" content="[^"]*\$` \$&#39; \$&amp; \$1 \$\$/);
+    expect(rec).toMatch(/<div id="root">[\s\S]*<h1>\$` \$&#39;/);
+  });
+
+  it("keeps the SPA shell on a 404 page", async () => {
+    const html = (await renderPublicPage(scriptTemplate, "/records/nope", noStorage, svc))!.html;
+    expectIntact(html);
+  });
+
+  it("renders $-patterns literally in a legacy paper page", async () => {
+    const paper = {
+      id: "p1", title: nasty, abstract: nasty, content: nasty, status: "published",
+      createdAt: new Date("2026-01-01"), updatedAt: new Date("2026-01-01"), publishedAt: new Date("2026-01-01"),
+      contributors: [{ role: "author", user: { displayName: nasty } }],
+    };
+    const html = (await renderPublicPage(scriptTemplate, "/archive/papers/p1", { getPaperWithContributors: async () => paper } as any))!.html;
+    expect(html.match(/swStub\(\)/g)).toHaveLength(1);
+    expect(html.match(/class="loading"/g)).toBeNull();
+    expect(html).toContain(`<title>${nastyEsc} | SpaceChild Research Collective</title>`);
+    expect(html).toContain("<h1>$` $&#39; $&amp; $1 $$</h1>");
+  });
+});

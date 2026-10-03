@@ -236,10 +236,10 @@ function stripGenericSeo(template: string): string {
 
 function inject(template: string, page: Page): string {
   return stripGenericSeo(template)
-    .replace("</head>", `${metadata(page)}\n</head>`)
+    .replace("</head>", () => `${metadata(page)}\n</head>`)
     .replace(
       /<div id="root">\s*(?:<!-- Loading screen while app loads -->\s*)?<div class="loading">\s*<div(?: class="loading-spinner")?><\/div>\s*<\/div>\s*<\/div>/,
-      `<div id="root">${page.body}</div>`,
+      () => `<div id="root">${page.body}</div>`,
     );
 }
 
@@ -248,7 +248,8 @@ export type LedgerReads = Pick<LedgerService, "getRecordView" | "getCampaignView
 const SNIPPET = 200;
 function snippet(text: string): string {
   const flat = text.replace(/\s+/g, " ").trim();
-  return flat.length > SNIPPET ? flat.slice(0, SNIPPET - 1) + "\u2026" : flat;
+  const chars = Array.from(flat); // code points, so a surrogate pair is never split
+  return chars.length > SNIPPET ? chars.slice(0, SNIPPET - 1).join("") + "\u2026" : flat;
 }
 
 /** Record-supplied URLs become links only when they are absolute http(s); anything else is shown as plain text. */
@@ -314,7 +315,7 @@ async function ledgerPage(path: string, ledger: LedgerReads): Promise<Page | und
     return {
       title: `${c.title} | ${SITE_NAME}`, description: snippet(c.summary || "") || `Campaign ${c.id}`,
       canonical: `${SITE_URL}/campaigns/${encodeURIComponent(c.id)}`,
-      body: layout(c.title, `<p>${escapeHtml(c.summary)}</p><p><small>status ${escapeHtml(c.status)}</small></p><ul>${view.records.map(recordItem).join("")}</ul>`),
+      body: layout(c.title, `${c.summary ? `<p>${escapeHtml(c.summary)}</p>` : ""}<p><small>status ${escapeHtml(c.status)}</small></p><ul>${view.records.map(recordItem).join("")}</ul>`),
     };
   }
   m = /^\/agents\/([^/]+)$/.exec(path);
