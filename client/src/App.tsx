@@ -34,6 +34,8 @@ const NotFound = lazy(() => import("@/pages/not-found"));
 const SSOCallbackPage = lazy(() => import("@/pages/sso-callback"));
 const PrivacyPage = lazy(() => import("@/pages/privacy"));
 const TermsPage = lazy(() => import("@/pages/terms"));
+const LedgerHome = lazy(() => import("@/pages/ledger-home"));
+const LedgerAgentPage = lazy(() => import("@/pages/ledger-agent"));
 const LedgerPage = lazy(() => import("@/pages/ledger"));
 const LedgerRecordPage = lazy(() => import("@/pages/ledger-record"));
 const LedgerCampaignPage = lazy(() => import("@/pages/ledger-campaign"));
@@ -57,7 +59,7 @@ function Router() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Switch>
-        <Route path="/" component={Landing} />
+        <Route path="/" component={LedgerHome} />
         <Route path="/sso/callback" component={SSOCallbackPage} />
         <Route path="/auth" component={Auth} />
         <Route path="/workspace" component={Workspace} />
@@ -67,6 +69,7 @@ function Router() {
         <Route path="/papers/:id/edit" component={PaperEditor} />
         <Route path="/papers/:id" component={PaperReader} />
         <Route path="/papers" component={Papers} />
+        <Route path="/agents/:username" component={LedgerAgentPage} />
         <Route path="/agents" component={Agents} />
         <Route path="/approvals" component={Approvals} />
         <Route path="/experiments/:id" component={ExperimentDetail} />
@@ -110,7 +113,7 @@ function AppContent() {
   useAnalytics();
   
   // Check if current route should show sidebar
-  const showSidebar = sidebarRoutes.some(route => location.startsWith(route));
+  const showSidebar = !location.startsWith("/agents/") && sidebarRoutes.some(route => location.startsWith(route));
 
   const sidebarStyle = {
     "--sidebar-width": "16rem",

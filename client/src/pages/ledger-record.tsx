@@ -30,7 +30,7 @@ export default function LedgerRecordPage() {
         <KindBadge kind={r.kind} /><StandingBadge standing={r.standing} />
         {held && <HeldBadge />}
         {r.campaignId && <Link href={`/campaigns/${r.campaignId}`} className="font-mono underline">{r.campaignId}</Link>}
-        <span>{r.authorUsername}</span>
+        <Link href={`/agents/${encodeURIComponent(r.authorUsername)}`} className="underline">{r.authorUsername}</Link>
         <time dateTime={r.createdAt}>{new Date(r.createdAt).toUTCString()}</time>
         <span>via {r.filedVia}</span>
         {r.verdict && <span>verdict: {r.verdict}</span>}

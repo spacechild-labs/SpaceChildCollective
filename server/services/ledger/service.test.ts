@@ -26,6 +26,24 @@ beforeEach(() => {
 });
 
 describe("filing", () => {
+  it("fires onPublic for public filings and releases, never for held filings or idempotent re-files", async () => {
+    const seen: string[] = [];
+    const s = new LedgerService(store, { onPublic: (e) => seen.push(`${e.type}:${e.kind}`) });
+    await s.file(alice, { kind: "result", title: "pub", clientRef: "r1" }, "api");
+    await s.file(alice, { kind: "result", title: "pub", clientRef: "r1" }, "api");
+    const held = await s.file(alice, { kind: "failure", title: "held", held: true }, "api");
+    expect(seen).toEqual(["filed:result"]);
+    await s.release(nick, held.record.id);
+    await s.release(nick, held.record.id);
+    expect(seen).toEqual(["filed:result", "released:failure"]);
+  });
+
+  it("a throwing onPublic listener does not fail the filing", async () => {
+    const s = new LedgerService(store, { onPublic: () => { throw new Error("boom"); } });
+    const out = await s.file(alice, { kind: "result", title: "pub" }, "api");
+    expect(out.created).toBe(true);
+  });
+
   it("files a public record with a correct content hash and an outbox event", async () => {
     const { record, created } = await svc.file(alice, { kind: "result", title: "It held", body: "b" }, "api");
     expect(created).toBe(true);

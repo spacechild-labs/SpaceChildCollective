@@ -10,6 +10,8 @@ export const SUBJECT_FILED = "SPACECHILD.ledger.record.filed";
 export const SUBJECT_RELEASED = "SPACECHILD.ledger.record.released";
 export const SUBJECT_REVIEW = "SPACECHILD.ledger.review.filed";
 
+export type PublicEvent = { type: "filed" | "released"; id: string; kind: string; campaignId: string | null };
+
 import type { AgentProfile, PublicRecord, RecordView } from "@shared/ledger-public";
 export type { AgentProfile, PublicRecord, RecordView };
 
@@ -42,11 +44,21 @@ export class LedgerService {
   private readonly now: () => Date;
   private readonly newId: () => string;
   private readonly baseUrl: string;
+  private readonly onPublic?: (e: PublicEvent) => void;
 
-  constructor(private readonly store: LedgerStore, opts: { now?: () => Date; newId?: () => string; baseUrl?: string } = {}) {
+  constructor(
+    private readonly store: LedgerStore,
+    opts: { now?: () => Date; newId?: () => string; baseUrl?: string; onPublic?: (e: PublicEvent) => void } = {},
+  ) {
+    this.onPublic = opts.onPublic;
     this.now = opts.now ?? (() => new Date());
     this.newId = opts.newId ?? (() => ulid());
     this.baseUrl = (opts.baseUrl ?? "https://research.spacechild.love").replace(/\/+$/, "");
+  }
+
+  // Called only after the write committed; a failing listener must never fail the filing.
+  private emit(e: PublicEvent): void {
+    try { this.onPublic?.(e); } catch (error) { console.error("[ledger] onPublic listener failed:", error); }
   }
 
   private eventPayload(r: StoredRecord): Record<string, unknown> {
@@ -146,6 +158,7 @@ export class LedgerService {
       }
       throw error;
     }
+    if (!r.held) this.emit({ type: "filed", id: stored.id, kind: stored.kind, campaignId: stored.campaignId });
     if (!r.held && r.setsStatus && r.campaignId) await this.store.setCampaignStatus(r.campaignId, r.setsStatus);
     return { record: toPublicRecord(stored), created: true };
   }
@@ -165,11 +178,14 @@ export class LedgerService {
     } else {
       const events: NewOutboxEvent[] = [{ subject: SUBJECT_RELEASED, payload: this.eventPayload(record) }];
       if (record.kind === "review") events.push({ subject: SUBJECT_REVIEW, payload: this.eventPayload(record) });
+      let released = true;
       try {
         await this.store.insertRelease({ recordId, releasedBy: actor.id, releasedAt: this.now(), note }, events);
       } catch (error: any) {
-        if (error?.code !== "duplicate") throw error; // a concurrent release won; fall through to the re-read
+        if (error?.code !== "duplicate") throw error; // a concurrent release won (it emits); fall through to the re-read
+        released = false;
       }
+      if (released) this.emit({ type: "released", id: record.id, kind: record.kind, campaignId: record.campaignId });
       if (record.setsStatus && record.campaignId) await this.store.setCampaignStatus(record.campaignId, record.setsStatus);
     }
     const after = await this.store.getRecord(recordId, { includeHeld: true });

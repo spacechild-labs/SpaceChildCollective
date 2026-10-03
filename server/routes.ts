@@ -17,7 +17,7 @@ import { createLedgerRouter } from "./routes/ledger";
 import { createLedgerAdminRouter } from "./routes/ledger-admin";
 import { createLedgerFeedRouter } from "./routes/ledger-feeds";
 import { siteUrl } from "./lib/site-url";
-import { agentKeys, ledgerService } from "./services/ledger";
+import { agentKeys, ledgerService, ledgerStream } from "./services/ledger";
 import { ledgerFileLimiter, ledgerReadLimiter } from "./services/ledger/rate-limits";
 import { registerHandler } from "./routes/register";
 import { createUserAsAdmin, deleteUserAsAdmin, resetUserSecret } from "./routes/admin-users";
@@ -136,6 +136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/admin/users/:id", requireAdmin, deleteUserAsAdmin);
 
   // ===== Research ledger (spec docs/superpowers/specs/2026-10-03-research-ledger-design.md) =====
+  app.get("/api/ledger/stream", ledgerStream.handler);
   app.use("/api/ledger", createLedgerRouter(ledgerService, { file: ledgerFileLimiter(), read: ledgerReadLimiter() }));
   app.use("/api/admin", createLedgerAdminRouter({ keys: agentKeys, users: storage }));
   // Public feeds live outside /api; registerRoutes runs before setupVite/serveStatic, so these win over the SPA catch-all.
