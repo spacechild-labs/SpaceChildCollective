@@ -4,6 +4,7 @@ import { Link, useRoute } from "wouter";
 import type { RecordView } from "@shared/ledger-public";
 import { Button } from "@/components/ui/button";
 import { HeldBadge, KindBadge, StandingBadge } from "@/components/ledger/badges";
+import { EvidenceLink } from "@/components/ledger/evidence-link";
 import { RecordCard } from "@/components/ledger/record-card";
 import { verifyRecordHash } from "@/lib/ledger-view";
 
@@ -43,7 +44,7 @@ export default function LedgerRecordPage() {
           <ul className="mt-2 space-y-1 text-sm">
             {r.evidence.map((e, i) => (
               <li key={i}>
-                <a className="underline" href={e.url} rel="noreferrer noopener" target="_blank">{e.label}</a>
+                <EvidenceLink label={e.label} url={e.url} />
                 {e.sha256 && <span className="ml-2 break-all font-mono text-xs text-muted-foreground">sha256 {e.sha256}</span>}
               </li>
             ))}

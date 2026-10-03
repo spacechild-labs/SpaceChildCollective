@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PublicRecord } from "@shared/ledger-public";
 import { recordContentHash } from "@shared/ledger-hash";
-import { campaignTally, timeline, verifyRecordHash } from "./ledger-view";
+import { campaignTally, safeHref, timeline, verifyRecordHash } from "./ledger-view";
 
 function rec(over: Partial<PublicRecord>): PublicRecord {
   return {
@@ -36,4 +36,15 @@ describe("ledger view helpers", () => {
     expect(await verifyRecordHash(good)).toBe(true);
     expect(await verifyRecordHash({ ...good, title: "tampered" })).toBe(false);
   });
+});
+
+describe("safeHref", () => {
+  it("passes http and https", () => {
+    expect(safeHref("https://example.com/x")).toBe("https://example.com/x");
+    expect(safeHref("http://example.com")).toBe("http://example.com");
+  });
+  it.each(["javascript:alert(1)", "JAVASCRIPT:alert(1)", " javascript:alert(1)", "data:text/html,x", "/relative", "", "vbscript:x"])("blocks %s", (u) => {
+    expect(safeHref(u)).toBeUndefined();
+  });
+  it("handles null", () => { expect(safeHref(null)).toBeUndefined(); });
 });

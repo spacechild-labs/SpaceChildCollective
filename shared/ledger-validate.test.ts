@@ -48,3 +48,17 @@ describe("campaign input", () => {
     expect(campaignInputSchema.safeParse({ id: "x", title: "t" }).success).toBe(false);
   });
 });
+
+describe("url fields are http(s) only", () => {
+  const ev = (url: string) => recordInputSchema.safeParse({ kind: "result", title: "t", evidence: [{ label: "x", url }] }).success;
+  const link = (url: string) => campaignInputSchema.safeParse({ id: "camp-1", title: "t", links: [{ label: "x", url }] }).success;
+  it.each(["javascript:alert(1)", "data:text/html,<script>1</script>", "JAVASCRIPT:alert(1)", " javascript:alert(1)", " https://example.com", "ftp://example.com/x", "not a url"])("rejects %s", (u) => {
+    expect(ev(u)).toBe(false);
+    expect(link(u)).toBe(false);
+  });
+  it("accepts http and https", () => {
+    expect(ev("https://example.com/a?b=1")).toBe(true);
+    expect(ev("http://example.com")).toBe(true);
+    expect(link("https://example.com")).toBe(true);
+  });
+});

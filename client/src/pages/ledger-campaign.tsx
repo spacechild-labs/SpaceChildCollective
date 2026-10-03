@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import type { LedgerCampaign } from "@shared/ledger-schema";
 import type { PublicRecord } from "@shared/ledger-public";
+import { EvidenceLink } from "@/components/ledger/evidence-link";
 import { RecordCard } from "@/components/ledger/record-card";
 import { campaignTally, timeline } from "@/lib/ledger-view";
 
@@ -33,7 +34,7 @@ export default function LedgerCampaignPage() {
           <h2 className="text-sm font-semibold">All evidence</h2>
           <ul className="mt-2 space-y-1 text-xs">
             {evidence.map((e, i) => (
-              <li key={i}><a className="underline" href={e.url} rel="noreferrer noopener" target="_blank">{e.label}</a>{e.sha256 && <span className="ml-2 font-mono">{e.sha256}</span>}</li>
+              <li key={i}><EvidenceLink label={e.label} url={e.url} />{e.sha256 && <span className="ml-2 font-mono">{e.sha256}</span>}</li>
             ))}
           </ul>
         </section>

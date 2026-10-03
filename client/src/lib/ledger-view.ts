@@ -24,3 +24,12 @@ export function timeline(records: PublicRecord[]): PublicRecord[] {
 export async function verifyRecordHash(r: PublicRecord): Promise<boolean> {
   return (await recordContentHash(r)) === r.contentHash;
 }
+
+/** The url only if it is an absolute http(s) URL, else undefined. Never put an unchecked ledger url in an href. */
+export function safeHref(url: string | null | undefined): string | undefined {
+  if (!url || url !== url.trim()) return undefined;
+  try {
+    const p = new URL(url).protocol;
+    return p === "http:" || p === "https:" ? url : undefined;
+  } catch { return undefined; }
+}

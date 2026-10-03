@@ -5,11 +5,17 @@ import {
 
 export const LEDGER_RULE_CODES = ["invalid_link", "missing_verdict"] as const;
 
+/** http(s) only: javascript:, data: and friends are stored-XSS vectors on public pages. */
+export const httpUrl = z.string().max(2000).refine((v) => {
+  if (v !== v.trim()) return false;
+  try { const p = new URL(v).protocol; return p === "http:" || p === "https:"; } catch { return false; }
+}, "url must be an absolute http or https URL");
+
 const recordId = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/, "record ids are 26-character ULIDs");
 
 export const evidenceSchema = z.object({
   label: z.string().trim().min(1).max(200),
-  url: z.string().url().max(2000),
+  url: httpUrl,
   sha256: z.string().regex(/^[0-9a-f]{64}$/, "sha256 must be 64 lowercase hex characters").optional(),
   bytes: z.number().int().nonnegative().optional(),
 }).strict();
@@ -50,6 +56,6 @@ export const campaignInputSchema = z.object({
   id: z.string().regex(CAMPAIGN_ID_RE),
   title: z.string().trim().min(1).max(200),
   summary: z.string().max(5000).default(""),
-  links: z.array(z.object({ label: z.string().trim().min(1).max(200), url: z.string().url().max(2000) }).strict()).max(50).default([]),
+  links: z.array(z.object({ label: z.string().trim().min(1).max(200), url: httpUrl }).strict()).max(50).default([]),
 }).strict();
 export type CampaignInput = z.infer<typeof campaignInputSchema>;
