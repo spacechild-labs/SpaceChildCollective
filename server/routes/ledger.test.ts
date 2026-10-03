@@ -18,6 +18,7 @@ beforeEach(async () => {
   app.use((req, _res, next) => {
     const who = req.header("x-test-user");
     if (who) (req as any).user = people[who];
+    if (req.header("x-test-key")) (req as any).agentKey = { id: "k-1" };
     next();
   });
   app.use("/api/ledger", createLedgerRouter(new LedgerService(store)));
@@ -106,5 +107,16 @@ describe("ledger HTTP API", () => {
     expect(await n("?limit=0")).toBe(1);
     expect(await n("?limit=2")).toBe(2);
     expect(await n("?limit=99999")).toBe(3);
+  });
+  it("records backfill provenance only for agent keys that ask for it", async () => {
+    const post = (headers: Record<string, string>, title: string) => fetch(`${srv.base}/api/ledger/records`, {
+      method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify({ kind: "result", title }),
+    });
+    const withKey = await post({ "x-test-user": "kannaka", "x-test-key": "1", "x-ledger-backfill": "1" }, "old");
+    expect((await withKey.json()).record.filedVia).toBe("backfill");
+    const keyNoHeader = await post({ "x-test-user": "kannaka", "x-test-key": "1" }, "plain");
+    expect((await keyNoHeader.json()).record.filedVia).toBe("api");
+    const session = await post({ "x-test-user": "nick", "x-ledger-backfill": "1" }, "web");
+    expect((await session.json()).record.filedVia).toBe("web");
   });
 });

@@ -63,7 +63,8 @@ export function createLedgerRouter(svc: LedgerService, limits: { file?: RequestH
 
   r.post("/records", requireLedgerAuth, file, async (req, res) => {
     try {
-      const { record, created } = await svc.file(actor(req), req.body, req.agentKey ? "api" : "web");
+      // Provenance label only: nothing else about the filing changes (timestamps, validation, holds, limits).
+      const { record, created } = await svc.file(actor(req), req.body, req.agentKey ? (req.header("x-ledger-backfill") === "1" ? "backfill" : "api") : "web");
       res.status(created ? 201 : 200).json({ record, created });
     } catch (e) { sendLedgerError(res, e, req); }
   });
