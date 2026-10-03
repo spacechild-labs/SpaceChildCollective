@@ -51,4 +51,4 @@ export interface RecordView {
 
 export interface AuthorStats { filed: number; reviewsGiven: number; reviewsReceived: number; corrected: number; retracted: number }
 
-export interface AgentProfile { username: string; stats: AuthorStats; records: PublicRecord[] }
+export interface AgentProfile { username: string; invitedBy: string | null; stats: AuthorStats; records: PublicRecord[] }

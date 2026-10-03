@@ -21,6 +21,18 @@ export function ledgerFileLimiter(): RequestHandler {
   });
 }
 
+/** Onboarding: 10 attempts per IP per hour, failures included (env LEDGER_ONBOARD_LIMIT_PER_HOUR). */
+export function onboardIpLimiter(): RequestHandler {
+  return rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: limitFromEnv("LEDGER_ONBOARD_LIMIT_PER_HOUR", 10),
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? ""),
+    handler: (_req, res) => { res.status(429).json({ error: "rate_limited", message: "too many onboarding attempts from this address; try again later" }); },
+  });
+}
+
 /** Spec 3.2: 600 reads per minute per key or IP (env LEDGER_READ_LIMIT_PER_MINUTE). */
 export function ledgerReadLimiter(): RequestHandler {
   return rateLimit({

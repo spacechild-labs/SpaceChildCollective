@@ -6,6 +6,7 @@ import type { InsertUser, User } from "@shared/schema";
 import { sanitizeUser } from "../lib/sanitize";
 import { siteUrl } from "../lib/site-url";
 import { isValidEd25519PublicKey, type AgentKeyService } from "../services/ledger/agent-keys";
+import type { InviteService } from "../services/ledger/invites";
 import { requireLedgerAdmin, sendLedgerError } from "./ledger";
 
 /** Registration has no username rule of its own (any non-empty string), so the agent form uses this one. */
@@ -16,6 +17,7 @@ const addAgentSchema = z.object({
   keyName: z.string().trim().min(1, "Key name must be 1-64 characters").max(64, "Key name must be 1-64 characters").optional(),
   ed25519PublicKey: z.string().trim().optional().transform((v) => v || undefined)
     .refine((v) => v === undefined || isValidEd25519PublicKey(v), "The NATS signing public key must be a 32-byte key in base64"),
+  canInvite: z.boolean().optional(),
 });
 
 export type LedgerAdminUsers = {
@@ -27,7 +29,7 @@ export type LedgerAdminUsers = {
   getAllUsers(): Promise<User[]>;
 };
 
-export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: LedgerAdminUsers }): Router {
+export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: LedgerAdminUsers; invites: InviteService }): Router {
   const r = Router();
   r.use(requireLedgerAdmin);
 
@@ -39,7 +41,7 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
         res.status(400).json({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "invalid input" });
         return;
       }
-      const { username, displayName, keyName: givenKeyName, ed25519PublicKey } = parsed.data;
+      const { username, displayName, keyName: givenKeyName, ed25519PublicKey, canInvite } = parsed.data;
       const existing = await deps.users.getUserByUsername(username);
       if (existing && (existing.userType !== "agent" || existing.role === "admin")) {
         res.status(409).json({ error: "forbidden", message: `${username} is a human/admin account; agent keys can only belong to agent accounts` });
@@ -64,6 +66,12 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
         }
         created = true;
       }
+      if (canInvite === true && !user.canInvite) {
+        try { user = await deps.users.updateUser(user.id, { canInvite: true }); } catch (e) {
+          if (created) await deps.users.deleteUser(user.id).catch((d) => console.error("[ledger] could not roll back new agent account", user!.id, d));
+          throw e;
+        }
+      }
       // An agent that already has active keys gets "key-<n>" rather than another "default".
       const activeKeys = created ? 0 : (await deps.keys.list(user.id)).filter((k) => !k.revokedAt).length;
       const keyName = givenKeyName ?? (activeKeys > 0 ? `key-${activeKeys + 1}` : "default");
@@ -80,7 +88,7 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
       const { key, secret } = issued;
       res.status(created ? 201 : 200).json({
         created,
-        user: { id: user.id, username: user.username, displayName: user.displayName },
+        user: { id: user.id, username: user.username, displayName: user.displayName, canInvite: Boolean(user.canInvite) },
         key: { id: key.id, name: key.name, prefix: key.prefix, hasEd25519: Boolean(key.ed25519PublicKey) },
         secret,
         setup: { baseUrl: siteUrl(), keyId: key.id, quickstartUrl: `${siteUrl()}/ledger/agent-guide` },
@@ -90,7 +98,9 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
 
   r.get("/agents", async (req, res) => {
     try {
-      const agents = (await deps.users.getAllUsers())
+      const everyone = await deps.users.getAllUsers();
+      const nameById = new Map(everyone.map((u) => [u.id, u.username]));
+      const agents = everyone
         .filter((u) => u.userType === "agent" && u.role !== "admin")
         .sort((a, b) => (a.username < b.username ? -1 : a.username > b.username ? 1 : 0));
       res.json(await Promise.all(agents.map(async (u) => {
@@ -98,6 +108,7 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
         const used = keys.map((k) => (k.lastUsedAt ? new Date(k.lastUsedAt).getTime() : 0)).filter(Boolean);
         return {
           id: u.id, username: u.username, displayName: u.displayName, canRelease: Boolean(u.canRelease),
+          canInvite: Boolean(u.canInvite), invitedBy: (u.invitedBy && nameById.get(u.invitedBy)) || null,
           activeKeys: keys.filter((k) => !k.revokedAt).length,
           lastUsedAt: used.length ? new Date(Math.max(...used)).toISOString() : null,
         };
@@ -127,6 +138,24 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
       if (canRelease && user.userType === "agent") { res.status(400).json({ error: "agents_cannot_release" }); return; }
       res.json(sanitizeUser(await deps.users.updateUser(user.id, { canRelease })));
     } catch (e) { sendLedgerError(res, e, req); }
+  });
+
+  r.post("/users/:id/can-invite", async (req, res) => {
+    const canInvite = req.body?.canInvite;
+    if (typeof canInvite !== "boolean") {
+      res.status(400).json({ error: "invalid_input", message: "canInvite must be true or false" });
+      return;
+    }
+    try { res.json(sanitizeUser(await deps.invites.setCanInvite(req.params.id, canInvite))); } catch (e) { sendLedgerError(res, e, req); }
+  });
+
+  // Read-only: what a revoke-chain would cut right now, so the confirm can state the counts before anything happens.
+  r.get("/users/:id/revoke-chain/preview", async (req, res) => {
+    try { res.json(await deps.invites.previewChain(req.params.id)); } catch (e) { sendLedgerError(res, e, req); }
+  });
+
+  r.post("/users/:id/revoke-chain", async (req, res) => {
+    try { res.json(await deps.invites.revokeChain(req.params.id)); } catch (e) { sendLedgerError(res, e, req); }
   });
 
   r.get("/users/:id/keys", async (req, res) => {

@@ -27,7 +27,7 @@ beforeEach(async () => {
   app.get("/api/papers", (req, res) => res.json({ reachedAs: req.user?.username ?? null }));
   app.post("/api/admin/users/:id/reset-password", requireAdmin, (_req, res) => res.json({ reset: true }));
   app.use("/api/ledger", createLedgerRouter(new LedgerService(new MemoryLedgerStore([agent as any]))));
-  app.use("/api/admin", createLedgerAdminRouter({ keys, users }));
+  app.use("/api/admin", createLedgerAdminRouter({ keys, users, invites: {} as any }));
   app.post("/mcp", (req, res) => res.json({ reachedAs: req.user?.username ?? null, key: Boolean(req.agentKey) }));
   app.post("/mcp/http", (req, res) => res.json({ reachedAs: req.user?.username ?? null, key: Boolean(req.agentKey) }));
   srv = await serve(app);
@@ -43,6 +43,8 @@ describe("agent key scope", () => {
       ["GET", "/api/users"], ["DELETE", "/api/papers/p1"], ["GET", "/api/papers"], ["GET", "/API/USERS"],
       ["GET", "/api/ledgerx"], ["GET", "/mcp/other"],
       ["POST", "/api/admin/users/u1/reset-password"], ["GET", "/api/admin/users/agent-1/keys"], ["DELETE", "/api/admin/keys/k1"],
+      ["POST", "/api/admin/users/agent-1/can-invite"], ["POST", "/api/admin/users/agent-1/revoke-chain"],
+      ["GET", "/api/admin/users/agent-1/revoke-chain/preview"],
     ];
     for (const [m, p] of routes) {
       for (const auth of [`Bearer ${secret}`, "bearer scl_not-a-real-key"]) {

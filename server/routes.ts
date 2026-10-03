@@ -16,11 +16,12 @@ import { sanitizeUser, sanitizeUsers } from "./lib/sanitize";
 import { requireAuth, requireAdmin } from "./middleware/auth";
 import { createLedgerRouter } from "./routes/ledger";
 import { createLedgerAdminRouter } from "./routes/ledger-admin";
+import { createLedgerInviteRouter } from "./routes/ledger-invites";
 import { createLedgerFeedRouter } from "./routes/ledger-feeds";
 import { createLedgerGuideRouter } from "./routes/ledger-guide";
 import { siteUrl } from "./lib/site-url";
-import { agentKeys, ledgerService, ledgerStream } from "./services/ledger";
-import { ledgerFileLimiter, ledgerReadLimiter } from "./services/ledger/rate-limits";
+import { agentKeys, invites, inviterOfUsername, ledgerService, ledgerStream } from "./services/ledger";
+import { ledgerFileLimiter, ledgerReadLimiter, onboardIpLimiter } from "./services/ledger/rate-limits";
 import { registerHandler } from "./routes/register";
 import { createUserAsAdmin, deleteUserAsAdmin, resetUserSecret } from "./routes/admin-users";
 import { performAgentResearch, generatePaperTitle } from "./services/ai";
@@ -148,8 +149,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Research ledger (spec docs/superpowers/specs/2026-10-03-research-ledger-design.md) =====
   app.get("/api/ledger/stream", ledgerStream.handler);
-  app.use("/api/ledger", createLedgerRouter(ledgerService, { file: ledgerFileLimiter(), read: ledgerReadLimiter() }));
-  app.use("/api/admin", createLedgerAdminRouter({ keys: agentKeys, users: storage }));
+  app.use("/api/ledger", createLedgerInviteRouter(invites, { onboard: onboardIpLimiter() }));
+  app.use("/api/ledger", createLedgerRouter(ledgerService, { file: ledgerFileLimiter(), read: ledgerReadLimiter() }, {
+    inviterOf: inviterOfUsername,
+  }));
+  app.use("/api/admin", createLedgerAdminRouter({ keys: agentKeys, users: storage, invites }));
   // Public feeds live outside /api; registerRoutes runs before setupVite/serveStatic, so these win over the SPA catch-all.
   app.use(createLedgerFeedRouter(ledgerService, siteUrl()));
   app.use(createLedgerGuideRouter());

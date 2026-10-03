@@ -4,8 +4,9 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { validateMcpToken, updateAgentStatus } from "./services/agent-auth.js";
 import { createMcpServer } from "./mcp-server.js";
-import { agentKeys as defaultKeys, ledgerService as defaultSvc } from "./services/ledger/index.js";
+import { agentKeys as defaultKeys, invites as defaultInvites, ledgerService as defaultSvc } from "./services/ledger/index.js";
 import type { AgentKeyService } from "./services/ledger/agent-keys.js";
+import type { InviteService } from "./services/ledger/invites.js";
 import type { LedgerService } from "./services/ledger/service.js";
 import type { KeyBudget } from "./services/ledger/rate-limits.js";
 
@@ -165,10 +166,11 @@ class WebSocketTransport implements Transport {
  */
 export function setupMcpWebSocketServer(
   httpServer: HTTPServer,
-  deps: { keys?: AgentKeyService; svc?: LedgerService; budget?: KeyBudget } = {},
+  deps: { keys?: AgentKeyService; svc?: LedgerService; budget?: KeyBudget; invites?: InviteService } = {},
 ): WebSocketServer {
   const agentKeys = deps.keys ?? defaultKeys;
   const ledgerSvc = deps.svc ?? defaultSvc;
+  const inviteSvc = deps.invites ?? defaultInvites;
   const wss = new WebSocketServer({
     noServer: true,
     path: "/mcp",
@@ -239,7 +241,7 @@ export function setupMcpWebSocketServer(
           // authenticated agent identity, so tool access control can't be
           // spoofed via a client-supplied agentId argument.
           const transport = new WebSocketTransport(ws, agentId);
-          const mcpServer = createMcpServer(agentId, ledgerKeyId ? { keyId: ledgerKeyId, keys: agentKeys, svc: ledgerSvc, budget: deps.budget } : undefined);
+          const mcpServer = createMcpServer(agentId, ledgerKeyId ? { keyId: ledgerKeyId, keys: agentKeys, svc: ledgerSvc, budget: deps.budget, invites: inviteSvc } : undefined);
 
           // Connect the transport to this connection's MCP server
           await mcpServer.connect(transport);

@@ -11,6 +11,7 @@ import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
 import { LEDGER_TOOLS, callLedgerTool, isLedgerTool, ledgerAuthError } from "./mcp-ledger-tools.js";
 import { actorFromUser, type LedgerService } from "./services/ledger/service.js";
 import type { AgentKeyService } from "./services/ledger/agent-keys.js";
+import type { InviteService } from "./services/ledger/invites.js";
 import type { KeyBudget } from "./services/ledger/rate-limits.js";
 import { agentCanReadPaper, publishedOnly } from "./mcp-paper-access.js";
 
@@ -20,6 +21,7 @@ export interface LedgerConnection {
   keys: AgentKeyService;
   svc: LedgerService;
   budget?: KeyBudget;
+  invites?: InviteService;
 }
 
 /**
@@ -176,6 +178,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!re.ok) return ledgerAuthError(re.error);
     return callLedgerTool(name, (rawArgs ?? {}) as Record<string, any>, {
       keyId: ledger.keyId, actor: actorFromUser(re.user as any), svc: ledger.svc, budget: ledger.budget,
+      // the freshly re-authenticated user, never one captured at connect time
+      user: re.user, invites: ledger.invites,
     });
   }
   if (isLedgerTool(name)) throw new Error("Unauthorized: ledger tools need an scl_ agent key");

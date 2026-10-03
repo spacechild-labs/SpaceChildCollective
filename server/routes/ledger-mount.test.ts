@@ -17,7 +17,7 @@ beforeEach(async () => {
   app.use(guardMutations);
   app.post("/api/papers", (_req, res) => res.json({ legacy: true }));
   app.use("/api/ledger", createLedgerRouter(new LedgerService(new MemoryLedgerStore([]))));
-  app.use("/api/admin", createLedgerAdminRouter({ keys: new AgentKeyService(new MemoryAgentKeyStore(), userStore), users: userStore }));
+  app.use("/api/admin", createLedgerAdminRouter({ keys: new AgentKeyService(new MemoryAgentKeyStore(), userStore), users: userStore, invites: {} as any }));
   srv = await serve(app);
 });
 afterEach(async () => { await srv.close(); });

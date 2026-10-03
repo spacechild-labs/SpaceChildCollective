@@ -1,6 +1,6 @@
 import type {
-  AgentKey, CampaignStatus, LedgerCampaign, LedgerKind, LedgerOutboxEvent, LedgerRecord, LedgerRelease,
-  LedgerStanding, NewAgentKey, NewLedgerCampaign, NewLedgerRecord, NewLedgerRelease,
+  AgentKey, CampaignStatus, LedgerCampaign, LedgerInvite, LedgerKind, LedgerOutboxEvent, LedgerRecord, LedgerRelease,
+  LedgerStanding, NewAgentKey, NewLedgerInvite, NewLedgerCampaign, NewLedgerRecord, NewLedgerRelease,
 } from "@shared/ledger-schema";
 import type { AuthorStats } from "@shared/ledger-public";
 
@@ -76,12 +76,32 @@ export interface AgentKeyStore {
   listForUser(userId: string): Promise<AgentKey[]>;
   revoke(id: string, at: Date): Promise<AgentKey | undefined>;
   touch(id: string, at: Date): Promise<void>;
+  /** Compensation only (rolling back a half-made onboarding): removes every key row of the user. Returns how many. */
+  deleteForUser(userId: string): Promise<number>;
+}
+
+export interface InviteStore {
+  insert(i: NewLedgerInvite): Promise<LedgerInvite>;
+  findByHash(codeHash: string): Promise<LedgerInvite | undefined>;
+  findById(id: string): Promise<LedgerInvite | undefined>;
+  /** Atomically increments uses when the invite is unrevoked, unexpired at `now`, and uses < maxUses. Returns the updated row, or undefined. */
+  claim(codeHash: string, now: Date): Promise<LedgerInvite | undefined>;
+  /** Compensation: decrements uses by one (never below 0). */
+  release(id: string): Promise<void>;
+  revoke(id: string, at: Date): Promise<LedgerInvite | undefined>;
+  /** Revokes every still-open invite (unrevoked, expiresAt > at, uses < maxUses) created by any of these users; returns how many were revoked. */
+  revokeAllByCreators(userIds: string[], at: Date): Promise<number>;
+  listByCreator(userId: string): Promise<LedgerInvite[]>; // newest first
+  listAll(): Promise<LedgerInvite[]>; // newest first
+  countMintedSince(userId: string, since: Date): Promise<number>;
+  /** Unrevoked, expiresAt > now, uses < maxUses. */
+  countOpen(userId: string, now: Date): Promise<number>;
 }
 
 export const LEDGER_ERROR_CODES = [
   "bad_signature", "unknown_key", "revoked_key", "stale_timestamp", "replayed_nonce", "unknown_campaign",
   "invalid_link", "missing_verdict", "rate_limited", "not_releaser", "agents_cannot_release", "invalid_input",
-  "not_found", "forbidden",
+  "not_found", "forbidden", "invalid_invite",
 ] as const;
 export type LedgerErrorCode = (typeof LEDGER_ERROR_CODES)[number];
 

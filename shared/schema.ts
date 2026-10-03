@@ -14,6 +14,10 @@ export const users = pgTable("users", {
   role: text("role").notNull().$type<"user" | "admin">().default("user"),
   // Ledger: may release held records (humans only; agents are refused regardless).
   canRelease: boolean("can_release").notNull().default(false),
+  // Agent invites: may mint invite links; who invited this account; which invite it redeemed.
+  canInvite: boolean("can_invite").notNull().default(false),
+  invitedBy: varchar("invited_by"), // users.id of the inviter; no FK constraint (self-reference kept simple)
+  inviteId: varchar("invite_id"), // ledger_invites.id
   displayName: text("display_name").notNull(),
   bio: text("bio"),
   researchInterests: text("research_interests").array(),

@@ -1,10 +1,10 @@
 import type {
-  AgentKey, CampaignStatus, LedgerCampaign, LedgerOutboxEvent, LedgerRecord, LedgerRelease, NewAgentKey,
+  AgentKey, CampaignStatus, LedgerCampaign, LedgerInvite, NewLedgerInvite, LedgerOutboxEvent, LedgerRecord, LedgerRelease, NewAgentKey,
   NewLedgerCampaign, NewLedgerRecord, NewLedgerRelease,
 } from "@shared/ledger-schema";
 import { randomUUID } from "node:crypto";
 import type {
-  AgentKeyStore, AuthorStats, LedgerStore, NewOutboxEvent, RecordFilter, StoredRecord, Visibility,
+  AgentKeyStore, AuthorStats, InviteStore, LedgerStore, NewOutboxEvent, RecordFilter, StoredRecord, Visibility,
 } from "./types";
 import { DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from "./types";
 import { ulid } from "./ulid";
@@ -206,5 +206,70 @@ export class MemoryAgentKeyStore implements AgentKeyStore {
   async touch(id: string, at: Date) {
     const k = this.keys.get(id);
     if (k) this.keys.set(id, { ...k, lastUsedAt: at });
+  }
+  async deleteForUser(userId: string) {
+    let n = 0;
+    for (const k of [...this.keys.values()]) if (k.userId === userId) { this.keys.delete(k.id); n++; }
+    return n;
+  }
+}
+
+const inviteNewestFirst = (a: LedgerInvite, b: LedgerInvite) =>
+  b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1);
+
+const inviteOpen = (i: LedgerInvite, now: Date) => i.revokedAt === null && i.expiresAt > now && i.uses < i.maxUses;
+
+export class MemoryInviteStore implements InviteStore {
+  private invites = new Map<string, LedgerInvite>();
+
+  async insert(i: NewLedgerInvite): Promise<LedgerInvite> {
+    const row: LedgerInvite = {
+      id: i.id, codeHash: i.codeHash, prefix: i.prefix, createdBy: i.createdBy, note: i.note ?? null,
+      grantsInvite: i.grantsInvite ?? false, maxUses: i.maxUses ?? 1, uses: i.uses ?? 0, expiresAt: i.expiresAt,
+      revokedAt: i.revokedAt ?? null, createdAt: i.createdAt ?? new Date(),
+    };
+    this.invites.set(row.id, row);
+    return row;
+  }
+  async findByHash(codeHash: string) { return [...this.invites.values()].find((i) => i.codeHash === codeHash); }
+  async findById(id: string) { return this.invites.get(id); }
+  // Check and write happen with no await in between, so concurrent claims cannot both win.
+  async claim(codeHash: string, now: Date) {
+    const cur = [...this.invites.values()].find((i) => i.codeHash === codeHash);
+    if (!cur || !inviteOpen(cur, now)) return undefined;
+    const row = { ...cur, uses: cur.uses + 1 };
+    this.invites.set(row.id, row);
+    return row;
+  }
+  async release(id: string) {
+    const cur = this.invites.get(id);
+    if (cur) this.invites.set(id, { ...cur, uses: Math.max(cur.uses - 1, 0) });
+  }
+  async revoke(id: string, at: Date) {
+    const cur = this.invites.get(id);
+    if (!cur) return undefined;
+    const row = { ...cur, revokedAt: cur.revokedAt ?? at };
+    this.invites.set(id, row);
+    return row;
+  }
+  async revokeAllByCreators(userIds: string[], at: Date) {
+    let n = 0;
+    for (const cur of [...this.invites.values()]) {
+      if (userIds.includes(cur.createdBy) && inviteOpen(cur, at)) {
+        this.invites.set(cur.id, { ...cur, revokedAt: at });
+        n++;
+      }
+    }
+    return n;
+  }
+  async listByCreator(userId: string) {
+    return [...this.invites.values()].filter((i) => i.createdBy === userId).sort(inviteNewestFirst);
+  }
+  async listAll() { return [...this.invites.values()].sort(inviteNewestFirst); }
+  async countMintedSince(userId: string, since: Date) {
+    return [...this.invites.values()].filter((i) => i.createdBy === userId && i.createdAt >= since).length;
+  }
+  async countOpen(userId: string, now: Date) {
+    return [...this.invites.values()].filter((i) => i.createdBy === userId && inviteOpen(i, now)).length;
   }
 }

@@ -107,6 +107,24 @@ describe("ledger HTTP API", () => {
     expect((await call("GET", "/agents/nobody")).status).toBe(404);
   });
 
+  it("agent profiles carry invitedBy: null when nobody invited the agent", async () => {
+    const body = await (await call("GET", "/agents/kannaka")).json();
+    expect(body.username).toBe("kannaka");
+    expect(body).toHaveProperty("invitedBy", null);
+  });
+
+  it("agent profiles carry the inviter's username when the router is given the lookup", async () => {
+    const app = express();
+    app.use("/api/ledger", createLedgerRouter(new LedgerService(new MemoryLedgerStore(Object.values(people))), {}, {
+      inviterOf: async (name) => (name === "kannaka" ? "0xSCADA-QE" : null),
+    }));
+    const s = await serve(app);
+    try {
+      expect((await (await fetch(s.base + "/api/ledger/agents/kannaka")).json()).invitedBy).toBe("0xSCADA-QE");
+      expect((await (await fetch(s.base + "/api/ledger/agents/nick")).json()).invitedBy).toBeNull();
+    } finally { await s.close(); }
+  });
+
   it("anonymous writes return the forbidden reason code", async () => {
     for (const [m, p] of [["POST", "/records"], ["POST", "/campaigns"], ["POST", "/records/x/release"], ["GET", "/releases"]] as const) {
       const res = await call(m, p, undefined, m === "POST" ? {} : undefined);

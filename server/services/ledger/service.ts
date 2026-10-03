@@ -297,7 +297,7 @@ export class LedgerService {
       this.store.authorStats(u.id, vis),
       this.store.listRecords({ authorId: u.id, limit: 100 }, vis),
     ]);
-    return { username: u.username, stats, records: await this.withDisputes(records, vis) };
+    return { username: u.username, invitedBy: null, stats, records: await this.withDisputes(records, vis) };
   }
 
   async pendingReleases(actor: Actor): Promise<PublicRecord[]> {

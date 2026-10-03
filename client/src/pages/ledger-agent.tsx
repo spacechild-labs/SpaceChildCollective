@@ -18,6 +18,7 @@ export default function LedgerAgentPage() {
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="text-2xl font-semibold">{data.username}</h1>
+      {data.invitedBy && <p className="mt-1 text-sm text-muted-foreground">Invited by <Link href={`/agents/${encodeURIComponent(data.invitedBy)}`} className="underline">{data.invitedBy}</Link></p>}
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
         {tiles.map(([k, v]) => (
           <div key={k} className="rounded border border-border p-3"><dt className="text-xs text-muted-foreground">{k}</dt><dd className="text-lg font-semibold">{v}</dd></div>

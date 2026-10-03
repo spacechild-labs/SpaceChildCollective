@@ -28,15 +28,18 @@ vi.mock("./services/agent-auth.js", () => ({
   updateAgentStatus: async () => {},
 }));
 vi.mock("./services/ledger/index.js", async () => {
-  const { MemoryAgentKeyStore, MemoryLedgerStore } = await import("./services/ledger/memory-store");
+  const { MemoryAgentKeyStore, MemoryInviteStore, MemoryLedgerStore } = await import("./services/ledger/memory-store");
   const { AgentKeyService } = await import("./services/ledger/agent-keys");
   const { LedgerService } = await import("./services/ledger/service");
+  const { InviteService } = await import("./services/ledger/invites");
   const users = new Map<string, any>();
   const ledgerStore = new MemoryLedgerStore();
+  const keyService = new AgentKeyService(new MemoryAgentKeyStore(), { getUser: async (id: string) => users.get(id) });
   return {
     users,
     ledgerStore,
-    agentKeys: new AgentKeyService(new MemoryAgentKeyStore(), { getUser: async (id: string) => users.get(id) }),
+    agentKeys: keyService,
+    invites: new InviteService(new MemoryInviteStore(), { getUser: async (id: string) => users.get(id) } as any, keyService),
     ledgerService: new LedgerService(ledgerStore),
   };
 });
@@ -129,6 +132,21 @@ describe("MCP over HTTP: ledger tools", () => {
     expect(list.map((r: any) => r.id)).toContain(filed.record.id);
     const got = parse((await (await post(call("ledger_get", { id: filed.record.id }), h)).json()).result);
     expect(got.record.held).toBe(true);
+  });
+
+  it("ledger_invite reaches the service with the authenticated user over HTTP", async () => {
+    const a = await newAgent();
+    const h = { authorization: `Bearer ${a.secret}` };
+    const spy = vi.spyOn(fx.invites, "mint");
+    const denied = (await (await post(call("ledger_invite", {}), h)).json()).result;
+    expect(denied.isError).toBe(true);
+    expect(parse(denied).error).toBe("forbidden");
+    fx.users.set(a.user.id, { ...a.user, canInvite: true });
+    const minted = parse((await (await post(call("ledger_invite", { note: "http" }), h)).json()).result);
+    expect(minted.code).toMatch(/^sci_/);
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ id: a.user.id }), expect.objectContaining({ note: "http" }));
+    const list = parse((await (await post(call("ledger_invites", {}), h)).json()).result);
+    expect(list.map((i: any) => i.id)).toEqual([minted.invite.id]);
   });
 
   it("enforces the per-key filing budget with rate_limited", async () => {
@@ -239,7 +257,27 @@ describe("MCP over WebSocket", () => {
     const list = parse((await c.tool("ledger_list", {})).result);
     expect(list.map((r: any) => r.id)).toContain(filed.record.id);
     const tools = (await c.send("tools/list", {})).result.tools.map((t: any) => t.name);
-    expect(tools).toEqual(["ledger_file", "ledger_review", "ledger_list", "ledger_get", "ledger_campaigns"]);
+    expect(tools).toEqual(["ledger_file", "ledger_review", "ledger_list", "ledger_get", "ledger_campaigns", "ledger_invite", "ledger_invites"]);
+  });
+
+  it("ledger_invite uses the freshly re-authenticated user on every call, not the connect-time one", async () => {
+    const a = await newAgent();
+    fx.users.set(a.user.id, { ...a.user, canInvite: true });
+    const c = await connect(a.secret);
+    const spy = vi.spyOn(fx.invites, "mint");
+    const minted = parse((await c.tool("ledger_invite", { note: "ws" })).result);
+    expect(minted.code).toMatch(/^sci_/);
+    const later = { ...fx.users.get(a.user.id), displayName: "changed-after-connect" };
+    fx.users.set(a.user.id, later);
+    await c.tool("ledger_invite", {});
+    expect(spy.mock.calls[0][0]).toEqual(expect.objectContaining({ id: a.user.id }));
+    expect(spy.mock.calls[1][0]).toBe(later);
+    // losing the right applies on the very next call of the same socket
+    fx.users.set(a.user.id, { ...later, canInvite: false });
+    const res = (await c.tool("ledger_invite", {})).result;
+    expect(res.isError).toBe(true);
+    expect(parse(res).error).toBe("forbidden");
+    expect(parse((await c.tool("ledger_invites")).result)).toHaveLength(2);
   });
 
   it("applies revocation and owner changes on the next call of an open socket", async () => {
