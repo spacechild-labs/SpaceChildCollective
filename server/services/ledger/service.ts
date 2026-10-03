@@ -77,6 +77,8 @@ export class LedgerService {
     return {
       id: r.id, campaign_id: r.campaignId, kind: r.kind, standing: r.standing, author: r.authorUsername,
       url: `${this.baseUrl}/records/${r.id}`, content_hash: r.contentHash,
+      // When the record was filed; an event can arrive much later (outbox backlog after a NATS outage).
+      created_at: r.createdAt.toISOString(),
     };
   }
 

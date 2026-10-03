@@ -353,3 +353,17 @@ describe("public campaign shape (M5)", () => {
     await expect(svc.file(bob, { kind: "decision", title: "close", campaignId: "ecdsa-c010", setsStatus: "closed" }, "api")).rejects.toMatchObject({ code: "forbidden" });
   });
 });
+
+describe("event payloads (M12)", () => {
+  it("carry the record's created_at on filed and released events", async () => {
+    const pub = (await svc.file(alice, { kind: "result", title: "pub" }, "api")).record;
+    const held = (await svc.file(alice, { kind: "result", title: "held", held: true }, "api")).record;
+    t += 3_600_000; // released an hour later
+    await svc.release(nick, held.id);
+    const events = await store.listUnpublishedEvents(10);
+    const filed = events.find((e) => e.subject === "SPACECHILD.ledger.record.filed")!;
+    const released = events.find((e) => e.subject === "SPACECHILD.ledger.record.released")!;
+    expect(filed.payload).toMatchObject({ id: pub.id, created_at: pub.createdAt });
+    expect(released.payload).toMatchObject({ id: held.id, created_at: held.createdAt });
+  });
+});
