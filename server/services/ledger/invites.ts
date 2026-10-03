@@ -27,7 +27,7 @@ const mintSchema = z.object({
 });
 
 const redeemSchema = z.object({
-  invite: z.string().min(1),
+  invite: z.string().min(1).max(128),
   username: usernameSchema,
   displayName: z.string().trim().min(2, "Display name must be 2-120 characters").max(120, "Display name must be 2-120 characters").optional(),
   ed25519PublicKey: z.string().trim().optional().transform((v) => v || undefined)
@@ -127,7 +127,7 @@ export class InviteService {
     const invalid = () => new LedgerError("invalid_invite", 403, "this invite is not valid");
 
     const found = await this.store.findByHash(hashSecret(invite));
-    if (!found) throw invalid();
+    if (!found || found.revokedAt || new Date(found.expiresAt).getTime() <= now.getTime() || found.uses >= found.maxUses) throw invalid();
     const creator = await this.users.getUser(found.createdBy);
     if (!this.mayInvite(creator)) throw invalid();
     if (await this.users.getUserByUsername(username)) throw new LedgerError("forbidden", 409, `${username} is already taken`);
@@ -135,28 +135,41 @@ export class InviteService {
     const onboardedToday = (await this.users.getAllUsers()).filter((u) => u.inviteId && new Date(u.createdAt).getTime() >= since.getTime()).length;
     if (onboardedToday >= this.dailyOnboardCap) throw new LedgerError("rate_limited", 429, "daily onboarding limit reached; try again later");
 
+    // Hash before claiming so the window between claim and create stays short.
+    const zkpCommitment = await bcrypt.hash(randomBytes(32).toString("hex"), 12);
     const claimed = await this.store.claim(found.codeHash, now);
     if (!claimed) throw invalid();
+    const release = () => this.store.release(claimed.id).catch((r) => console.error("[ledger] could not release invite use", claimed.id, r));
 
     let user: User;
     try {
       user = await this.users.createUser({
         username, displayName: displayName ?? username, userType: "agent", role: "user", canRelease: false,
         canInvite: claimed.grantsInvite, invitedBy: claimed.createdBy, inviteId: claimed.id,
-        zkpCommitment: await bcrypt.hash(randomBytes(32).toString("hex"), 12), bio: null, researchInterests: [],
+        zkpCommitment, bio: null, researchInterests: [],
       } as InsertUser);
     } catch (e) {
-      await this.store.release(claimed.id);
+      await release();
       if ((e as { code?: string })?.code === "23505") throw new LedgerError("forbidden", 409, `${username} is already taken`);
       throw e;
     }
+    const undoUser = () => this.users.deleteUser(user.id).catch((d) => console.error("[ledger] could not roll back onboarded account", user.id, d));
     let issued;
     try {
       issued = await this.keys.issue(user.id, "default", ed25519PublicKey ?? null);
     } catch (e) {
-      await this.users.deleteUser(user.id).catch((d) => console.error("[ledger] could not roll back onboarded account", user.id, d));
-      await this.store.release(claimed.id);
+      await undoUser();
+      await release();
       throw e;
+    }
+    // The inviter's right is part of the claim: re-check now that the account exists, so a revokeChain that ran
+    // while this redeem was in flight cannot leave a live descendant behind.
+    const inviterNow = await this.users.getUser(claimed.createdBy).catch(() => undefined);
+    if (!this.mayInvite(inviterNow)) {
+      await this.keys.revoke(issued.key.id).catch((r) => console.error("[ledger] could not revoke key of rolled-back account", issued.key.id, r));
+      await undoUser();
+      await release();
+      throw invalid();
     }
     const { key, secret } = issued;
     return {
@@ -176,18 +189,26 @@ export class InviteService {
   }
 
   async revokeChain(userId: string) {
-    const all = await this.users.getAllUsers();
-    if (!all.some((u) => u.id === userId)) throw new LedgerError("not_found", 404, "no such user");
+    let all = await this.users.getAllUsers();
+    const root = all.find((u) => u.id === userId);
+    if (!root) throw new LedgerError("not_found", 404, "no such user");
+    if (root.userType !== "agent" || root.role === "admin") throw new LedgerError("forbidden", 409, "revoke chain applies to agent accounts");
     const chain = new Set<string>([userId]);
-    for (let grew = true; grew;) {
-      grew = false;
-      for (const u of all) if (u.invitedBy && chain.has(u.invitedBy) && !chain.has(u.id)) { chain.add(u.id); grew = true; }
-    }
     let keys = 0;
-    for (const id of chain) {
-      for (const k of await this.keys.list(id)) if (!k.revokedAt) { await this.keys.revoke(k.id); keys++; }
-      const u = all.find((x) => x.id === id)!;
-      if (u.canInvite) await this.users.updateUser(id, { canInvite: false });
+    // Repeat until a pass finds nothing new, so an account created mid-revoke is caught.
+    for (let pass = 0; pass < 5; pass++) {
+      let changed = false;
+      for (let grew = true; grew;) {
+        grew = false;
+        for (const u of all) if (u.invitedBy && chain.has(u.invitedBy) && !chain.has(u.id)) { chain.add(u.id); grew = true; changed = true; }
+      }
+      for (const id of chain) {
+        for (const k of await this.keys.list(id)) if (!k.revokedAt) { await this.keys.revoke(k.id); keys++; changed = true; }
+        const u = all.find((x) => x.id === id);
+        if (u?.canInvite) { await this.users.updateUser(id, { canInvite: false }); changed = true; }
+      }
+      if (!changed) break;
+      all = await this.users.getAllUsers();
     }
     const invites = await this.store.revokeAllByCreators([...chain], this.now());
     return { accounts: chain.size, keys, invites };

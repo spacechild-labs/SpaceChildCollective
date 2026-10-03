@@ -11,9 +11,11 @@ function fakeUsers() {
   const api = {
     m,
     failCreate: null as null | (() => Error),
+    createHook: null as null | (() => Promise<void>),
     getUser: async (id: string) => m.get(id),
     getUserByUsername: async (u: string) => [...m.values()].find((x) => x.username === u),
     createUser: async (u: any) => {
+      if (api.createHook) await api.createHook();
       if (api.failCreate) throw api.failCreate();
       if ([...m.values()].some((x) => x.username === u.username)) throw Object.assign(new Error("dup"), { code: "23505" });
       const user = { id: `u${++n}`, canRelease: false, canInvite: false, invitedBy: null, inviteId: null, createdAt: new Date(), ...u } as User;
@@ -57,7 +59,10 @@ describe("InviteService", () => {
     expect(out.invitedBy).toBe("0xSCADA-QE");
     const u = await users.getUserByUsername("kannaka");
     expect(u).toMatchObject({ userType: "agent", role: "user", canRelease: false, canInvite: false, invitedBy: "qe", inviteId: invite.id });
-    expect(await bcrypt.compare("", u!.zkpCommitment)).toBe(false);
+    for (const guess of ["", "kannaka", "password"]) expect(await bcrypt.compare(guess, u!.zkpCommitment)).toBe(false);
+    const { code: code2 } = await svc.mint(qe, {});
+    await svc.redeem({ invite: code2, username: "kannaka2" });
+    expect((await users.getUserByUsername("kannaka2"))!.zkpCommitment).not.toBe(u!.zkpCommitment);
   });
 
   it("refuses a second redeem of a single-use invite with invalid_invite", async () => {
@@ -189,5 +194,60 @@ describe("InviteService", () => {
     await expect(svc.redeem({ invite: code, username: "x" })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(svc.redeem({ invite: code, username: "ok-name", ed25519PublicKey: "notakey" })).rejects.toMatchObject({ code: "invalid_input" });
     expect((await store.findById(invite.id))?.uses).toBe(0);
+  });
+
+  it("a revokeChain that runs while a redeem is in flight leaves no live account or key", async () => {
+    const { code } = await svc.mint(qe, { grantsInvite: true });
+    let paused!: () => void; const reached = new Promise<void>((r) => (paused = r));
+    let go!: () => void; const gate = new Promise<void>((r) => (go = r));
+    users.createHook = async () => { paused(); await gate; };
+    const redeeming = svc.redeem({ invite: code, username: "inflight" });
+    const settled = redeeming.then(() => null, (e) => e);
+    await reached;
+    users.createHook = null;
+    await svc.revokeChain("qe");
+    go();
+    expect(await settled).toMatchObject({ code: "invalid_invite", status: 403 });
+    const u = await users.getUserByUsername("inflight");
+    if (u) {
+      expect(u.canInvite).toBe(false);
+      expect((await keyStore.listForUser(u.id)).every((k) => k.revokedAt)).toBe(true);
+    }
+    expect(u).toBeUndefined();
+  });
+
+  it("revokeChain catches an account that appears between scan passes", async () => {
+    const { code } = await svc.mint(qe, {});
+    await svc.redeem({ invite: code, username: "early" });
+    const real = users.getAllUsers; let calls = 0;
+    users.getAllUsers = async () => {
+      if (++calls === 2) put(users, { id: "late", username: "latecomer", invitedBy: "qe", canInvite: true });
+      return real();
+    };
+    const out = await svc.revokeChain("qe");
+    expect(out.accounts).toBe(3);
+    expect(users.m.get("late")!.canInvite).toBe(false);
+  });
+
+  it("a used-up code with a taken username is invalid_invite, not 409", async () => {
+    const { code } = await svc.mint(qe, {});
+    await svc.redeem({ invite: code, username: "firstuse" });
+    await expect(svc.redeem({ invite: code, username: "plainagent" })).rejects.toMatchObject({ code: "invalid_invite", status: 403 });
+  });
+
+  it("a failing release does not replace the original error", async () => {
+    const { code } = await svc.mint(qe, {});
+    const flaky = Object.create(store) as MemoryInviteStore;
+    flaky.release = async () => { throw new Error("release broke"); };
+    const bad = new InviteService(flaky, users as any, { issue: async () => { throw new Error("boom"); } } as any);
+    await expect(bad.redeem({ invite: code, username: "origerr" })).rejects.toThrow("boom");
+  });
+
+  it("revokeChain refuses human and admin accounts", async () => {
+    await expect(svc.revokeChain("admin")).rejects.toMatchObject({ code: "forbidden", status: 409 });
+  });
+
+  it("rejects an over-long invite string", async () => {
+    await expect(svc.redeem({ invite: "sci_" + "a".repeat(200), username: "longone" })).rejects.toMatchObject({ code: "invalid_input" });
   });
 });
