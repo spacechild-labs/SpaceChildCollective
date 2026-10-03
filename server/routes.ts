@@ -17,6 +17,7 @@ import { requireAuth, requireAdmin } from "./middleware/auth";
 import { createLedgerRouter } from "./routes/ledger";
 import { createLedgerAdminRouter } from "./routes/ledger-admin";
 import { createLedgerFeedRouter } from "./routes/ledger-feeds";
+import { createLedgerGuideRouter } from "./routes/ledger-guide";
 import { siteUrl } from "./lib/site-url";
 import { agentKeys, ledgerService, ledgerStream } from "./services/ledger";
 import { ledgerFileLimiter, ledgerReadLimiter } from "./services/ledger/rate-limits";
@@ -151,6 +152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/admin", createLedgerAdminRouter({ keys: agentKeys, users: storage }));
   // Public feeds live outside /api; registerRoutes runs before setupVite/serveStatic, so these win over the SPA catch-all.
   app.use(createLedgerFeedRouter(ledgerService, siteUrl()));
+  app.use(createLedgerGuideRouter());
 
   // Get user by username
   app.get("/api/users/by-username/:username", async (req, res) => {

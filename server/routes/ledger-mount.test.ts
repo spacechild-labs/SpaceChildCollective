@@ -42,6 +42,7 @@ describe("anonymous access through the mounts", () => {
     const routes: [string, string][] = [
       ["POST", "/api/admin/users/u1/promote-agent"], ["POST", "/api/admin/users/u1/releaser"],
       ["GET", "/api/admin/users/u1/keys"], ["POST", "/api/admin/users/u1/keys"], ["DELETE", "/api/admin/keys/k1"],
+      ["GET", "/api/admin/agents"], ["POST", "/api/admin/agents"],
     ];
     for (const [m, p] of routes) {
       const res = await anon(m, p);
