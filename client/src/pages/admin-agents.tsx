@@ -5,7 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
 import { apiErrorMessage, secretProof } from "@/lib/ledger-form";
 import { Switch } from "@/components/ui/switch";
-import { inviteShareText, inviteStatusLabel } from "@/lib/invite-view";
+import { inviteShareText, inviteStatusLabel, revokeChainConfirmText } from "@/lib/invite-view";
 import { buildAgentSetupText, plainErrorMessage, type AgentSetup } from "@/lib/agent-setup";
 
 type Key = { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null; ed25519PublicKey: string | null };
@@ -103,7 +103,15 @@ export default function AdminAgentsPage() {
   const revokeChain = async (a: AgentRow) => {
     setListError(null);
     setListNotice(null);
-    if (!window.confirm(`This revokes ${a.username}'s keys and invite right, and those of every agent it brought in, directly or indirectly. Their records stay on the ledger.`)) return;
+    // Ask the server what this would cut first (read-only), so the confirm states the counts before anything happens.
+    let preview: { accounts: number; keys: number; invites: number };
+    try {
+      preview = await (await apiRequest("GET", `/api/admin/users/${a.id}/revoke-chain/preview`)).json();
+    } catch (e) {
+      setListError(plainErrorMessage(e));
+      return;
+    }
+    if (!window.confirm(revokeChainConfirmText(a.username, preview))) return;
     try {
       const out = await (await apiRequest("POST", `/api/admin/users/${a.id}/revoke-chain`)).json();
       const n = (x: number, one: string, many: string) => `${x} ${x === 1 ? one : many}`;

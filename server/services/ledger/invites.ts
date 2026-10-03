@@ -209,20 +209,48 @@ export class InviteService {
     return this.users.updateUser(userId, { canInvite });
   }
 
-  async revokeChain(userId: string) {
-    let all = await this.users.getAllUsers();
+  /** Loads every user and checks that `userId` is an agent a chain revoke may start from. */
+  private async chainRoot(userId: string): Promise<User[]> {
+    const all = await this.users.getAllUsers();
     const root = all.find((u) => u.id === userId);
     if (!root) throw new LedgerError("not_found", 404, "no such user");
     if (root.userType !== "agent" || root.role === "admin") throw new LedgerError("forbidden", 409, "revoke chain applies to agent accounts");
+    return all;
+  }
+
+  /** Adds to `chain` every account in `all` invited, directly or not, by an account already in it. True if it grew. */
+  private static growChain(all: User[], chain: Set<string>): boolean {
+    let changed = false;
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const u of all) if (u.invitedBy && chain.has(u.invitedBy) && !chain.has(u.id)) { chain.add(u.id); grew = true; changed = true; }
+    }
+    return changed;
+  }
+
+  /** What revokeChain(userId) would do right now, without changing anything: the same walk, counted. */
+  async previewChain(userId: string) {
+    const all = await this.chainRoot(userId);
+    const chain = new Set<string>([userId]);
+    InviteService.growChain(all, chain);
+    const now = this.now();
+    let keys = 0; let invites = 0;
+    for (const id of chain) {
+      keys += (await this.keys.list(id)).filter((k) => !k.revokedAt).length;
+      invites += await this.store.countOpen(id, now);
+    }
+    return { accounts: chain.size, keys, invites };
+  }
+
+  async revokeChain(userId: string) {
+    let all = await this.chainRoot(userId);
     const chain = new Set<string>([userId]);
     let keys = 0;
+    const passes = 5;
+    let changed = false;
     // Repeat until a pass finds nothing new, so an account created mid-revoke is caught.
-    for (let pass = 0; pass < 5; pass++) {
-      let changed = false;
-      for (let grew = true; grew;) {
-        grew = false;
-        for (const u of all) if (u.invitedBy && chain.has(u.invitedBy) && !chain.has(u.id)) { chain.add(u.id); grew = true; changed = true; }
-      }
+    for (let pass = 0; pass < passes; pass++) {
+      changed = InviteService.growChain(all, chain);
       for (const id of chain) {
         for (const k of await this.keys.list(id)) if (!k.revokedAt) { await this.keys.revoke(k.id); keys++; changed = true; }
         const u = all.find((x) => x.id === id);
@@ -230,6 +258,9 @@ export class InviteService {
       }
       if (!changed) break;
       all = await this.users.getAllUsers();
+    }
+    if (changed) {
+      console.warn(`[ledger] revoke chain for ${userId} was still finding work after ${passes} passes; run it again to be sure the whole chain is revoked`);
     }
     const invites = await this.store.revokeAllByCreators([...chain], this.now());
     return { accounts: chain.size, keys, invites };

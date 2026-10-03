@@ -44,6 +44,7 @@ describe("agent key scope", () => {
       ["GET", "/api/ledgerx"], ["GET", "/mcp/other"],
       ["POST", "/api/admin/users/u1/reset-password"], ["GET", "/api/admin/users/agent-1/keys"], ["DELETE", "/api/admin/keys/k1"],
       ["POST", "/api/admin/users/agent-1/can-invite"], ["POST", "/api/admin/users/agent-1/revoke-chain"],
+      ["GET", "/api/admin/users/agent-1/revoke-chain/preview"],
     ];
     for (const [m, p] of routes) {
       for (const auth of [`Bearer ${secret}`, "bearer scl_not-a-real-key"]) {

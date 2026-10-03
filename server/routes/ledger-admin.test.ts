@@ -13,6 +13,7 @@ let failIssue = false;
 let createFailsWith: Error | null = null;
 let deleted: string[] = [];
 let srv: { base: string; close(): Promise<void> };
+let inviteSvc: InviteService;
 
 beforeEach(async () => {
   users = new Map([
@@ -40,7 +41,8 @@ beforeEach(async () => {
   app.use(express.json());
   app.use((req, _res, next) => { const who = req.header("x-test-user") ?? "u-n"; (req as any).user = who === "anon" ? undefined : users.get(who); next(); });
   const inviteStore = new MemoryInviteStore();
-  app.use("/api/admin", createLedgerAdminRouter({ keys, users: userStore, invites: new InviteService(inviteStore, userStore as any, keys) }));
+  inviteSvc = new InviteService(inviteStore, userStore as any, keys);
+  app.use("/api/admin", createLedgerAdminRouter({ keys, users: userStore, invites: inviteSvc }));
   srv = await serve(app);
 });
 afterEach(async () => { await srv.close(); });
@@ -286,6 +288,33 @@ describe("invite administration", () => {
     expect(keys.every((k: any) => k.revokedAt)).toBe(true);
     // A human account has no chain to revoke.
     expect((await call("POST", "/users/u-h/revoke-chain")).status).toBe(409);
+  });
+
+  it("revoke-chain preview is admin-only, changes nothing, and matches what the real revoke then does", async () => {
+    await promote("u-q");
+    await call("POST", "/users/u-q/can-invite", { canInvite: true });
+    await call("POST", "/users/u-q/keys", { name: "k1" });
+    users.set("u-kid", { id: "u-kid", username: "kid", userType: "agent", role: "user", canRelease: false, canInvite: true, invitedBy: "u-q" });
+    users.set("u-gkid", { id: "u-gkid", username: "gkid", userType: "agent", role: "user", canRelease: false, canInvite: false, invitedBy: "u-kid" });
+    await call("POST", "/users/u-kid/keys", { name: "k2" });
+    await call("POST", "/users/u-kid/keys", { name: "k3" });
+    await inviteSvc.mint(users.get("u-kid"), {});
+    await inviteSvc.mint(users.get("u-q"), {});
+    const path = "/users/u-q/revoke-chain/preview";
+    expect((await call("GET", path, undefined, "anon")).status).toBe(401);
+    expect((await call("GET", path, undefined, "u-h")).status).toBe(403);
+    const before = JSON.stringify([...users.entries()]) + JSON.stringify(await inviteSvc.list(users.get("u-n")));
+    const keysBefore = JSON.stringify(await (await call("GET", "/users/u-kid/keys")).json());
+    const res = await call("GET", path);
+    expect(res.status).toBe(200);
+    const preview = await res.json();
+    expect(preview).toEqual({ accounts: 3, keys: 3, invites: 2 });
+    expect(JSON.stringify([...users.entries()]) + JSON.stringify(await inviteSvc.list(users.get("u-n")))).toBe(before);
+    expect(JSON.stringify(await (await call("GET", "/users/u-kid/keys")).json())).toBe(keysBefore);
+    expect(await (await call("POST", "/users/u-q/revoke-chain")).json()).toEqual(preview);
+    expect(await (await call("GET", path)).json()).toEqual({ accounts: 3, keys: 0, invites: 0 });
+    expect((await call("GET", "/users/u-h/revoke-chain/preview")).status).toBe(409);
+    expect((await call("GET", "/users/nobody/revoke-chain/preview")).status).toBe(404);
   });
 
   it("add agent with canInvite:true creates the agent with the right; without it the right is false", async () => {

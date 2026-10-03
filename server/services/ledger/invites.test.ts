@@ -285,6 +285,34 @@ describe("InviteService", () => {
     await expect(bad.redeem({ invite: code, username: "origerr" })).rejects.toThrow("boom");
   });
 
+  it("previewChain counts exactly what revokeChain then does, and changes nothing", async () => {
+    const g1 = await svc.mint(qe, { grantsInvite: true });
+    const gen1 = (await svc.redeem({ invite: g1.code, username: "pv1" })).user;
+    const g2 = await svc.mint(users.m.get(gen1.id)!, {});
+    await svc.redeem({ invite: g2.code, username: "pv2" });
+    await svc.mint(users.m.get(gen1.id)!, { maxUses: 3 });
+    const snapshot = async () => JSON.stringify([[...users.m.values()], await store.listAll(), [...(await keyStore.listForUser(gen1.id))]]);
+    const before = await snapshot();
+    const preview = await svc.previewChain(gen1.id);
+    expect(preview).toEqual({ accounts: 2, keys: 2, invites: 1 });
+    expect(await snapshot()).toBe(before);
+    expect(await svc.revokeChain(gen1.id)).toEqual(preview);
+    await expect(svc.previewChain("admin")).rejects.toMatchObject({ code: "forbidden", status: 409 });
+    await expect(svc.previewChain("nobody")).rejects.toMatchObject({ code: "not_found", status: 404 });
+  });
+
+  it("revokeChain warns the admin to run it again when its last pass still found work", async () => {
+    const real = users.getAllUsers; let n = 0;
+    // Every rescan finds a brand-new descendant holding the invite right, so the loop never settles.
+    users.getAllUsers = async () => { n++; put(users, { id: `late${n}`, username: `late${n}`, invitedBy: "qe", canInvite: true }); return real(); };
+    const warnings: unknown[][] = []; const orig = console.warn; console.warn = (...a: unknown[]) => { warnings.push(a); };
+    try { await svc.revokeChain("qe"); } finally { console.warn = orig; }
+    expect(warnings.some((a) => /run it again/.test(String(a[0])))).toBe(true);
+    const calm: unknown[][] = []; users.getAllUsers = real; console.warn = (...a: unknown[]) => { calm.push(a); };
+    try { await svc.revokeChain("plain"); } finally { console.warn = orig; }
+    expect(calm).toEqual([]);
+  });
+
   it("revokeChain refuses human and admin accounts", async () => {
     await expect(svc.revokeChain("admin")).rejects.toMatchObject({ code: "forbidden", status: 409 });
   });

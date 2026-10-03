@@ -144,6 +144,11 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
     try { res.json(sanitizeUser(await deps.invites.setCanInvite(req.params.id, req.body?.canInvite === true))); } catch (e) { sendLedgerError(res, e, req); }
   });
 
+  // Read-only: what a revoke-chain would cut right now, so the confirm can state the counts before anything happens.
+  r.get("/users/:id/revoke-chain/preview", async (req, res) => {
+    try { res.json(await deps.invites.previewChain(req.params.id)); } catch (e) { sendLedgerError(res, e, req); }
+  });
+
   r.post("/users/:id/revoke-chain", async (req, res) => {
     try { res.json(await deps.invites.revokeChain(req.params.id)); } catch (e) { sendLedgerError(res, e, req); }
   });
