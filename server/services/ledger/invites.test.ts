@@ -12,6 +12,10 @@ function fakeUsers() {
     m,
     failCreate: null as null | (() => Error),
     createHook: null as null | (() => Promise<void>),
+    updateHook: null as null | ((id: string, p: Partial<User>) => Promise<void>),
+    failDelete: false,
+    // Mirrors DatabaseStorage: agent_keys.user_id has no cascade, so any key row (revoked or not) blocks the delete.
+    keyRowsFor: async (_id: string) => 0,
     getUser: async (id: string) => m.get(id),
     getUserByUsername: async (u: string) => [...m.values()].find((x) => x.username === u),
     createUser: async (u: any) => {
@@ -21,8 +25,14 @@ function fakeUsers() {
       const user = { id: `u${++n}`, canRelease: false, canInvite: false, invitedBy: null, inviteId: null, createdAt: new Date(), ...u } as User;
       m.set(user.id, user); return user;
     },
-    updateUser: async (id: string, p: Partial<User>) => { const u = { ...m.get(id)!, ...p }; m.set(id, u); return u; },
-    deleteUser: async (id: string) => { m.delete(id); },
+    updateUser: async (id: string, p: Partial<User>) => {
+      if (api.updateHook) await api.updateHook(id, p);
+      const u = { ...m.get(id)!, ...p }; m.set(id, u); return u;
+    },
+    deleteUser: async (id: string) => {
+      if (api.failDelete || (await api.keyRowsFor(id)) > 0) throw Object.assign(new Error("User is referenced by other records"), { code: "user_referenced" });
+      m.delete(id);
+    },
     getAllUsers: async () => [...m.values()],
   };
   return api;
@@ -36,6 +46,7 @@ describe("InviteService", () => {
   let admin: User; let qe: User; let plain: User;
   beforeEach(() => {
     users = fakeUsers(); store = new MemoryInviteStore(); keyStore = new MemoryAgentKeyStore();
+    users.keyRowsFor = async (id) => (await keyStore.listForUser(id)).length;
     const keys = new AgentKeyService(keyStore, users as any);
     svc = new InviteService(store, users as any, keys);
     put(users, { id: "admin", username: "nick", userType: "human", role: "admin" });
@@ -214,6 +225,37 @@ describe("InviteService", () => {
       expect((await keyStore.listForUser(u.id)).every((k) => k.revokedAt)).toBe(true);
     }
     expect(u).toBeUndefined();
+  });
+
+  it("a rollback whose account delete still fails leaves the account key-less, without the invite right, and the use released", async () => {
+    const { code, invite } = await svc.mint(qe, { grantsInvite: true });
+    let paused!: () => void; const reached = new Promise<void>((r) => (paused = r));
+    let go!: () => void; const gate = new Promise<void>((r) => (go = r));
+    users.createHook = async () => { paused(); await gate; };
+    const settled = svc.redeem({ invite: code, username: "stuck" }).then(() => null, (e) => e);
+    await reached;
+    users.createHook = null;
+    await svc.revokeChain("qe");
+    users.failDelete = true;
+    const errors: unknown[][] = []; const orig = console.error; console.error = (...a: unknown[]) => { errors.push(a); };
+    try { go(); expect(await settled).toMatchObject({ code: "invalid_invite", status: 403 }); } finally { console.error = orig; }
+    const u = (await users.getUserByUsername("stuck"))!;
+    expect(u.canInvite).toBe(false);
+    expect(await keyStore.listForUser(u.id)).toEqual([]);
+    expect((await store.findById(invite.id))?.uses).toBe(0);
+    expect(errors.some((a) => String(a[0]).includes("could not delete rolled-back account") && a[1] === u.id)).toBe(true);
+  });
+
+  it("a revokeChain that lands between the re-check and the invite grant still rolls the account back", async () => {
+    const { code, invite } = await svc.mint(qe, { grantsInvite: true });
+    users.updateHook = async (_id, p) => {
+      if (p.canInvite !== true) return;
+      users.updateHook = null;
+      await svc.revokeChain("qe");
+    };
+    await expect(svc.redeem({ invite: code, username: "between" })).rejects.toMatchObject({ code: "invalid_invite", status: 403 });
+    expect(await users.getUserByUsername("between")).toBeUndefined();
+    expect((await store.findById(invite.id))?.uses).toBe(0);
   });
 
   it("revokeChain catches an account that appears between scan passes", async () => {

@@ -102,6 +102,11 @@ export class AgentKeyService {
     if (!k) throw new LedgerError("not_found", 404, "key not found");
     return publicKey(k);
   }
+
+  /** Compensation only: removes every key row of an account being rolled back, so the account itself can be deleted. */
+  deleteForUser(userId: string): Promise<number> {
+    return this.store.deleteForUser(userId);
+  }
 }
 
 const SCL_BEARER = /^Bearer\s+scl_/i;

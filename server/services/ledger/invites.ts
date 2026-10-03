@@ -143,9 +143,10 @@ export class InviteService {
 
     let user: User;
     try {
+      // The invite right is granted only once the inviter is re-checked below, so a rolled-back account never holds it.
       user = await this.users.createUser({
         username, displayName: displayName ?? username, userType: "agent", role: "user", canRelease: false,
-        canInvite: claimed.grantsInvite, invitedBy: claimed.createdBy, inviteId: claimed.id,
+        canInvite: false, invitedBy: claimed.createdBy, inviteId: claimed.id,
         zkpCommitment, bio: null, researchInterests: [],
       } as InsertUser);
     } catch (e) {
@@ -162,14 +163,34 @@ export class InviteService {
       await release();
       throw e;
     }
+    // Undo a made account: revoke its key, remove the key row (agent_keys.user_id has no cascade, so the row would
+    // block the delete), delete the account, give the use back. If the delete still fails, leave the account
+    // key-less and without the invite right, and say so in the log.
+    const rollback = async () => {
+      await this.keys.revoke(issued.key.id).catch((r) => console.error("[ledger] could not revoke key of rolled-back account", issued.key.id, r));
+      await this.keys.deleteForUser(user.id).catch((r) => console.error("[ledger] could not remove key rows of rolled-back account", user.id, r));
+      try {
+        await this.users.deleteUser(user.id);
+      } catch (d) {
+        console.error("[ledger] could not delete rolled-back account; it is left without keys or the invite right", user.id, d);
+        await this.users.updateUser(user.id, { canInvite: false })
+          .catch((r) => console.error("[ledger] could not clear the invite right of rolled-back account", user.id, r));
+      }
+      await release();
+    };
     // The inviter's right is part of the claim: re-check now that the account exists, so a revokeChain that ran
     // while this redeem was in flight cannot leave a live descendant behind.
-    const inviterNow = await this.users.getUser(claimed.createdBy).catch(() => undefined);
-    if (!this.mayInvite(inviterNow)) {
-      await this.keys.revoke(issued.key.id).catch((r) => console.error("[ledger] could not revoke key of rolled-back account", issued.key.id, r));
-      await undoUser();
-      await release();
-      throw invalid();
+    const inviterLost = async () => !this.mayInvite(await this.users.getUser(claimed.createdBy).catch(() => undefined));
+    if (await inviterLost()) { await rollback(); throw invalid(); }
+    if (claimed.grantsInvite) {
+      try {
+        user = await this.users.updateUser(user.id, { canInvite: true });
+      } catch (e) {
+        await rollback();
+        throw e;
+      }
+      // A revokeChain that read this account before the grant landed would not clear it: check the inviter once more.
+      if (await inviterLost()) { await rollback(); throw invalid(); }
     }
     const { key, secret } = issued;
     return {

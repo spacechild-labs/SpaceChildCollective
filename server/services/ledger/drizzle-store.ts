@@ -245,6 +245,10 @@ export class DrizzleAgentKeyStore implements AgentKeyStore {
   async touch(id: string, at: Date) {
     await this.db.update(agentKeys).set({ lastUsedAt: at }).where(eq(agentKeys.id, id));
   }
+  async deleteForUser(userId: string) {
+    const rows = await this.db.delete(agentKeys).where(eq(agentKeys.userId, userId)).returning({ id: agentKeys.id });
+    return rows.length as number;
+  }
 }
 
 export class DrizzleInviteStore implements InviteStore {

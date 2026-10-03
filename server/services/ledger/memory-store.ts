@@ -207,6 +207,11 @@ export class MemoryAgentKeyStore implements AgentKeyStore {
     const k = this.keys.get(id);
     if (k) this.keys.set(id, { ...k, lastUsedAt: at });
   }
+  async deleteForUser(userId: string) {
+    let n = 0;
+    for (const k of [...this.keys.values()]) if (k.userId === userId) { this.keys.delete(k.id); n++; }
+    return n;
+  }
 }
 
 const inviteNewestFirst = (a: LedgerInvite, b: LedgerInvite) =>

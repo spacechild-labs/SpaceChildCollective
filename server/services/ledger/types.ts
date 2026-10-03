@@ -76,6 +76,8 @@ export interface AgentKeyStore {
   listForUser(userId: string): Promise<AgentKey[]>;
   revoke(id: string, at: Date): Promise<AgentKey | undefined>;
   touch(id: string, at: Date): Promise<void>;
+  /** Compensation only (rolling back a half-made onboarding): removes every key row of the user. Returns how many. */
+  deleteForUser(userId: string): Promise<number>;
 }
 
 export interface InviteStore {
