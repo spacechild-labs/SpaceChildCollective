@@ -14,6 +14,8 @@ import { kannakaBridge } from "./services/kannaka/bridge";
 import { kannakaLoopEvents } from "./services/kannaka/events";
 import { validateEnv } from "./config/env";
 import { loadUser, guardMutations } from "./middleware/auth";
+import { agentKeyAuth } from "./services/ledger/agent-keys";
+import { agentKeys } from "./services/ledger";
 import { pool } from "./db";
 import { aiKeyManager } from "./services/ai-key-manager";
 import { parallelResearchService } from "./services/parallel-research-service";
@@ -78,6 +80,8 @@ app.use(session({
 
 // Populate req.user from the session, then block anonymous state changes.
 app.use(loadUser);
+// Ledger agents authenticate with `Authorization: Bearer scl_...` (spec 3.2). Must run before guardMutations.
+app.use(agentKeyAuth(agentKeys));
 app.use(guardMutations);
 
 app.use((req, res, next) => {
