@@ -6,6 +6,8 @@ import { actorFromUser, type LedgerService } from "./service";
 import { LedgerError, type LedgerErrorCode } from "./types";
 
 export const NATS_FILE_SUBJECT = "SPACECHILD.ledger.file";
+/** Queue group for the door subscription: each filing is handled by one instance. */
+export const NATS_FILE_QUEUE = "spacechild-ledger";
 export const MAX_SKEW_MS = 5 * 60 * 1000;
 export const NONCE_TTL_MS = 10 * 60 * 1000;
 const SPKI_ED25519_PREFIX = Buffer.from("302a300506032b6570032100", "hex");

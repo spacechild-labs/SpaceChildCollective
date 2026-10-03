@@ -54,6 +54,13 @@ export interface LedgerStore {
   insertRelease(release: NewLedgerRelease, events: NewOutboxEvent[]): Promise<LedgerRelease>;
   listUnreleasedHeld(): Promise<StoredRecord[]>;
   listUnpublishedEvents(limit: number): Promise<LedgerOutboxEvent[]>;
+  /**
+   * Atomically claim up to `limit` unpublished events, oldest first, for `claimant`: events that are unclaimed or
+   * whose claim is older than `leaseMs`. Two concurrent callers never receive the same event within one lease.
+   */
+  claimUnpublishedEvents(limit: number, claimant: string, now: Date, leaseMs: number): Promise<LedgerOutboxEvent[]>;
+  /** Drop `claimant`'s claim on these events (not yet published) so the next drain can take them at once. */
+  releaseEventClaims(ids: string[], claimant: string): Promise<void>;
   markEventPublished(id: string, at: Date): Promise<void>;
   authorStats(authorId: string, vis: Visibility): Promise<AuthorStats>;
 }

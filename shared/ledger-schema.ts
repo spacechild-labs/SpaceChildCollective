@@ -76,6 +76,9 @@ export const ledgerOutbox = pgTable("ledger_outbox", {
   payload: jsonb("payload").notNull().$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   publishedAt: timestamp("published_at", { withTimezone: true }),
+  /** Lease taken by the instance draining this event (ruling FI3), so concurrent instances publish each event once. */
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  claimedBy: text("claimed_by"),
 }, (t) => [index("ledger_outbox_unpublished").on(t.publishedAt, t.createdAt)]);
 
 export const agentKeys = pgTable("agent_keys", {

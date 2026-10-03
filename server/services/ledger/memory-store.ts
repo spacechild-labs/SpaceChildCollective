@@ -109,7 +109,7 @@ export class MemoryLedgerStore implements LedgerStore {
       filedVia: n.filedVia, createdAt: n.createdAt,
     };
     this.records.set(row.id, row);
-    for (const e of events) this.outbox.push({ id: ulid(), subject: e.subject, payload: e.payload, createdAt: row.createdAt, publishedAt: null });
+    for (const e of events) this.outbox.push({ id: ulid(), subject: e.subject, payload: e.payload, createdAt: row.createdAt, publishedAt: null, claimedAt: null, claimedBy: null });
     return this.stored(row);
   }
 
@@ -119,7 +119,7 @@ export class MemoryLedgerStore implements LedgerStore {
     if (this.releases.has(n.recordId)) throw Object.assign(new Error("already released"), { code: "duplicate" });
     const row: LedgerRelease = { recordId: n.recordId, releasedBy: n.releasedBy, releasedAt: n.releasedAt, note: n.note ?? null };
     this.releases.set(row.recordId, row);
-    for (const e of events) this.outbox.push({ id: ulid(), subject: e.subject, payload: e.payload, createdAt: row.releasedAt, publishedAt: null });
+    for (const e of events) this.outbox.push({ id: ulid(), subject: e.subject, payload: e.payload, createdAt: row.releasedAt, publishedAt: null, claimedAt: null, claimedBy: null });
     return row;
   }
 
@@ -129,6 +129,20 @@ export class MemoryLedgerStore implements LedgerStore {
 
   async listUnpublishedEvents(limit: number) {
     return this.outbox.filter((e) => !e.publishedAt).slice(0, limit);
+  }
+
+  /** Synchronous body, so two concurrent callers on one event loop can never interleave inside a claim. */
+  async claimUnpublishedEvents(limit: number, claimant: string, now: Date, leaseMs: number) {
+    const cutoff = now.getTime() - leaseMs;
+    const free = this.outbox.filter((e) => !e.publishedAt && (!e.claimedAt || e.claimedAt.getTime() < cutoff)).slice(0, limit);
+    for (const e of free) { e.claimedAt = now; e.claimedBy = claimant; }
+    return free.map((e) => ({ ...e }));
+  }
+
+  async releaseEventClaims(ids: string[], claimant: string) {
+    for (const e of this.outbox) {
+      if (ids.includes(e.id) && e.claimedBy === claimant && !e.publishedAt) { e.claimedAt = null; e.claimedBy = null; }
+    }
   }
 
   async markEventPublished(id: string, at: Date) {

@@ -69,6 +69,32 @@ export function describeLedgerStoreContract(label: string, make: () => Promise<C
       expect((await f.store.listUnpublishedEvents(10)).map((e) => e.id)).not.toContain(events[0].id);
     });
 
+    it("claims outbox events atomically: concurrent claims never share an event, leases expire, claims can be handed back", async () => {
+      const before = (await f.store.listUnpublishedEvents(100)).map((e) => e.id);
+      for (const id of before) await f.store.markEventPublished(id, new Date());
+      for (let i = 0; i < 4; i++) await f.store.insertRecord(rec(f.alice.id), [{ subject: "claim.test", payload: { i } }]);
+      const now = new Date();
+      const [a, b] = await Promise.all([
+        f.store.claimUnpublishedEvents(3, "inst-a", now, 60_000),
+        f.store.claimUnpublishedEvents(3, "inst-b", now, 60_000),
+      ]);
+      const ids = [...a, ...b].map((e) => e.id);
+      expect(ids).toHaveLength(4);
+      expect(new Set(ids).size).toBe(4);
+      expect(a.map((e) => (e.payload as any).i)).toEqual([...a.map((e) => (e.payload as any).i)].sort());
+      // nothing left while the leases hold
+      expect(await f.store.claimUnpublishedEvents(10, "inst-c", new Date(now.getTime() + 1000), 60_000)).toHaveLength(0);
+      // a handed-back claim is free at once; a claim by someone else is not handed back
+      await f.store.releaseEventClaims([a[0].id], "inst-a");
+      await f.store.releaseEventClaims([b[0].id], "inst-a");
+      expect((await f.store.claimUnpublishedEvents(10, "inst-c", new Date(now.getTime() + 2000), 60_000)).map((e) => e.id)).toEqual([a[0].id]);
+      // published events are never claimed again; expired leases are
+      await f.store.markEventPublished(a[0].id, new Date());
+      const later = await f.store.claimUnpublishedEvents(10, "inst-d", new Date(now.getTime() + 61_000), 60_000);
+      expect(later.map((e) => e.id).sort()).toEqual(ids.filter((id) => id !== a[0].id).sort());
+      expect(later.every((e) => e.claimedBy === "inst-d")).toBe(true);
+    });
+
     it("rolls back the outbox when the record insert fails", async () => {
       await f.store.insertRecord(rec(f.alice.id, { clientRef: "dup" }), []);
       const before = (await f.store.listUnpublishedEvents(100)).length;

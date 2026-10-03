@@ -119,7 +119,7 @@ export class KannakaBridge {
 
   private stopped = false;
   private retryTimer: NodeJS.Timeout | null = null;
-  private wanted: { subject: string; handler: Handler }[] = [];
+  private wanted: { subject: string; handler: Handler; queue?: string }[] = [];
   private applied = new WeakSet<NatsConnection>();
 
   private scheduleRetry(): void {
@@ -132,16 +132,16 @@ export class KannakaBridge {
   }
 
   /** Remember a subscription and apply it now if connected. */
-  private want(subject: string, handler: Handler): void {
-    this.wanted.push({ subject, handler });
-    if (this.nc && !this.nc.isClosed() && this.applied.has(this.nc)) this.subscribeInternal(subject, handler);
+  private want(subject: string, handler: Handler, queue?: string): void {
+    this.wanted.push({ subject, handler, queue });
+    if (this.nc && !this.nc.isClosed() && this.applied.has(this.nc)) this.subscribeInternal(subject, handler, queue);
   }
 
   /** Apply every wanted subscription to a fresh connection exactly once. */
   private applyWanted(nc: NatsConnection): void {
     if (this.applied.has(nc)) return;
     this.applied.add(nc);
-    for (const w of this.wanted) this.subscribeInternal(w.subject, w.handler);
+    for (const w of this.wanted) this.subscribeInternal(w.subject, w.handler, w.queue);
     void this.refreshConsciousnessFromKv();
   }
 
@@ -261,8 +261,8 @@ export class KannakaBridge {
   }
 
   /** Subscribe now if connected; otherwise as soon as a connection exists. Returns whether it is live already. */
-  async subscribe(subject: string, handler: Handler): Promise<boolean> {
-    this.want(subject, handler);
+  async subscribe(subject: string, handler: Handler, opts: { queue?: string } = {}): Promise<boolean> {
+    this.want(subject, handler, opts.queue);
     const nc = await this.connection();
     return Boolean(nc);
   }
@@ -310,9 +310,10 @@ export class KannakaBridge {
     return this.connecting;
   }
 
-  private subscribeInternal(subject: string, handler: Handler): void {
+  /** With a queue group, NATS delivers each message to one member of the group (one instance), not to all. */
+  private subscribeInternal(subject: string, handler: Handler, queue?: string): void {
     if (!this.nc || !this.codec) return;
-    const sub = this.nc.subscribe(subject);
+    const sub = this.nc.subscribe(subject, queue ? { queue } : undefined);
     this.subs.push(sub);
     const codec = this.codec;
     void (async () => {

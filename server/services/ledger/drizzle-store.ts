@@ -2,7 +2,7 @@ import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, isNull, lt, or
 import { users } from "@shared/schema";
 import {
   agentKeys, ledgerCampaigns, ledgerOutbox, ledgerRecords, ledgerReleases,
-  type AgentKey, type CampaignStatus, type LedgerCampaign, type LedgerRelease, type NewAgentKey,
+  type AgentKey, type CampaignStatus, type LedgerCampaign, type LedgerOutboxEvent, type LedgerRelease, type NewAgentKey,
   type NewLedgerCampaign, type NewLedgerRecord, type NewLedgerRelease,
 } from "@shared/ledger-schema";
 import type {
@@ -152,6 +152,31 @@ export class DrizzleLedgerStore implements LedgerStore {
 
   async listUnpublishedEvents(limit: number) {
     return this.db.select().from(ledgerOutbox).where(isNull(ledgerOutbox.publishedAt)).orderBy(asc(ledgerOutbox.createdAt), asc(ledgerOutbox.id)).limit(limit);
+  }
+
+  /** UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING: one statement, so concurrent instances never claim the same row. */
+  async claimUnpublishedEvents(limit: number, claimant: string, now: Date, leaseMs: number) {
+    const cutoff = new Date(now.getTime() - leaseMs);
+    const claimable = this.db
+      .select({ id: ledgerOutbox.id })
+      .from(ledgerOutbox)
+      .where(and(isNull(ledgerOutbox.publishedAt), or(isNull(ledgerOutbox.claimedAt), lt(ledgerOutbox.claimedAt, cutoff))))
+      .orderBy(asc(ledgerOutbox.createdAt), asc(ledgerOutbox.id))
+      .limit(limit)
+      .for("update", { skipLocked: true });
+    const rows = (await this.db
+      .update(ledgerOutbox)
+      .set({ claimedAt: now, claimedBy: claimant })
+      .where(inArray(ledgerOutbox.id, claimable))
+      .returning()) as LedgerOutboxEvent[];
+    // RETURNING has no defined order.
+    return rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  }
+
+  async releaseEventClaims(ids: string[], claimant: string) {
+    if (!ids.length) return;
+    await this.db.update(ledgerOutbox).set({ claimedAt: null, claimedBy: null })
+      .where(and(inArray(ledgerOutbox.id, ids), eq(ledgerOutbox.claimedBy, claimant), isNull(ledgerOutbox.publishedAt)));
   }
 
   async markEventPublished(id: string, at: Date) {
