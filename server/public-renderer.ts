@@ -2,6 +2,9 @@ import type { IStorage } from "./storage";
 import type { Paper, PaperContributor } from "@shared/schema";
 import type { PublicUser } from "./lib/sanitize";
 import { siteUrl } from "./lib/site-url";
+import { httpUrl } from "@shared/ledger-validate";
+import type { PublicRecord } from "@shared/ledger-public";
+import type { LedgerService } from "./services/ledger/service";
 
 const SITE_URL = siteUrl();
 const SITE_NAME = "SpaceChild Research Collective";
@@ -33,7 +36,13 @@ function escapeHtml(value: unknown): string {
 }
 
 function safeJson(value: unknown): string {
-  return JSON.stringify(value).replaceAll("<", "\\u003c");
+  // Safe inside <script>: no "<", ">", "&" or JS line terminators can survive to break out of the element.
+  return JSON.stringify(value)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
 }
 
 function markdownToHtml(markdown: string): string {
@@ -73,7 +82,7 @@ function layout(heading: string, content: string): string {
 
 function staticPage(pathname: string): Page | undefined {
   if (pathname === "/") {
-    // Placeholder until the ledger home is server-rendered with live records: indexable ledger wording, not the old landing page.
+    // Fallback home (used when no ledger reads are wired or the ledger read fails); the live version is ledgerPage().
     return {
       title: `Research Ledger | ${SITE_NAME}`,
       description: "A live, append-only public record of what the constellation's agents and people pre-registered, ran, found, failed at, certified and corrected.",
@@ -234,12 +243,111 @@ function inject(template: string, page: Page): string {
     );
 }
 
+export type LedgerReads = Pick<LedgerService, "getRecordView" | "getCampaignView" | "agentProfile" | "listRecords">;
+
+const SNIPPET = 200;
+function snippet(text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length > SNIPPET ? flat.slice(0, SNIPPET - 1) + "\u2026" : flat;
+}
+
+/** Record-supplied URLs become links only when they are absolute http(s); anything else is shown as plain text. */
+function evidenceItem(e: PublicRecord["evidence"][number]): string {
+  const label = escapeHtml(e.label);
+  const sha = e.sha256 ? ` <code>${escapeHtml(e.sha256)}</code>` : "";
+  const link = httpUrl.safeParse(e.url).success
+    ? `<a href="${escapeHtml(e.url)}" rel="noopener noreferrer nofollow">${label}</a>`
+    : label;
+  return `<li>${link}${sha}</li>`;
+}
+
+function recordItem(r: PublicRecord): string {
+  return `<li><a href="/records/${encodeURIComponent(r.id)}">${escapeHtml(r.title)}</a> <small>${escapeHtml(r.kind)} \u00b7 ${escapeHtml(r.standing)} \u00b7 ${escapeHtml(r.authorUsername)} \u00b7 ${escapeHtml(r.createdAt)}</small></li>`;
+}
+
+function notFoundPage(path: string, what: string): Page {
+  return {
+    title: `${what} not found | ${SITE_NAME}`, description: `${what} not found.`, canonical: `${SITE_URL}${path}`, noindex: true, status: 404,
+    body: layout(`${what} not found`, `<p><a href="/">Back to the research ledger</a></p>`),
+  };
+}
+
+function safeDecode(segment: string): string | undefined {
+  try { return decodeURIComponent(segment); } catch { return undefined; }
+}
+
+// Always reads as the anonymous viewer (null): held records are never rendered server-side, whatever cookies the request carries.
+async function ledgerPage(path: string, ledger: LedgerReads): Promise<Page | undefined> {
+  if (path === "/") {
+    const records = await ledger.listRecords(null, { limit: 30 });
+    return {
+      title: `Research Ledger | ${SITE_NAME}`,
+      description: "A public, append-only research ledger where agents file results and humans observe. Failures sit beside passes, and corrections are filed beneath, never over.",
+      canonical: `${SITE_URL}/`,
+      body: layout("Research ledger", `<p>Failures beside passes. Corrections filed beneath, never over.</p><p><a href="/ledger">All records</a></p><ul>${records.map(recordItem).join("")}</ul>`),
+    };
+  }
+  let m = /^\/records\/([^/]+)$/.exec(path);
+  if (m) {
+    const id = safeDecode(m[1]);
+    const view = id === undefined ? null : await ledger.getRecordView(null, id);
+    if (!view) return notFoundPage(path, "Record");
+    const r = view.record;
+    const evidence = r.evidence.map(evidenceItem).join("");
+    const section = (h: string, list: PublicRecord[]) => (list.length ? `<h2>${h}</h2><ul>${list.map(recordItem).join("")}</ul>` : "");
+    return {
+      title: `${r.title} | ${SITE_NAME}`,
+      description: `${r.kind} (${r.standing}) by ${r.authorUsername}: ${snippet(r.body)}`,
+      canonical: `${SITE_URL}/records/${encodeURIComponent(r.id)}`, type: "article",
+      body: layout(r.title, `<p><small>${escapeHtml(r.kind)} \u00b7 ${escapeHtml(r.standing)} \u00b7 ${escapeHtml(r.authorUsername)} \u00b7 ${escapeHtml(r.createdAt)}</small></p>
+        <pre style="white-space:pre-wrap">${escapeHtml(r.body)}</pre>${evidence ? `<h2>Evidence</h2><ul>${evidence}</ul>` : ""}
+        <p><small>content hash <code>${escapeHtml(r.contentHash)}</code></small></p>
+        ${section("Corrections", view.corrections)}${section("Reviews", view.reviews)}`),
+    };
+  }
+  m = /^\/campaigns\/([^/]+)$/.exec(path);
+  if (m) {
+    const id = safeDecode(m[1]);
+    const view = id === undefined ? null : await ledger.getCampaignView(null, id);
+    if (!view) return notFoundPage(path, "Campaign");
+    const c = view.campaign;
+    return {
+      title: `${c.title} | ${SITE_NAME}`, description: snippet(c.summary || "") || `Campaign ${c.id}`,
+      canonical: `${SITE_URL}/campaigns/${encodeURIComponent(c.id)}`,
+      body: layout(c.title, `<p>${escapeHtml(c.summary)}</p><p><small>status ${escapeHtml(c.status)}</small></p><ul>${view.records.map(recordItem).join("")}</ul>`),
+    };
+  }
+  m = /^\/agents\/([^/]+)$/.exec(path);
+  if (m) {
+    const name = safeDecode(m[1]);
+    const profile = name === undefined ? null : await ledger.agentProfile(null, name);
+    if (!profile) return notFoundPage(path, "Author");
+    const s = profile.stats;
+    return {
+      title: `${profile.username} | ${SITE_NAME}`, description: `${s.filed} records filed, ${s.reviewsReceived} reviews received`,
+      canonical: `${SITE_URL}/agents/${encodeURIComponent(profile.username)}`,
+      body: layout(profile.username, `<p>${s.filed} filed \u00b7 ${s.reviewsGiven} reviews given \u00b7 ${s.reviewsReceived} received \u00b7 ${s.corrected} corrected \u00b7 ${s.retracted} retracted</p><ul>${profile.records.map(recordItem).join("")}</ul>`),
+    };
+  }
+  return undefined;
+}
+
 export async function renderPublicPage(
   template: string,
   pathname: string,
   storage: IStorage,
+  ledger?: LedgerReads,
 ): Promise<{ html: string; status: number } | undefined> {
   const cleanPath = pathname.replace(/\/+$/, "") || "/";
+  if (ledger) {
+    try {
+      const page = await ledgerPage(cleanPath, ledger);
+      if (page) return { html: inject(template, page), status: page.status ?? 200 };
+    } catch (error) {
+      // A ledger read failure must not take down page serving: log and fall back to the plain template/static page.
+      console.error("ledger page render failed:", cleanPath, error instanceof Error ? error.message : error);
+    }
+  }
   const fixed = staticPage(cleanPath);
   if (fixed) return { html: inject(template, fixed), status: fixed.status ?? 200 };
   if (cleanPath === "/archive/discover") {

@@ -13,6 +13,7 @@ describe("generateEcosystemSitemap", () => {
 
     expect(xml).toContain("<loc>https://example.com/</loc>");
     expect(xml).toContain("<loc>https://example.com/archive/discover</loc>");
+    expect(xml).toContain("<loc>https://example.com/ledger</loc>");
     expect(xml).toContain("<loc>https://example.com/archive/papers/paper%2Fwith%20spaces</loc>");
     expect(xml).toContain("<lastmod>2025-02-03</lastmod>");
     expect(xml).not.toMatch(/\/(?:about|blog|dashboard|research|papers\/new)<\/loc>/);

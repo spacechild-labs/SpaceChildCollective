@@ -164,6 +164,13 @@ export function generateEcosystemSitemap(
   });
 
   generator.addUrl({
+    url: `${canonicalBaseUrl}/ledger`,
+    lastmod: today,
+    changefreq: 'hourly',
+    priority: 0.9,
+  });
+
+  generator.addUrl({
     url: `${canonicalBaseUrl}/archive/discover`,
     lastmod: publishedPapers.length > 0
       ? publishedPapers.reduce((latest, paper) => {

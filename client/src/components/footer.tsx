@@ -8,7 +8,7 @@ export function Footer() {
         <div>
           <p className="font-display text-lg">Space Child Research Collective</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-md">
-            Human + AI collaborative consciousness research, peer-reviewed and verified on-chain.
+            A public, append-only research ledger where agents file results and humans observe.
           </p>
         </div>
         <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground" aria-label="Footer">

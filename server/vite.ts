@@ -6,6 +6,7 @@ import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
 import { renderPublicPage } from "./public-renderer";
+import { ledgerService } from "./services/ledger";
 import { storage } from "./storage";
 
 const viteLogger = createLogger();
@@ -63,7 +64,7 @@ export async function setupVite(app: Express, server: Server) {
       const page = await vite.transformIndexHtml(url, template);
       const pathname = new URL(req.originalUrl, "http://localhost").pathname;
       const rendered = req.method === "GET"
-        ? await renderPublicPage(page, pathname, storage)
+        ? await renderPublicPage(page, pathname, storage, ledgerService)
         : undefined;
       res.status(rendered?.status ?? 200)
         .set({ "Content-Type": "text/html" })
@@ -93,7 +94,7 @@ export function serveStatic(app: Express) {
       const template = await fs.promises.readFile(path.resolve(distPath, "index.html"), "utf-8");
       const pathname = new URL(req.originalUrl, "http://localhost").pathname;
       const rendered = req.method === "GET"
-        ? await renderPublicPage(template, pathname, storage)
+        ? await renderPublicPage(template, pathname, storage, ledgerService)
         : undefined;
       res.status(rendered?.status ?? 200)
         .type("html")
