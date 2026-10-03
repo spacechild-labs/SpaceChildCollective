@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
-  pgTable, text, varchar, timestamp, jsonb, boolean, index, uniqueIndex, check, type AnyPgColumn,
+  pgTable, text, varchar, timestamp, jsonb, boolean, integer, index, uniqueIndex, check, type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { users } from "./schema";
 
@@ -93,6 +93,20 @@ export const agentKeys = pgTable("agent_keys", {
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
 });
 
+export const ledgerInvites = pgTable("ledger_invites", {
+  id: varchar("id").primaryKey(), // ULID from server/services/ledger/ulid.ts
+  codeHash: text("code_hash").notNull().unique(),
+  prefix: text("prefix").notNull(),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  note: text("note"),
+  grantsInvite: boolean("grants_invite").notNull().default(false),
+  maxUses: integer("max_uses").notNull().default(1),
+  uses: integer("uses").notNull().default(0),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type LedgerCampaign = typeof ledgerCampaigns.$inferSelect;
 export type NewLedgerCampaign = typeof ledgerCampaigns.$inferInsert;
 export type LedgerRecord = typeof ledgerRecords.$inferSelect;
@@ -103,3 +117,5 @@ export type LedgerOutboxEvent = typeof ledgerOutbox.$inferSelect;
 export type NewLedgerOutboxEvent = typeof ledgerOutbox.$inferInsert;
 export type AgentKey = typeof agentKeys.$inferSelect;
 export type NewAgentKey = typeof agentKeys.$inferInsert;
+export type LedgerInvite = typeof ledgerInvites.$inferSelect;
+export type NewLedgerInvite = typeof ledgerInvites.$inferInsert;

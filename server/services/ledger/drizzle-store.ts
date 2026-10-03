@@ -1,12 +1,12 @@
-import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, isNull, lt, or, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, getTableColumns, gt, gte, inArray, isNotNull, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { users } from "@shared/schema";
 import {
-  agentKeys, ledgerCampaigns, ledgerOutbox, ledgerRecords, ledgerReleases,
-  type AgentKey, type CampaignStatus, type LedgerCampaign, type LedgerOutboxEvent, type LedgerRelease, type NewAgentKey,
-  type NewLedgerCampaign, type NewLedgerRecord, type NewLedgerRelease,
+  agentKeys, ledgerCampaigns, ledgerInvites, ledgerOutbox, ledgerRecords, ledgerReleases,
+  type AgentKey, type CampaignStatus, type LedgerCampaign, type LedgerInvite, type LedgerOutboxEvent, type LedgerRelease, type NewAgentKey,
+  type NewLedgerCampaign, type NewLedgerInvite, type NewLedgerRecord, type NewLedgerRelease,
 } from "@shared/ledger-schema";
 import type {
-  AgentKeyStore, AuthorStats, LedgerStore, NewOutboxEvent, RecordFilter, StoredRecord, Visibility,
+  AgentKeyStore, AuthorStats, InviteStore, LedgerStore, NewOutboxEvent, RecordFilter, StoredRecord, Visibility,
 } from "./types";
 import { DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from "./types";
 import { ulid } from "./ulid";
@@ -244,5 +244,67 @@ export class DrizzleAgentKeyStore implements AgentKeyStore {
   }
   async touch(id: string, at: Date) {
     await this.db.update(agentKeys).set({ lastUsedAt: at }).where(eq(agentKeys.id, id));
+  }
+}
+
+export class DrizzleInviteStore implements InviteStore {
+  constructor(private readonly db: any) {}
+
+  private openWhere(now: Date) {
+    return [isNull(ledgerInvites.revokedAt), gt(ledgerInvites.expiresAt, now), lt(ledgerInvites.uses, ledgerInvites.maxUses)];
+  }
+
+  async insert(i: NewLedgerInvite) {
+    const [row] = await this.db.insert(ledgerInvites).values(i).returning();
+    return row as LedgerInvite;
+  }
+  async findByHash(codeHash: string) {
+    const [row] = await this.db.select().from(ledgerInvites).where(eq(ledgerInvites.codeHash, codeHash));
+    return row as LedgerInvite | undefined;
+  }
+  async findById(id: string) {
+    const [row] = await this.db.select().from(ledgerInvites).where(eq(ledgerInvites.id, id));
+    return row as LedgerInvite | undefined;
+  }
+  async claim(codeHash: string, now: Date) {
+    const rows = await this.db.update(ledgerInvites)
+      .set({ uses: sql`${ledgerInvites.uses} + 1` })
+      .where(and(eq(ledgerInvites.codeHash, codeHash), ...this.openWhere(now)))
+      .returning();
+    return rows[0] as LedgerInvite | undefined;
+  }
+  async release(id: string) {
+    await this.db.update(ledgerInvites)
+      .set({ uses: sql`greatest(${ledgerInvites.uses} - 1, 0)` })
+      .where(eq(ledgerInvites.id, id));
+  }
+  async revoke(id: string, at: Date) {
+    const [row] = await this.db.update(ledgerInvites).set({ revokedAt: at })
+      .where(and(eq(ledgerInvites.id, id), isNull(ledgerInvites.revokedAt))).returning();
+    return (row as LedgerInvite | undefined) ?? (await this.findById(id));
+  }
+  async revokeAllByCreators(userIds: string[], at: Date) {
+    if (userIds.length === 0) return 0;
+    const rows = await this.db.update(ledgerInvites).set({ revokedAt: at })
+      .where(and(inArray(ledgerInvites.createdBy, userIds), ...this.openWhere(at))).returning({ id: ledgerInvites.id });
+    return rows.length as number;
+  }
+  async listByCreator(userId: string) {
+    return (await this.db.select().from(ledgerInvites).where(eq(ledgerInvites.createdBy, userId))
+      .orderBy(desc(ledgerInvites.createdAt), desc(ledgerInvites.id))) as LedgerInvite[];
+  }
+  async listAll() {
+    return (await this.db.select().from(ledgerInvites)
+      .orderBy(desc(ledgerInvites.createdAt), desc(ledgerInvites.id))) as LedgerInvite[];
+  }
+  async countMintedSince(userId: string, since: Date) {
+    const [r] = await this.db.select({ n: count() }).from(ledgerInvites)
+      .where(and(eq(ledgerInvites.createdBy, userId), gte(ledgerInvites.createdAt, since)));
+    return Number(r?.n ?? 0);
+  }
+  async countOpen(userId: string, now: Date) {
+    const [r] = await this.db.select({ n: count() }).from(ledgerInvites)
+      .where(and(eq(ledgerInvites.createdBy, userId), ...this.openWhere(now)));
+    return Number(r?.n ?? 0);
   }
 }
