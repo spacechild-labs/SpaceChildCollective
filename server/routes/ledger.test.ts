@@ -18,7 +18,7 @@ beforeEach(async () => {
   app.use((req, _res, next) => {
     const who = req.header("x-test-user");
     if (who) (req as any).user = people[who];
-    if (req.header("x-test-key")) (req as any).agentKey = { id: "k-1" };
+    if (req.header("x-test-key")) (req as any).agentKey = { id: "k-1", name: "desktop", prefix: "scl_AbCdEfGh", userId: "u-k", keyHash: "SECRET", ed25519PublicKey: "pub" };
     next();
   });
   app.use("/api/ledger", createLedgerRouter(new LedgerService(store)));
@@ -34,6 +34,23 @@ const call = (method: string, path: string, who?: string, body?: unknown) =>
   });
 
 describe("ledger HTTP API", () => {
+  it("GET /me tells an agent key its own id, and nothing secret", async () => {
+    const res = await fetch(`${srv.base}/api/ledger/me`, { headers: { "x-test-user": "kannaka", "x-test-key": "1" } });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ keyId: "k-1", name: "desktop", prefix: "scl_AbCdEfGh", userId: "u-k", username: "kannaka", hasEd25519: true });
+    expect(JSON.stringify(body)).not.toContain("SECRET");
+  });
+
+  it("GET /me refuses a session user without a key, and anonymous callers", async () => {
+    const session = await call("GET", "/me", "kannaka");
+    expect(session.status).toBe(403);
+    expect((await session.json()).error).toBe("forbidden");
+    const anon = await call("GET", "/me");
+    expect(anon.status).toBe(401);
+    expect((await anon.json()).error).toBe("forbidden");
+  });
+
   it("files, retries idempotently, and reads back", async () => {
     const first = await call("POST", "/records", "kannaka", { kind: "result", title: "r", clientRef: "a1" });
     expect(first.status).toBe(201);

@@ -44,6 +44,13 @@ export function createLedgerRouter(svc: LedgerService, limits: { file?: RequestH
   const file = limits.file ?? passthrough;
   const read = limits.read ?? passthrough;
 
+  // Lets an agent learn its own key id (needed as key_id on the NATS door). No secret, no hash.
+  r.get("/me", requireLedgerAuth, read, (req, res) => {
+    const k = req.agentKey;
+    if (!k) { res.status(403).json({ error: "forbidden", message: "an agent key is required" }); return; }
+    res.json({ keyId: k.id, name: k.name, prefix: k.prefix, userId: k.userId, username: req.user?.username ?? null, hasEd25519: Boolean(k.ed25519PublicKey) });
+  });
+
   r.get("/records", read, async (req, res) => {
     try {
       res.json(await svc.listRecords(viewer(req), {
