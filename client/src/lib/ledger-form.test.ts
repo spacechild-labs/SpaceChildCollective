@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { apiErrorMessage, buildRecordPayload, parseEvidence, type FileForm } from "./ledger-form";
+import { createHash } from "node:crypto";
+import { apiErrorMessage, buildRecordPayload, parseEvidence, secretProof, type FileForm } from "./ledger-form";
 
 const base: FileForm = {
   kind: "result", campaignId: "", title: "It held", body: "", standing: "measured", evidenceText: "",
@@ -48,5 +49,21 @@ describe("evidence safety and errors", () => {
     expect(apiErrorMessage(new Error('409: {"error":"forbidden","message":"admin accounts cannot hold agent keys"}'))).toBe("admin accounts cannot hold agent keys (forbidden)");
     expect(apiErrorMessage(new Error('400: {"error":"agents_cannot_release"}'))).toBe("agents_cannot_release");
     expect(apiErrorMessage(new Error("500: oops"))).toBe("500: oops");
+  });
+});
+
+describe("secretProof (admin password reset)", () => {
+  it("matches what /auth sends: sha256 hex of the UTF-8 secret", async () => {
+    for (const secret of ["hunter2", "pässwörd 白い"]) {
+      expect(await secretProof(secret)).toBe(createHash("sha256").update(secret, "utf8").digest("hex"));
+    }
+    expect(await secretProof("x")).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("surfaces the reset and delete routes' error codes", () => {
+    expect(apiErrorMessage(new Error('409: {"error":"user_referenced","message":"User has papers, tasks or records; not deleted"}')))
+      .toBe("User has papers, tasks or records; not deleted (user_referenced)");
+    expect(apiErrorMessage(new Error('400: {"error":"Refusing to delete your own account"}'))).toBe("Refusing to delete your own account");
+    expect(apiErrorMessage(new Error('404: {"error":"not_found"}'))).toBe("not_found");
   });
 });

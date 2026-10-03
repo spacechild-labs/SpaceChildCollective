@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
-import { apiErrorMessage } from "@/lib/ledger-form";
+import { apiErrorMessage, secretProof } from "@/lib/ledger-form";
 
 type Key = { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null; ed25519PublicKey: string | null };
 // Only the fields this page needs from GET /api/users/by-username/:u.
@@ -23,13 +23,16 @@ export default function AdminAgentsPage() {
   const [copiedId, setCopiedId] = useState(false);
   const [copied, setCopied] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [newSecret, setNewSecret] = useState("");
+  const [newSecretAgain, setNewSecretAgain] = useState("");
 
   const dismissSecret = () => { setSecret(null); setCopied(false); setIssuedId(null); setCopiedId(false); };
   useEffect(() => () => { setSecret(null); }, []);
 
   if (user?.role !== "admin") return <main className="mx-auto max-w-2xl px-4 py-8">Admins only.</main>;
 
-  const run = async (fn: () => Promise<void>) => { setMsg(null); try { await fn(); } catch (e) { setMsg(apiErrorMessage(e)); } };
+  const run = async (fn: () => Promise<void>) => { setMsg(null); setNotice(null); try { await fn(); } catch (e) { setMsg(apiErrorMessage(e)); } };
   const loadKeys = async (id: string) => setKeys(await (await apiRequest("GET", `/api/admin/users/${id}/keys`)).json());
   const load = () => run(async () => {
     dismissSecret();
@@ -63,6 +66,26 @@ export default function AdminAgentsPage() {
     await apiRequest("DELETE", `/api/admin/keys/${id}`);
     await loadKeys(target.id);
   });
+  // Spec 5: reset a password / delete an account (POST /api/admin/users/:id/reset-password, DELETE /api/admin/users/:id).
+  const resetPassword = () => run(async () => {
+    if (!target) return;
+    if (newSecret.length < 8) { setMsg("The new password must be at least 8 characters."); return; }
+    if (newSecret !== newSecretAgain) { setMsg("The two passwords do not match."); return; }
+    if (!window.confirm(`Reset the password of ${target.username}? Their old password stops working at once.`)) return;
+    await apiRequest("POST", `/api/admin/users/${target.id}/reset-password`, { zkProof: await secretProof(newSecret) });
+    setNewSecret("");
+    setNewSecretAgain("");
+    setNotice(`Password reset for ${target.username}. Give them the new password over a private channel.`);
+  });
+  const deleteAccount = () => run(async () => {
+    if (!target) return;
+    if (!window.confirm(`Delete the account ${target.username}? This cannot be undone. Accounts with papers, tasks or ledger records are refused.`)) return;
+    await apiRequest("DELETE", `/api/admin/users/${target.id}`);
+    setNotice(`Deleted ${target.username}.`);
+    setTarget(null);
+    setKeys([]);
+    dismissSecret();
+  });
   const copyId = async () => {
     if (!issuedId) return;
     try { await navigator.clipboard.writeText(issuedId); setCopiedId(true); } catch { setMsg("Could not copy automatically; select the key id and copy it by hand."); }
@@ -81,6 +104,7 @@ export default function AdminAgentsPage() {
         <Button size="sm" type="submit" disabled={!username.trim()}>Load</Button>
       </form>
       {msg && <p role="alert" className="text-sm text-rose-400">{msg}</p>}
+      {notice && <p role="status" className="text-sm text-emerald-400">{notice}</p>}
       {target && (
         <section className="space-y-3 rounded border border-border p-4 text-sm">
           <div><span className="font-semibold">{target.username}</span> · {target.userType} · role {target.role} · releaser {String(target.canRelease)}</div>
@@ -126,6 +150,15 @@ export default function AdminAgentsPage() {
               )}
             </div>
           )}
+          <div className="space-y-2 border-t border-border pt-3" data-testid="account-actions">
+            <h2 className="font-semibold">Account</h2>
+            <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); void resetPassword(); }}>
+              <input type="password" autoComplete="new-password" className="rounded border bg-background px-2 py-1" placeholder="new password" value={newSecret} onChange={(e) => setNewSecret(e.target.value)} />
+              <input type="password" autoComplete="new-password" className="rounded border bg-background px-2 py-1" placeholder="repeat new password" value={newSecretAgain} onChange={(e) => setNewSecretAgain(e.target.value)} />
+              <Button size="sm" variant="outline" type="submit" disabled={!newSecret || !newSecretAgain}>Reset password</Button>
+            </form>
+            <Button size="sm" variant="destructive" onClick={deleteAccount} disabled={target.id === user?.id}>Delete account</Button>
+          </div>
         </section>
       )}
     </main>

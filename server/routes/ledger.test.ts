@@ -137,3 +137,17 @@ describe("ledger HTTP API", () => {
     expect((await session.json()).record.filedVia).toBe("web");
   });
 });
+
+describe("caching of signed-in ledger reads (M8)", () => {
+  it("marks every response to a signed-in viewer private, no-store, and leaves anonymous ones alone", async () => {
+    const held = await call("POST", "/records", "kannaka", { kind: "result", title: "HELD-CACHE", held: true });
+    const { id } = await held.json();
+    for (const path of ["/records", `/records/${id}`, "/campaigns", "/agents/kannaka"]) {
+      const member = await call("GET", path, "nick");
+      expect(member.headers.get("cache-control"), path).toBe("private, no-store");
+      const anon = await call("GET", path);
+      expect(anon.headers.get("cache-control") ?? "", path).not.toContain("private");
+    }
+    expect(held.headers.get("cache-control")).toBe("private, no-store");
+  });
+});

@@ -12,8 +12,15 @@ export const SUBJECT_REVIEW = "SPACECHILD.ledger.review.filed";
 
 export type PublicEvent = { type: "filed" | "released"; id: string; kind: string; campaignId: string | null };
 
-import type { AgentProfile, PublicRecord, RecordView } from "@shared/ledger-public";
-export type { AgentProfile, PublicRecord, RecordView };
+import type { AgentProfile, PublicCampaign, PublicRecord, RecordView } from "@shared/ledger-public";
+export type { AgentProfile, PublicCampaign, PublicRecord, RecordView };
+
+export function toPublicCampaign(c: LedgerCampaign, ownerUsername: string): PublicCampaign {
+  return {
+    id: c.id, title: c.title, summary: c.summary, status: c.status, links: c.links, ownerUsername,
+    createdAt: c.createdAt.toISOString(),
+  };
+}
 
 export interface Disputes { correctedBy: string[]; brokenBy: string[] }
 const NO_DISPUTES: Disputes = { correctedBy: [], brokenBy: [] };
@@ -251,24 +258,30 @@ export class LedgerService {
     return this.withDisputes(rows, { includeHeld: viewer !== null });
   }
 
-  async createCampaign(actor: Actor, input: unknown): Promise<LedgerCampaign> {
+  async createCampaign(actor: Actor, input: unknown): Promise<PublicCampaign> {
     const parsed = campaignInputSchema.safeParse(input);
     if (!parsed.success) throw inputError(parsed.error);
     try {
-      return await this.store.insertCampaign({ ...parsed.data, ownerId: actor.id, status: "registered", createdAt: this.now() });
+      return toPublicCampaign(await this.store.insertCampaign({ ...parsed.data, ownerId: actor.id, status: "registered", createdAt: this.now() }), actor.username);
     } catch (error: any) {
       if (error?.code === "duplicate") throw new LedgerError("invalid_input", 409, "campaign id already exists");
       throw error;
     }
   }
 
-  listCampaigns(): Promise<LedgerCampaign[]> {
-    return this.store.listCampaigns();
+  private async publicCampaigns(cs: LedgerCampaign[]): Promise<PublicCampaign[]> {
+    const names = await this.store.usernamesFor(cs.map((c) => c.ownerId));
+    return cs.map((c) => toPublicCampaign(c, names.get(c.ownerId) ?? "unknown"));
   }
 
-  async getCampaignView(viewer: Actor | null, id: string): Promise<{ campaign: LedgerCampaign; records: PublicRecord[] } | null> {
-    const campaign = await this.store.getCampaign(id);
-    if (!campaign) return null;
+  async listCampaigns(): Promise<PublicCampaign[]> {
+    return this.publicCampaigns(await this.store.listCampaigns());
+  }
+
+  async getCampaignView(viewer: Actor | null, id: string): Promise<{ campaign: PublicCampaign; records: PublicRecord[] } | null> {
+    const stored = await this.store.getCampaign(id);
+    if (!stored) return null;
+    const [campaign] = await this.publicCampaigns([stored]);
     const vis = { includeHeld: viewer !== null };
     const records = await this.store.listRecords({ campaignId: id, limit: 200 }, vis);
     return { campaign, records: await this.withDisputes(records, vis) };

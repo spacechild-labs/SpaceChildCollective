@@ -41,6 +41,11 @@ const actor = (req: Request) => actorFromUser(req.user as any);
 
 export function createLedgerRouter(svc: LedgerService, limits: { file?: RequestHandler; read?: RequestHandler } = {}): Router {
   const r = Router();
+  // A signed-in viewer's responses can include held records: never let a shared cache or the browser store them.
+  r.use((req, res, next) => {
+    if (req.user) res.set("Cache-Control", "private, no-store");
+    next();
+  });
   const file = limits.file ?? passthrough;
   const read = limits.read ?? passthrough;
 

@@ -5,8 +5,12 @@ import {
 
 export const LEDGER_RULE_CODES = ["invalid_link", "missing_verdict"] as const;
 
+/** Postgres text/jsonb reject NUL; refuse it up front as invalid_input instead of failing the insert with a 500. */
+const noNul = (s: string) => !s.includes("\u0000");
+const NUL_MESSAGE = "strings must not contain NUL (\\u0000) characters";
+
 /** http(s) only: javascript:, data: and friends are stored-XSS vectors on public pages. */
-export const httpUrl = z.string().max(2000).refine((v) => {
+export const httpUrl = z.string().max(2000).refine(noNul, NUL_MESSAGE).refine((v) => {
   if (v !== v.trim()) return false;
   try { const p = new URL(v).protocol; return p === "http:" || p === "https:"; } catch { return false; }
 }, "url must be an absolute http or https URL");
@@ -14,7 +18,7 @@ export const httpUrl = z.string().max(2000).refine((v) => {
 const recordId = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/, "record ids are 26-character ULIDs");
 
 export const evidenceSchema = z.object({
-  label: z.string().trim().min(1).max(200),
+  label: z.string().trim().min(1).max(200).refine(noNul, NUL_MESSAGE),
   url: httpUrl,
   sha256: z.string().regex(/^[0-9a-f]{64}$/, "sha256 must be 64 lowercase hex characters").optional(),
   bytes: z.number().int().nonnegative().optional(),
@@ -23,8 +27,8 @@ export const evidenceSchema = z.object({
 export const recordInputSchema = z.object({
   campaignId: z.string().regex(CAMPAIGN_ID_RE).nullable().optional(),
   kind: z.enum(LEDGER_KINDS),
-  title: z.string().trim().min(1).max(300),
-  body: z.string().max(100_000).default(""),
+  title: z.string().trim().min(1).max(300).refine(noNul, NUL_MESSAGE),
+  body: z.string().max(100_000).refine(noNul, NUL_MESSAGE).default(""),
   standing: z.enum(LEDGER_STANDINGS).default("unverified"),
   evidence: z.array(evidenceSchema).max(100).default([]),
   correctsId: recordId.nullable().optional(),
@@ -33,7 +37,7 @@ export const recordInputSchema = z.object({
   amendsId: recordId.nullable().optional(),
   aboutId: recordId.nullable().optional(),
   setsStatus: z.enum(CAMPAIGN_STATUSES).nullable().optional(),
-  clientRef: z.string().trim().min(1).max(200).nullable().optional(),
+  clientRef: z.string().trim().min(1).max(200).refine(noNul, NUL_MESSAGE).nullable().optional(),
   held: z.boolean().default(false),
 }).strict().superRefine((r, ctx) => {
   const bad = (message: (typeof LEDGER_RULE_CODES)[number], path: string) =>
@@ -54,8 +58,8 @@ export type RecordInput = z.infer<typeof recordInputSchema>;
 
 export const campaignInputSchema = z.object({
   id: z.string().regex(CAMPAIGN_ID_RE),
-  title: z.string().trim().min(1).max(200),
-  summary: z.string().max(5000).default(""),
-  links: z.array(z.object({ label: z.string().trim().min(1).max(200), url: httpUrl }).strict()).max(50).default([]),
+  title: z.string().trim().min(1).max(200).refine(noNul, NUL_MESSAGE),
+  summary: z.string().max(5000).refine(noNul, NUL_MESSAGE).default(""),
+  links: z.array(z.object({ label: z.string().trim().min(1).max(200).refine(noNul, NUL_MESSAGE), url: httpUrl }).strict()).max(50).default([]),
 }).strict();
 export type CampaignInput = z.infer<typeof campaignInputSchema>;

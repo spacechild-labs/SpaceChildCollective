@@ -101,67 +101,65 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache when offline
+// Caching is off: today the worker serves nothing from Cache Storage and every fetch goes to the network. Turning it
+// on is a deliberate change (index.html cached cache-first outlives a deploy); bypassCache() below applies either way.
+const SKIP_CACHING = true;
+
+/**
+ * Requests this worker must never answer from, or write to, Cache Storage: anything that is not a GET, other origins,
+ * the API (members' held ledger records must not persist on a shared device after logout, and lists must be live),
+ * the MCP endpoint, the ledger feeds, and event streams (the live ledger).
+ */
+function bypassCache(request) {
+  if (request.method !== 'GET') return true;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return true;
+  if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return true;
+  if (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/')) return true;
+  if (/^\/ledger\/(?:[^/]+\/)?feed\.(?:xml|json)$/.test(url.pathname)) return true;
+  const accept = (request.headers && request.headers.get && request.headers.get('accept')) || '';
+  if (accept.includes('text/event-stream')) return true;
+  return false;
+}
+
+// Fetch event - serve from cache when offline (only when caching is on)
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  
-  // Skip non-GET requests
-  if (request.method !== 'GET') {
+
+  // Never touched by the worker: the browser fetches these from the network as if no worker were installed.
+  if (bypassCache(request)) {
     return;
   }
-  
-  // Skip external requests
-  if (!request.url.startsWith(self.location.origin)) {
+
+  if (SKIP_CACHING) {
     return;
   }
-  
+
   event.respondWith(
-    // Skip cache in development mode - always fetch fresh
-    (SKIP_CACHING ? Promise.resolve(null) : caches.match(request))
+    caches.match(request)
       .then((response) => {
-        // Return cached version if available (only in production)
-        if (response && !SKIP_CACHING) {
-          console.log('[SW] Serving from cache:', request.url);
+        if (response) {
           return response;
         }
-        
-        // Otherwise fetch from network
-        console.log('[SW] Fetching from network:', request.url);
         return fetch(request)
           .then((response) => {
             // Don't cache non-successful responses
             if (!response || response.status !== 200 || response.type !== 'basic') {
               return response;
             }
-            
-            // Clone the response since it can only be consumed once
             const responseToCache = response.clone();
-            
-            // Cache the response for future use
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                console.log('[SW] Caching new response:', request.url);
-                cache.put(request, responseToCache);
-              });
-            
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseToCache));
             return response;
           })
-          .catch((error) => {
-            console.error('[SW] Network request failed:', error);
-            
+          .catch(() => {
             // Return offline page for navigation requests
             if (request.mode === 'navigate') {
-              console.log('[SW] Serving offline page');
               return caches.match(OFFLINE_URL);
             }
-            
-            // Return a basic error response for other requests
             return new Response('Offline - Please check your connection', {
               status: 503,
               statusText: 'Service Unavailable',
-              headers: {
-                'Content-Type': 'text/plain'
-              }
+              headers: { 'Content-Type': 'text/plain' },
             });
           });
       })

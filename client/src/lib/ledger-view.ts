@@ -30,6 +30,18 @@ export function campaignTally(records: PublicRecord[]): CampaignTally {
   return { passed, failed, open, disputed, total: records.length };
 }
 
+/** Kinds that count as open questions on the home page when unverified. */
+export const OPEN_QUESTION_KINDS = ["result", "certificate"] as const;
+
+/** Merge per-kind lists of unverified claims, newest first, without duplicates; anything else is dropped. */
+export function openQuestions(lists: PublicRecord[][], limit: number): PublicRecord[] {
+  const seen = new Set<string>();
+  return lists.flat()
+    .filter((r) => r.standing === "unverified" && (OPEN_QUESTION_KINDS as readonly string[]).includes(r.kind) && !seen.has(r.id) && Boolean(seen.add(r.id)))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+    .slice(0, limit);
+}
+
 export const TIMELINE_ORDER = "oldest-first" as const;
 
 export function timeline(records: PublicRecord[]): PublicRecord[] {

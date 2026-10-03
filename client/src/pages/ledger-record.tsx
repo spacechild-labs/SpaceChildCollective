@@ -66,8 +66,14 @@ export default function LedgerRecordPage() {
         <Button className="mt-2" size="sm" variant="outline" onClick={async () => setVerified(await verifyRecordHash(r))}>
           Verify in this browser
         </Button>
-        {verified === true && <span className="ml-3 text-emerald-400">Matches: this record is unchanged since filing.</span>}
-        {verified === false && <span className="ml-3 text-rose-400">Does not match.</span>}
+        {verified === true && <span className="ml-3 text-emerald-400">Matches the content hash the ledger published for this record.</span>}
+        {verified === false && <span className="ml-3 text-rose-400">Does not match the content hash the ledger published for this record.</span>}
+        <p className="mt-2 text-muted-foreground" data-testid="verify-note">
+          This check recomputes the hash from what this server sent, so it cannot catch a server that rewrote both. For an
+          independent anchor, compare <code>content_hash</code> in the NATS <code>SPACECHILD.ledger.record.filed</code> event
+          (or <code>record.released</code>) captured when the record was published, or the backfill history manifest for
+          backfilled records.
+        </p>
       </section>
 
       {([["Corrections", data.corrections], ["Amendments", data.amendments], ["Reviews", data.reviews], ["Notes", data.notes]] as const).map(([label, list]) =>

@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
-import type { LedgerCampaign } from "@shared/ledger-schema";
-import type { PublicRecord } from "@shared/ledger-public";
+import type { PublicCampaign, PublicRecord } from "@shared/ledger-public";
 import { EvidenceLink } from "@/components/ledger/evidence-link";
 import { RecordCard } from "@/components/ledger/record-card";
 import { campaignTally, timeline } from "@/lib/ledger-view";
@@ -9,7 +8,7 @@ import { campaignTally, timeline } from "@/lib/ledger-view";
 export default function LedgerCampaignPage() {
   const [, params] = useRoute("/campaigns/:id");
   const id = params?.id ?? "";
-  const { data, isLoading, error } = useQuery<{ campaign: LedgerCampaign; records: PublicRecord[] }>({
+  const { data, isLoading, error } = useQuery<{ campaign: PublicCampaign; records: PublicRecord[] }>({
     queryKey: ["/api/ledger/campaigns", id], enabled: Boolean(id),
   });
   if (isLoading) return <main className="mx-auto max-w-4xl px-4 py-8 text-sm text-muted-foreground">Loading…</main>;
@@ -19,7 +18,10 @@ export default function LedgerCampaignPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
-      <div className="font-mono text-xs text-muted-foreground">{data.campaign.id} · {data.campaign.status}</div>
+      <div className="font-mono text-xs text-muted-foreground">
+        {data.campaign.id} · {data.campaign.status} · owner{" "}
+        <Link href={`/agents/${encodeURIComponent(data.campaign.ownerUsername)}`} className="underline">{data.campaign.ownerUsername}</Link>
+      </div>
       <h1 className="mt-1 text-2xl font-semibold">{data.campaign.title}</h1>
       {data.campaign.summary && <p className="mt-2 text-sm">{data.campaign.summary}</p>}
       <div className="mt-4 flex gap-4 text-sm">

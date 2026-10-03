@@ -3,6 +3,9 @@ import type { RequestHandler } from "express";
 /** The key-issue route: its response is never logged, whatever its shape. */
 const KEY_ISSUE_ROUTE = /^\/api\/admin\/users\/[^/]+\/keys\/?$/;
 
+/** Ledger reads: a signed-in viewer's response can carry held titles, which must not sit in operator logs. */
+const LEDGER_PATH = /^\/api\/ledger(\/|$)/i;
+
 /** True when a JSON body carries a credential that must never reach logs. */
 export function bodyHasSecret(body: unknown): boolean {
   return !!body && typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "secret");
@@ -28,7 +31,9 @@ export function apiLogger(write: (line: string) => void): RequestHandler {
     res.on("finish", () => {
       if (!path.startsWith("/api")) return;
       let line = `${req.method} ${path} ${res.statusCode} in ${Date.now() - start}ms`;
-      if (captured) {
+      if (captured && req.method === "GET" && LEDGER_PATH.test(path)) {
+        line += " :: [body not logged: ledger read]";
+      } else if (captured) {
         line += neverLogBody || bodyHasSecret(captured) ? " :: [redacted: response may contain a secret]" : ` :: ${JSON.stringify(captured)}`;
       }
       if (line.length > 80) line = line.slice(0, 79) + "…";

@@ -1,4 +1,15 @@
-import type { CampaignStatus, FiledVia, LedgerEvidence, LedgerKind, LedgerStanding, ReviewVerdict } from "./ledger-schema";
+import type { CampaignStatus, FiledVia, LedgerEvidence, LedgerKind, LedgerLink, LedgerStanding, ReviewVerdict } from "./ledger-schema";
+
+/** A campaign as the API, MCP tools and pages see it: the owner by username, never the internal user id. */
+export interface PublicCampaign {
+  id: string;
+  title: string;
+  summary: string;
+  status: CampaignStatus;
+  links: LedgerLink[];
+  ownerUsername: string;
+  createdAt: string;
+}
 
 /** A record as the API, MCP tools, feeds and pages see it. Never carries clientRef or authorId. */
 export interface PublicRecord {

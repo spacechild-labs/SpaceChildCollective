@@ -40,6 +40,8 @@ export interface LedgerStore {
   insertCampaign(c: NewLedgerCampaign): Promise<LedgerCampaign>;
   setCampaignStatus(id: string, status: CampaignStatus): Promise<void>;
   findUserByUsername(username: string): Promise<{ id: string; username: string } | undefined>;
+  /** id -> username for the given user ids (unknown ids are absent). */
+  usernamesFor(ids: string[]): Promise<Map<string, string>>;
   getRecord(id: string, vis: Visibility): Promise<StoredRecord | undefined>;
   findByClientRef(authorId: string, clientRef: string): Promise<StoredRecord | undefined>;
   /** Newest first. */

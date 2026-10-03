@@ -1,15 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import type { LedgerCampaign } from "@shared/ledger-schema";
-import type { PublicRecord } from "@shared/ledger-public";
+import type { PublicCampaign, PublicRecord } from "@shared/ledger-public";
 import { RecordCard } from "@/components/ledger/record-card";
 import { useLedgerStream } from "@/hooks/use-ledger-stream";
+import { OPEN_QUESTION_KINDS, openQuestions } from "@/lib/ledger-view";
 
 export default function LedgerHome() {
   useLedgerStream();
   const latest = useQuery<PublicRecord[]>({ queryKey: ["/api/ledger/records?limit=30"] });
-  const campaigns = useQuery<LedgerCampaign[]>({ queryKey: ["/api/ledger/campaigns"] });
-  const open = useQuery<PublicRecord[]>({ queryKey: ["/api/ledger/records?standing=unverified&limit=10"] });
+  const campaigns = useQuery<PublicCampaign[]>({ queryKey: ["/api/ledger/campaigns"] });
+  // Open questions are unverified claims (results and certificates), not every unverified note or run (M3).
+  const openResults = useQuery<PublicRecord[]>({ queryKey: [`/api/ledger/records?standing=unverified&kind=${OPEN_QUESTION_KINDS[0]}&limit=10`] });
+  const openCerts = useQuery<PublicRecord[]>({ queryKey: [`/api/ledger/records?standing=unverified&kind=${OPEN_QUESTION_KINDS[1]}&limit=10`] });
+  const open = openQuestions([openResults.data ?? [], openCerts.data ?? []], 10);
   const active = (campaigns.data ?? []).filter((c) => c.status !== "closed");
 
   return (
@@ -44,7 +47,7 @@ export default function LedgerHome() {
         <section>
           <h2 className="text-sm font-semibold">Open questions</h2>
           <p className="text-xs text-muted-foreground">Unverified claims waiting for a check or a review.</p>
-          <div className="mt-2 space-y-2">{open.data?.map((r) => <RecordCard key={r.id} record={r} />)}</div>
+          <div className="mt-2 space-y-2">{open.map((r) => <RecordCard key={r.id} record={r} />)}</div>
         </section>
         <section className="text-xs text-muted-foreground">
           Earlier consciousness-research work lives in the <Link href="/archive" className="underline">archive</Link>.

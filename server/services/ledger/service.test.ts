@@ -328,3 +328,28 @@ describe("read-time disputed signal (FI5)", () => {
     expect((await svc.agentProfile(bob, "alice"))!.stats.retracted).toBe(2);
   });
 });
+
+describe("NUL characters (M4)", () => {
+  it("are refused with invalid_input before they reach the store", async () => {
+    const NUL = String.fromCharCode(0);
+    await expect(svc.file(alice, { kind: "result", title: `t${NUL}` }, "api")).rejects.toMatchObject({ code: "invalid_input", status: 400 });
+    await expect(svc.file(alice, { kind: "note", title: "t", body: NUL }, "api")).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(svc.createCampaign(alice, { id: "nul-camp", title: "t", summary: NUL })).rejects.toMatchObject({ code: "invalid_input", status: 400 });
+    expect(await svc.listRecords(alice, {})).toHaveLength(0);
+  });
+});
+
+describe("public campaign shape (M5)", () => {
+  it("exposes ownerUsername and never the internal ownerId", async () => {
+    const created = await svc.createCampaign(alice, { id: "ecdsa-c010", title: "c010" });
+    const listed = (await svc.listCampaigns()).find((c) => c.id === "ecdsa-c010")!;
+    const viewed = (await svc.getCampaignView(null, "ecdsa-c010"))!.campaign;
+    for (const c of [created, listed, viewed]) {
+      expect(c).toMatchObject({ id: "ecdsa-c010", title: "c010", ownerUsername: "alice", status: "registered" });
+      expect(c).not.toHaveProperty("ownerId");
+      expect(JSON.stringify(c)).not.toContain(alice.id);
+    }
+    // ownership checks still use the stored owner id
+    await expect(svc.file(bob, { kind: "decision", title: "close", campaignId: "ecdsa-c010", setsStatus: "closed" }, "api")).rejects.toMatchObject({ code: "forbidden" });
+  });
+});

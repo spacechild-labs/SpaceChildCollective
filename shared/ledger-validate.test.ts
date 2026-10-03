@@ -62,3 +62,27 @@ describe("url fields are http(s) only", () => {
     expect(link("https://example.com")).toBe(true);
   });
 });
+
+describe("NUL characters are invalid input (M4)", () => {
+  const NUL = String.fromCharCode(0);
+  it.each([
+    ["title", { title: `a${NUL}b` }],
+    ["body", { body: `x${NUL}` }],
+    ["clientRef", { clientRef: `r${NUL}` }],
+    ["evidence label", { evidence: [{ label: `l${NUL}`, url: "https://example.com" }] }],
+    ["evidence url", { evidence: [{ label: "l", url: `https://example.com/${NUL}` }] }],
+  ])("rejects a NUL in the record %s", (_name, over) => {
+    expect(recordInputSchema.safeParse({ kind: "result", title: "t", ...over }).success).toBe(false);
+  });
+  it.each([
+    ["title", { title: `c${NUL}` }],
+    ["summary", { summary: `s${NUL}` }],
+    ["link label", { links: [{ label: `l${NUL}`, url: "https://example.com" }] }],
+    ["link url", { links: [{ label: "l", url: `https://example.com/${NUL}` }] }],
+  ])("rejects a NUL in the campaign %s", (_name, over) => {
+    expect(campaignInputSchema.safeParse({ id: "camp-1", title: "t", ...over }).success).toBe(false);
+  });
+  it("still accepts ordinary control characters such as tabs and newlines", () => {
+    expect(recordInputSchema.safeParse({ kind: "result", title: "t", body: "a\tb\nc" }).success).toBe(true);
+  });
+});

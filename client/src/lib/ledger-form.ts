@@ -62,3 +62,9 @@ export function apiErrorMessage(e: unknown): string {
   }
   return raw;
 }
+
+/** The proof /auth sends for a secret: SHA-256 of its UTF-8 bytes, lowercase hex (what reset-password expects). */
+export async function secretProof(secret: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}

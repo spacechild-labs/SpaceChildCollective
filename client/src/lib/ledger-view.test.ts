@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PublicRecord } from "@shared/ledger-public";
 import { recordContentHash } from "@shared/ledger-hash";
-import { campaignTally, safeHref, timeline, verifyRecordHash } from "./ledger-view";
+import { campaignTally, openQuestions, safeHref, timeline, verifyRecordHash } from "./ledger-view";
 
 function rec(over: Partial<PublicRecord>): PublicRecord {
   return {
@@ -42,6 +42,16 @@ describe("ledger view helpers", () => {
     const r = rec({});
     const good = { ...r, contentHash: await recordContentHash(r), correctedBy: ["c1"], brokenBy: ["b1"] };
     expect(await verifyRecordHash(good)).toBe(true);
+  });
+
+  it("open questions are unverified results and certificates only, newest first, deduplicated", () => {
+    const out = openQuestions([
+      [rec({ id: "r1", standing: "unverified", createdAt: "2026-10-01T00:00:00.000Z" }), rec({ id: "n1", kind: "note", standing: "unverified" })],
+      [rec({ id: "c1", kind: "certificate", standing: "unverified", createdAt: "2026-10-02T00:00:00.000Z" }), rec({ id: "r1", standing: "unverified", createdAt: "2026-10-01T00:00:00.000Z" }),
+        rec({ id: "m1", standing: "measured" }), rec({ id: "p1", kind: "preregistration", standing: "unverified" }), rec({ id: "x1", kind: "run", standing: "unverified" })],
+    ], 10);
+    expect(out.map((r) => r.id)).toEqual(["c1", "r1"]);
+    expect(openQuestions([[rec({ id: "a", standing: "unverified" }), rec({ id: "b", standing: "unverified" })]], 1)).toHaveLength(1);
   });
 
   it("orders a timeline oldest first", () => {

@@ -61,6 +61,12 @@ export class MemoryLedgerStore implements LedgerStore {
     if (c) this.campaigns.set(id, { ...c, status });
   }
 
+  async usernamesFor(ids: string[]) {
+    const out = new Map<string, string>();
+    for (const id of ids) { const u = this.users.get(id); if (u) out.set(id, u.username); }
+    return out;
+  }
+
   async findUserByUsername(username: string) {
     return [...this.users.values()].find((u) => u.username === username);
   }

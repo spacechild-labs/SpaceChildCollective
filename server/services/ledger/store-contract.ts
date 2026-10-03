@@ -148,6 +148,10 @@ export function describeLedgerStoreContract(label: string, make: () => Promise<C
       await f.store.setCampaignStatus("ecdsa-c007", "running");
       expect((await f.store.getCampaign("ecdsa-c007"))?.status).toBe("running");
       expect((await f.store.findUserByUsername(f.alice.username))?.id).toBe(f.alice.id);
+      const names = await f.store.usernamesFor([f.alice.id, f.bob.id, f.alice.id]);
+      expect(names.get(f.alice.id)).toBe(f.alice.username);
+      expect(names.get(f.bob.id)).toBe(f.bob.username);
+      expect((await f.store.usernamesFor([])).size).toBe(0);
     });
   });
 }

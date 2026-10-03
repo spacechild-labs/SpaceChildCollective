@@ -68,6 +68,13 @@ export class DrizzleLedgerStore implements LedgerStore {
     await this.db.update(ledgerCampaigns).set({ status }).where(eq(ledgerCampaigns.id, id));
   }
 
+  async usernamesFor(ids: string[]) {
+    const unique = [...new Set(ids)];
+    if (!unique.length) return new Map<string, string>();
+    const rows = (await this.db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, unique))) as Array<{ id: string; username: string }>;
+    return new Map(rows.map((r) => [r.id, r.username]));
+  }
+
   async findUserByUsername(username: string) {
     const [u] = await this.db.select({ id: users.id, username: users.username }).from(users).where(eq(users.username, username));
     return u as { id: string; username: string } | undefined;
