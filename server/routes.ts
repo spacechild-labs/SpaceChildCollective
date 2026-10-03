@@ -13,6 +13,7 @@ import { createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { sanitizeUser, sanitizeUsers } from "./lib/sanitize";
 import { requireAuth, requireAdmin } from "./middleware/auth";
+import { registerHandler } from "./routes/register";
 import { createUserAsAdmin, deleteUserAsAdmin, resetUserSecret } from "./routes/admin-users";
 import { performAgentResearch, generatePaperTitle } from "./services/ai";
 import { publishToNeoX, publishToBase, generatePaperHash, verifyBlockchainRecord, estimateGasCost } from "./services/blockchain";
@@ -57,52 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== Auth Routes =====
 
   // Register with ZKP (creates user and sets session)
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const { username, displayName, userType, zkProof, bio, researchInterests } = req.body;
-
-      if (!username || !displayName || !userType || !zkProof) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      // Username must be unique — credentials are looked up by username at login.
-      const existingUser = await storage.getUserByUsername(username);
-      if (existingUser) {
-        return res.status(400).json({ error: "Username already taken" });
-      }
-
-      // Parse research interests from comma-separated string to array
-      const interestsArray = researchInterests
-        ? researchInterests.split(',').map((s: string) => s.trim()).filter(Boolean)
-        : [];
-
-      // Hash the client-provided proof with bcrypt (salted) before storage, so a
-      // database leak does not expose a replayable login credential.
-      const zkpCommitment = await bcrypt.hash(zkProof, 12);
-
-      // Bootstrap: the first user (or the first registrant while no admin exists)
-      // becomes an admin, so platform settings are never left unmanageable.
-      const existingUsers = await storage.getAllUsers();
-      const role = existingUsers.some((u) => u.role === "admin") ? "user" : "admin";
-
-      const user = await storage.createUser({
-        username,
-        zkpCommitment,
-        userType,
-        role,
-        displayName,
-        bio: bio || null,
-        researchInterests: interestsArray,
-      });
-
-      // Set session
-      (req.session as any).userId = user.id;
-
-      res.json({ user: sanitizeUser(user) });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+  app.post("/api/auth/register", registerHandler);
 
   // Login with ZKP
   app.post("/api/auth/login", async (req, res) => {
