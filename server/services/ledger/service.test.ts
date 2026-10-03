@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryLedgerStore } from "./memory-store";
-import { LedgerService } from "./service";
+import { LedgerService, actorFromUser } from "./service";
 import type { Actor } from "./types";
 import { recordContentHash } from "@shared/ledger-hash";
 
@@ -169,5 +169,87 @@ describe("reads", () => {
   it("refuses a duplicate campaign id", async () => {
     await svc.createCampaign(alice, { id: "brain-e3", title: "E3" });
     await expect(svc.createCampaign(bob, { id: "brain-e3", title: "x" })).rejects.toMatchObject({ code: "invalid_input", status: 409 });
+  });
+});
+
+class FlakyStatusStore extends MemoryLedgerStore {
+  failuresLeft = 1;
+  async setCampaignStatus(...args: Parameters<MemoryLedgerStore["setCampaignStatus"]>) {
+    if (this.failuresLeft > 0) {
+      this.failuresLeft--;
+      throw new Error("transient failure");
+    }
+    return super.setCampaignStatus(...args);
+  }
+}
+
+describe("campaign status repair on idempotent paths", () => {
+  function flaky() {
+    const fs = new FlakyStatusStore([alice, bob, nick, sneaky]);
+    const s = new LedgerService(fs, { now: () => new Date((t += 1000)), newId: () => `01J9Z3K8Q2A7B5C4D6E8F0H${String(++n).padStart(3, "0")}` });
+    return { fs, s };
+  }
+
+  it("a retry with the same clientRef re-applies a status the first attempt failed to set", async () => {
+    const { fs, s } = flaky();
+    await s.createCampaign(alice, { id: "c-retry", title: "c" });
+    const input = { kind: "decision", title: "start", campaignId: "c-retry", setsStatus: "running", clientRef: "dec-1" };
+    await expect(s.file(alice, input, "api")).rejects.toThrow("transient failure");
+    expect((await fs.getCampaign("c-retry"))?.status).toBe("registered");
+    const again = await s.file(alice, input, "api");
+    expect(again.created).toBe(false);
+    expect((await fs.getCampaign("c-retry"))?.status).toBe("running");
+  });
+
+  it("a second release re-applies a status the first release failed to set", async () => {
+    const { fs, s } = flaky();
+    await s.createCampaign(alice, { id: "c-rel", title: "c" });
+    const d = await s.file(alice, { kind: "decision", title: "close", campaignId: "c-rel", setsStatus: "closed", held: true }, "api");
+    await expect(s.release(nick, d.record.id)).rejects.toThrow("transient failure");
+    expect((await fs.getCampaign("c-rel"))?.status).toBe("registered");
+    await s.release(nick, d.record.id);
+    expect((await fs.getCampaign("c-rel"))?.status).toBe("closed");
+  });
+});
+
+describe("held visibility on every read", () => {
+  async function seed() {
+    await svc.createCampaign(alice, { id: "held-vis", title: "held-vis" });
+    const pub = await svc.file(alice, { kind: "result", title: "public", campaignId: "held-vis" }, "api");
+    await svc.file(bob, { kind: "review", title: "rv", reviewsId: pub.record.id, verdict: "holds", held: true }, "api");
+    const held = await svc.file(alice, { kind: "result", title: "hidden", campaignId: "held-vis", standing: "retracted", held: true }, "api");
+    return { pub, held };
+  }
+
+  it("anonymous viewers see neither held records nor counts of them", async () => {
+    const { held } = await seed();
+    const cv = await svc.getCampaignView(null, "held-vis");
+    expect(cv!.records.map((r) => r.title)).toEqual(["public"]);
+    const p = await svc.agentProfile(null, "alice");
+    expect(p!.records.map((r) => r.id)).not.toContain(held.record.id);
+    expect(p!.stats).toMatchObject({ filed: 1, retracted: 0, reviewsReceived: 0 });
+    expect((await svc.listRecords(null, { author: "alice" })).map((r) => r.title)).toEqual(["public"]);
+    expect((await svc.listRecords(null, { campaignId: "held-vis" })).map((r) => r.title)).toEqual(["public"]);
+  });
+
+  it("member viewers do see them", async () => {
+    const { held } = await seed();
+    const cv = await svc.getCampaignView(bob, "held-vis");
+    expect(cv!.records.map((r) => r.id)).toContain(held.record.id);
+    const p = await svc.agentProfile(bob, "alice");
+    expect(p!.records.map((r) => r.id)).toContain(held.record.id);
+    expect(p!.stats).toMatchObject({ filed: 2, retracted: 1, reviewsReceived: 1 });
+    expect((await svc.listRecords(bob, { author: "alice" })).map((r) => r.id)).toContain(held.record.id);
+    expect((await svc.listRecords(bob, { campaignId: "held-vis" })).map((r) => r.id)).toContain(held.record.id);
+  });
+});
+
+describe("actorFromUser", () => {
+  it("fails closed: an unknown userType is an agent and cannot release", async () => {
+    const a = actorFromUser({ id: "u-bot", username: "bot", userType: "bot", role: "user", canRelease: true });
+    expect(a.userType).toBe("agent");
+    expect(actorFromUser({ id: "x", username: "x", userType: "human", role: "user" }).userType).toBe("human");
+    const { record } = await svc.file(alice, { kind: "result", title: "r", held: true }, "api");
+    await expect(svc.release(a, record.id)).rejects.toMatchObject({ code: "agents_cannot_release" });
   });
 });

@@ -26,7 +26,7 @@ export function actorFromUser(u: { id: string; username: string; userType: strin
   return {
     id: u.id,
     username: u.username,
-    userType: u.userType === "agent" ? "agent" : "human",
+    userType: u.userType === "human" ? "human" : "agent", // fail closed: anything unknown is an agent
     role: u.role === "admin" ? "admin" : "user",
     canRelease: Boolean(u.canRelease),
   };
@@ -56,6 +56,14 @@ export class LedgerService {
     };
   }
 
+  // Status is last-write-wins by filing/release time. The status write is not atomic with the record
+  // insert/release, so idempotent retries re-apply it for a public status-setting decision.
+  private async reapplyStatus(r: StoredRecord): Promise<void> {
+    if (r.setsStatus && r.campaignId && (!r.held || r.released)) {
+      await this.store.setCampaignStatus(r.campaignId, r.setsStatus);
+    }
+  }
+
   private async canSetStatus(actor: Actor, campaignId: string): Promise<boolean> {
     if (actor.role === "admin") return true;
     const c = await this.store.getCampaign(campaignId);
@@ -69,7 +77,10 @@ export class LedgerService {
 
     if (r.clientRef) {
       const prior = await this.store.findByClientRef(actor.id, r.clientRef);
-      if (prior) return { record: toPublicRecord(prior), created: false };
+      if (prior) {
+        await this.reapplyStatus(prior);
+        return { record: toPublicRecord(prior), created: false };
+      }
     }
     if (r.campaignId && !(await this.store.getCampaign(r.campaignId))) {
       throw new LedgerError("unknown_campaign", 400, `campaign ${r.campaignId} does not exist`);
@@ -128,7 +139,10 @@ export class LedgerService {
     } catch (error: any) {
       if (error?.code === "duplicate_client_ref" && r.clientRef) {
         const prior = await this.store.findByClientRef(actor.id, r.clientRef);
-        if (prior) return { record: toPublicRecord(prior), created: false };
+        if (prior) {
+          await this.reapplyStatus(prior);
+          return { record: toPublicRecord(prior), created: false };
+        }
       }
       throw error;
     }
@@ -146,7 +160,9 @@ export class LedgerService {
     const record = await this.store.getRecord(recordId, { includeHeld: true });
     if (!record) throw new LedgerError("not_found", 404);
     if (!record.held) throw new LedgerError("invalid_input", 400, "record is not held");
-    if (!record.released) {
+    if (record.released) {
+      await this.reapplyStatus(record);
+    } else {
       const events: NewOutboxEvent[] = [{ subject: SUBJECT_RELEASED, payload: this.eventPayload(record) }];
       if (record.kind === "review") events.push({ subject: SUBJECT_REVIEW, payload: this.eventPayload(record) });
       try {
