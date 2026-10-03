@@ -152,7 +152,9 @@ describe("invite routes", () => {
     const b = await mintAs("other");
     const list = await (await call("GET", "/api/ledger/invites", undefined, "root")).json();
     expect(list.map((i: any) => i.id).sort()).toEqual([a.invite.id, b.invite.id].sort());
+    expect(Object.fromEntries(list.map((i: any) => [i.id, i.createdByUsername]))).toEqual({ [a.invite.id]: "qe", [b.invite.id]: "other" });
     expect(JSON.stringify(list)).not.toContain(a.code);
+    expect(JSON.stringify(list)).not.toMatch(/codeHash|code_hash/);
   });
 
   it("GET /api/ledger/invites lists own invites without codes; DELETE revokes own, 403 for others", async () => {

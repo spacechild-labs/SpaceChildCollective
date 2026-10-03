@@ -5,14 +5,14 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
 import { apiErrorMessage, secretProof } from "@/lib/ledger-form";
 import { Switch } from "@/components/ui/switch";
-import { inviteShareText, inviteStatusLabel, revokeChainConfirmText } from "@/lib/invite-view";
+import { inviteShareText, inviteStatusLabel, parseInviteLimits, revokeChainConfirmText } from "@/lib/invite-view";
 import { buildAgentSetupText, plainErrorMessage, type AgentSetup } from "@/lib/agent-setup";
 
 type Key = { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null; ed25519PublicKey: string | null };
 // Only the fields this page needs from GET /api/users/by-username/:u.
 type Target = { id: string; username: string; userType: "human" | "agent"; role: "user" | "admin"; canRelease: boolean };
 type AgentRow = { id: string; username: string; displayName: string; canRelease: boolean; activeKeys: number; lastUsedAt: string | null; canInvite: boolean; invitedBy: string | null };
-type InviteRow = { id: string; prefix: string; note: string | null; maxUses: number; uses: number; expiresAt: string; status: "active" | "used_up" | "expired" | "revoked" };
+type InviteRow = { id: string; prefix: string; note: string | null; maxUses: number; uses: number; expiresAt: string; status: "active" | "used_up" | "expired" | "revoked"; createdByUsername?: string | null };
 // A freshly minted invite (code inside the text), held only in component state until Done (same rules as Issued).
 type MintedInvite = { text: string };
 // A freshly issued key, held only in component state until Done (never the query cache, storage, URL or console).
@@ -71,9 +71,12 @@ export default function AdminAgentsPage() {
   const mintInvite = async () => {
     setInviteError(null);
     dismissMinted();
+    // Say what is wrong with Uses or Expires rather than quietly turning a blank or 0 into a default.
+    const limits = parseInviteLimits(inviteUses, inviteDays);
+    if (!limits.ok) { setInviteError(limits.message); return; }
     setMinting(true);
     try {
-      const body: Record<string, unknown> = { maxUses: Number(inviteUses) || 1, expiresInDays: Number(inviteDays) || 7, grantsInvite: inviteGrants };
+      const body: Record<string, unknown> = { maxUses: limits.maxUses, expiresInDays: limits.expiresInDays, grantsInvite: inviteGrants };
       if (inviteNote.trim()) body.note = inviteNote.trim();
       const out = await (await apiRequest("POST", INVITES_KEY, body)).json();
       setMinted({ text: inviteShareText({ code: out.code, redeemUrl: out.redeemUrl, baseUrl: window.location.origin, note: out.invite?.note ?? null, expiresAt: out.invite?.expiresAt ?? "" }) });
@@ -244,7 +247,7 @@ export default function AdminAgentsPage() {
             <Button size="sm" type="submit" disabled={adding || blocked || addName.trim().length < 3} title={blockedTitle}>Add agent</Button>
           </div>
           <p className="text-xs text-muted-foreground">3-64 letters, digits, '_', '.' or '-'; starts with a letter or digit.</p>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={addCanInvite} onChange={(e) => setAddCanInvite(e.target.checked)} />Can invite others</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={addCanInvite} onChange={(e) => setAddCanInvite(e.target.checked)} />This agent can invite others too</label>
           {blocked && <p className="text-xs text-amber-500">Copy and close the secret above first.</p>}
           <details>
             <summary className="cursor-pointer text-muted-foreground">Advanced (optional)</summary>
@@ -277,7 +280,7 @@ export default function AdminAgentsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2">Uses<input type="number" min={1} max={50} className="w-20 rounded border bg-background px-2 py-1" value={inviteUses} onChange={(e) => setInviteUses(e.target.value)} /></label>
             <label className="flex items-center gap-2">Expires in days<input type="number" min={1} max={30} className="w-20 rounded border bg-background px-2 py-1" value={inviteDays} onChange={(e) => setInviteDays(e.target.value)} /></label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={inviteGrants} onChange={(e) => setInviteGrants(e.target.checked)} />Can invite others</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={inviteGrants} onChange={(e) => setInviteGrants(e.target.checked)} />The new agent can invite others too</label>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" type="submit" disabled={minting || blocked} title={blockedTitle}>Create invite</Button>
@@ -296,13 +299,15 @@ export default function AdminAgentsPage() {
           </div>
         )}
         <div className="space-y-1">
-          <h3 className="font-semibold">Your invites</h3>
+          <h3 className="font-semibold">All invites</h3>
+          <p className="text-xs text-muted-foreground">Every invite on the site: yours and those made by agents that can invite.</p>
           {invites.isError && <p role="alert" className="text-rose-400">{apiErrorMessage(invites.error)}</p>}
           {invites.data && invites.data.length === 0 && <p className="text-muted-foreground">No invites yet.</p>}
           <ul className="space-y-1">
             {(invites.data ?? []).map((i) => (
               <li key={i.id} className="flex flex-wrap items-center gap-2" data-testid="invite-row">
                 <code className="text-xs">{i.prefix}…</code>
+                <span className="text-xs text-muted-foreground">by {i.createdByUsername ?? "an unknown account"}</span>
                 {i.note && <span>{i.note}</span>}
                 <span className="text-xs text-muted-foreground">used {i.uses} of {i.maxUses}</span>
                 <span className="text-xs text-muted-foreground">expires {i.expiresAt.slice(0, 10)}</span>
@@ -330,7 +335,7 @@ export default function AdminAgentsPage() {
                 {a.invitedBy && <span className="text-xs text-muted-foreground">Invited by {a.invitedBy}</span>}
                 <label className="flex items-center gap-1 text-xs"><Switch checked={a.canInvite} aria-label={`Can invite: ${a.username}`} onCheckedChange={(v) => void setCanInvite(a, v)} />Can invite</label>
                 <Button size="sm" variant="outline" disabled={adding || blocked} title={blockedTitle} onClick={() => void addAgent(a.username)}>New key</Button>
-                <Button size="sm" variant="destructive" onClick={() => void revokeChain(a)}>Revoke chain…</Button>
+                <Button size="sm" variant="destructive" onClick={() => void revokeChain(a)}>Revoke this agent and everyone it invited…</Button>
               </li>
             ))}
           </ul>

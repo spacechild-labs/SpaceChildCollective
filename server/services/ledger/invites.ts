@@ -107,9 +107,12 @@ export class InviteService {
     return { invite: this.toPublic(row), code, redeemUrl: `${siteUrl()}/ledger/agent-guide#invite` };
   }
 
-  async list(actor: User) {
+  /** Agents see their own invites; admins see everyone's. Each row names its minter (a public username, never a code or hash). */
+  async list(actor: User): Promise<(PublicInvite & { createdByUsername: string | null })[]> {
     const rows = actor.role === "admin" ? await this.store.listAll() : await this.store.listByCreator(actor.id);
-    return rows.map((r) => this.toPublic(r));
+    const names = new Map<string, string | null>();
+    for (const id of new Set(rows.map((r) => r.createdBy))) names.set(id, (await this.users.getUser(id))?.username ?? null);
+    return rows.map((r) => ({ ...this.toPublic(r), createdByUsername: names.get(r.createdBy) ?? null }));
   }
 
   async revoke(actor: User, id: string) {

@@ -182,6 +182,8 @@ describe("InviteService", () => {
     const mine = await svc.list(qe);
     expect(mine).toHaveLength(1);
     expect(await svc.list(admin)).toHaveLength(2);
+    expect(mine[0].createdByUsername).toBe("0xSCADA-QE");
+    expect((await svc.list(admin)).map((i) => i.createdByUsername).sort()).toEqual(["0xSCADA-QE", "nick"]);
     expect(JSON.stringify(mine)).not.toMatch(/codeHash|code_hash|sci_[A-Za-z0-9_-]{20}/);
   });
 
