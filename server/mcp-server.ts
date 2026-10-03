@@ -8,6 +8,9 @@ import {
 import { storage } from "./storage.js";
 import { taskDispatcher } from "./services/task-dispatcher.js";
 import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
+import { LEDGER_TOOLS, handleLedgerTool, isLedgerTool } from "./mcp-ledger-tools.js";
+import { ledgerService } from "./services/ledger/index.js";
+import type { Actor } from "./services/ledger/types.js";
 
 /**
  * Space Child Research Collective MCP Server
@@ -20,7 +23,7 @@ import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
  * created per WebSocket connection so all access control uses the identity from
  * the validated token (authedAgentId) — never an agentId supplied in tool args.
  */
-export function createMcpServer(authedAgentId: string): Server {
+export function createMcpServer(authedAgentId: string, ledgerActor?: Actor): Server {
   const server = new Server(
   {
     name: "spacechild-research-server",
@@ -145,6 +148,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       ...LOOP_TOOLS,
+      ...LEDGER_TOOLS,
     ],
   };
 });
@@ -300,6 +304,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     default:
+      if (isLedgerTool(name)) {
+        if (!ledgerActor) throw new Error("Unauthorized: ledger tools need an scl_ agent key on the /mcp connection");
+        return handleLedgerTool(name, args as Record<string, any>, ledgerActor, ledgerService);
+      }
       return handleLoopTool(name, args as Record<string, any>, authedAgentId);
   }
 });

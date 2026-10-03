@@ -4,6 +4,9 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { validateMcpToken, updateAgentStatus } from "./services/agent-auth.js";
 import { createMcpServer } from "./mcp-server.js";
+import { agentKeys } from "./services/ledger/index.js";
+import { actorFromUser } from "./services/ledger/service.js";
+import type { Actor } from "./services/ledger/types.js";
 
 /**
  * Connection Registry for tracking connected agents
@@ -163,7 +166,7 @@ export function setupMcpWebSocketServer(
   });
 
   // Handle WebSocket upgrade requests
-  httpServer.on("upgrade", (request, socket, head) => {
+  httpServer.on("upgrade", async (request, socket, head) => {
     const { pathname } = new URL(request.url || "", `http://${request.headers.host}`);
     
     console.log(`[MCP WebSocket] Upgrade request: pathname="${pathname}", url="${request.url}"`);
@@ -180,17 +183,41 @@ export function setupMcpWebSocketServer(
         return;
       }
 
-      // Validate token
-      const payload = validateMcpToken(token);
-      if (!payload) {
-        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-        socket.destroy();
-        return;
+      // Validate token: an scl_ ledger key (same matching as agentKeyAuth: optional
+      // case-insensitive "Bearer" prefix, surrounding whitespace tolerated) or the legacy HMAC MCP token.
+      const candidate = token.trim().replace(/^Bearer\s+/i, "");
+      let agentId: string;
+      let ledgerActor: Actor | undefined;
+      if (candidate.toLowerCase().startsWith("scl_")) {
+        let authed: Awaited<ReturnType<typeof agentKeys.authenticate>>;
+        try {
+          authed = await agentKeys.authenticate(candidate);
+        } catch {
+          socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        if (!authed.ok) {
+          // Reason code in the body; never echo the secret.
+          const body = JSON.stringify({ error: authed.error });
+          socket.write("HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: " + Buffer.byteLength(body) + "\r\nConnection: close\r\n\r\n" + body);
+          socket.destroy();
+          return;
+        }
+        agentId = authed.user.id;
+        ledgerActor = actorFromUser(authed.user as any);
+      } else {
+        const payload = validateMcpToken(token);
+        if (!payload) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        agentId = payload.agentId;
       }
 
       // Upgrade connection
       wss.handleUpgrade(request, socket, head, async (ws) => {
-        const agentId = payload.agentId;
 
         try {
           // Update agent status to connecting
@@ -200,7 +227,7 @@ export function setupMcpWebSocketServer(
           // authenticated agent identity, so tool access control can't be
           // spoofed via a client-supplied agentId argument.
           const transport = new WebSocketTransport(ws, agentId);
-          const mcpServer = createMcpServer(agentId);
+          const mcpServer = createMcpServer(agentId, ledgerActor);
 
           // Connect the transport to this connection's MCP server
           await mcpServer.connect(transport);

@@ -3,6 +3,9 @@ import { storage } from "./storage.js";
 import { taskDispatcher } from "./services/task-dispatcher.js";
 import { validateMcpToken } from "./services/agent-auth.js";
 import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
+import { LEDGER_TOOLS, handleLedgerTool, isLedgerTool } from "./mcp-ledger-tools.js";
+import { ledgerService } from "./services/ledger/index.js";
+import { actorFromUser } from "./services/ledger/service.js";
 import { agentCanReadPaper, publishedOnly } from "./mcp-paper-access.js";
 
 /**
@@ -82,6 +85,7 @@ const TOOLS = [
     },
   },
   ...LOOP_TOOLS,
+  ...LEDGER_TOOLS,
 ];
 
 // Tool execution
@@ -202,15 +206,24 @@ export function registerMcpHttpRoutes(app: Express): void {
 
         case "tools/call": {
           if (sessionId) res.setHeader("Mcp-Session-Id", sessionId);
+          const { name, arguments: args } = params || {};
+          if (!name) {
+            return res.json({ jsonrpc: "2.0", id, error: { code: -32602, message: "Missing tool name" } });
+          }
+          // Ledger tools authenticate with an scl_ agent key only (spec 3.2), never the legacy HMAC token.
+          // agentKeyAuth (app-wide) already rejected unknown/revoked/admin-owned keys with a reason code.
+          if (isLedgerTool(name)) {
+            if (!req.user || !req.agentKey) {
+              return res.status(401).json({ jsonrpc: "2.0", id, error: { code: -32001, message: "Unauthorized: ledger tools need an scl_ agent key", data: { error: "unknown_key" } } });
+            }
+            const result = await handleLedgerTool(name, args || {}, actorFromUser(req.user as any), ledgerService);
+            return res.json({ jsonrpc: "2.0", id, result });
+          }
           // Tool calls can read restricted content and create tasks — require a
           // valid MCP bearer token, and derive the agent identity from it.
           const auth = getMcpAuth(req);
           if (!auth) {
             return res.status(401).json({ jsonrpc: "2.0", id, error: { code: -32001, message: "Unauthorized: a valid MCP bearer token is required" } });
-          }
-          const { name, arguments: args } = params || {};
-          if (!name) {
-            return res.json({ jsonrpc: "2.0", id, error: { code: -32602, message: "Missing tool name" } });
           }
           try {
             const result = await executeTool(name, args || {}, auth);
