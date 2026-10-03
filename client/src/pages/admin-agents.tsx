@@ -4,15 +4,21 @@ import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
 import { apiErrorMessage, secretProof } from "@/lib/ledger-form";
+import { Switch } from "@/components/ui/switch";
+import { inviteShareText, inviteStatusLabel } from "@/lib/invite-view";
 import { buildAgentSetupText, plainErrorMessage, type AgentSetup } from "@/lib/agent-setup";
 
 type Key = { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null; ed25519PublicKey: string | null };
 // Only the fields this page needs from GET /api/users/by-username/:u.
 type Target = { id: string; username: string; userType: "human" | "agent"; role: "user" | "admin"; canRelease: boolean };
-type AgentRow = { id: string; username: string; displayName: string; canRelease: boolean; activeKeys: number; lastUsedAt: string | null };
+type AgentRow = { id: string; username: string; displayName: string; canRelease: boolean; activeKeys: number; lastUsedAt: string | null; canInvite: boolean; invitedBy: string | null };
+type InviteRow = { id: string; prefix: string; note: string | null; maxUses: number; uses: number; expiresAt: string; status: "active" | "used_up" | "expired" | "revoked" };
+// A freshly minted invite (code inside the text), held only in component state until Done (same rules as Issued).
+type MintedInvite = { text: string };
 // A freshly issued key, held only in component state until Done (never the query cache, storage, URL or console).
 type Issued = { username: string; secret: string; setup: AgentSetup };
 const AGENTS_KEY = "/api/admin/agents";
+const INVITES_KEY = "/api/ledger/invites";
 const pick = (u: Target): Target => ({ id: u.id, username: u.username, userType: u.userType, role: u.role, canRelease: Boolean(u.canRelease) });
 
 export default function AdminAgentsPage() {
@@ -37,7 +43,9 @@ export default function AdminAgentsPage() {
   const queryClient = useQueryClient();
   const isAdmin = user?.role === "admin";
   const agents = useQuery<AgentRow[]>({ queryKey: [AGENTS_KEY], enabled: isAdmin });
+  const invites = useQuery<InviteRow[]>({ queryKey: [INVITES_KEY], enabled: isAdmin });
   const [addName, setAddName] = useState("");
+  const [addCanInvite, setAddCanInvite] = useState(false);
   const [addDisplay, setAddDisplay] = useState("");
   const [addKeyName, setAddKeyName] = useState("");
   const [addPubKey, setAddPubKey] = useState("");
@@ -46,8 +54,69 @@ export default function AdminAgentsPage() {
   const [issued, setIssued] = useState<Issued | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
 
+  // Invites card. The code is a secret: it lives in this state only and is cleared on Done or unmount.
+  const [inviteNote, setInviteNote] = useState("");
+  const [inviteUses, setInviteUses] = useState("1");
+  const [inviteDays, setInviteDays] = useState("7");
+  const [inviteGrants, setInviteGrants] = useState(false);
+  const [minting, setMinting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [minted, setMinted] = useState<MintedInvite | null>(null);
+  const [copiedInvite, setCopiedInvite] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  const [listNotice, setListNotice] = useState<string | null>(null);
+  const blocked = Boolean(issued) || Boolean(minted);
+  const blockedTitle = blocked ? "Copy and close the secret above first" : undefined;
+  const dismissMinted = () => { setMinted(null); setCopiedInvite(false); };
+  const mintInvite = async () => {
+    setInviteError(null);
+    dismissMinted();
+    setMinting(true);
+    try {
+      const body: Record<string, unknown> = { maxUses: Number(inviteUses) || 1, expiresInDays: Number(inviteDays) || 7, grantsInvite: inviteGrants };
+      if (inviteNote.trim()) body.note = inviteNote.trim();
+      const out = await (await apiRequest("POST", INVITES_KEY, body)).json();
+      setMinted({ text: inviteShareText({ code: out.code, redeemUrl: out.redeemUrl, baseUrl: window.location.origin, note: out.invite?.note ?? null, expiresAt: out.invite?.expiresAt ?? "" }) });
+      setInviteNote("");
+      await queryClient.invalidateQueries({ queryKey: [INVITES_KEY] });
+    } catch (e) {
+      setInviteError(plainErrorMessage(e));
+    } finally {
+      setMinting(false);
+    }
+  };
+  const copyInvite = async () => {
+    if (!minted) return;
+    try { await navigator.clipboard.writeText(minted.text); setCopiedInvite(true); } catch { setInviteError("Could not copy automatically; select the text and copy it by hand."); }
+  };
+  const revokeInvite = async (id: string) => {
+    setInviteError(null);
+    try { await apiRequest("DELETE", `${INVITES_KEY}/${id}`); } catch (e) { setInviteError(plainErrorMessage(e)); }
+    await queryClient.invalidateQueries({ queryKey: [INVITES_KEY] });
+  };
+  const setCanInvite = async (a: AgentRow, value: boolean) => {
+    setListError(null);
+    setListNotice(null);
+    try { await apiRequest("POST", `/api/admin/users/${a.id}/can-invite`, { canInvite: value }); } catch (e) { setListError(plainErrorMessage(e)); }
+    await queryClient.invalidateQueries({ queryKey: [AGENTS_KEY] });
+  };
+  const revokeChain = async (a: AgentRow) => {
+    setListError(null);
+    setListNotice(null);
+    if (!window.confirm(`This revokes ${a.username}'s keys and invite right, and those of every agent it brought in, directly or indirectly. Their records stay on the ledger.`)) return;
+    try {
+      const out = await (await apiRequest("POST", `/api/admin/users/${a.id}/revoke-chain`)).json();
+      const n = (x: number, one: string, many: string) => `${x} ${x === 1 ? one : many}`;
+      setListNotice(`Revoked ${n(out.accounts, "account's keys", "accounts' keys")} (${n(out.keys, "key", "keys")}) and ${n(out.invites, "open invite", "open invites")}.`);
+    } catch (e) {
+      setListError(plainErrorMessage(e));
+    }
+    await queryClient.invalidateQueries({ queryKey: [AGENTS_KEY] });
+    await queryClient.invalidateQueries({ queryKey: [INVITES_KEY] });
+  };
+
   const dismissIssued = () => { setIssued(null); setCopiedAll(false); };
-  const addAgent = async (name: string, extra: { displayName?: string; keyName?: string; ed25519PublicKey?: string } = {}) => {
+  const addAgent = async (name: string, extra: { displayName?: string; keyName?: string; ed25519PublicKey?: string; canInvite?: boolean } = {}) => {
     setAddError(null);
     dismissIssued();
     setAdding(true);
@@ -58,6 +127,7 @@ export default function AdminAgentsPage() {
       setAddDisplay("");
       setAddKeyName("");
       setAddPubKey("");
+      setAddCanInvite(false);
       await queryClient.invalidateQueries({ queryKey: [AGENTS_KEY] });
     } catch (e) {
       setAddError(plainErrorMessage(e));
@@ -66,7 +136,8 @@ export default function AdminAgentsPage() {
     }
   };
   const submitAdd = () => {
-    const extra: { displayName?: string; keyName?: string; ed25519PublicKey?: string } = {};
+    const extra: { displayName?: string; keyName?: string; ed25519PublicKey?: string; canInvite?: boolean } = {};
+    if (addCanInvite) extra.canInvite = true;
     if (addDisplay.trim()) extra.displayName = addDisplay.trim();
     if (addKeyName.trim()) extra.keyName = addKeyName.trim();
     if (addPubKey.trim()) extra.ed25519PublicKey = addPubKey.trim();
@@ -78,7 +149,7 @@ export default function AdminAgentsPage() {
   };
 
   const dismissSecret = () => { setSecret(null); setCopied(false); setIssuedId(null); setCopiedId(false); };
-  useEffect(() => () => { setSecret(null); setIssued(null); }, []);
+  useEffect(() => () => { setSecret(null); setIssued(null); setMinted(null); }, []);
 
   if (authLoading) return <main className="mx-auto max-w-2xl px-4 py-8 text-muted-foreground">Loading…</main>;
   if (user?.role !== "admin") return <main className="mx-auto max-w-2xl px-4 py-8">Admins only.</main>;
@@ -162,10 +233,11 @@ export default function AdminAgentsPage() {
         <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submitAdd(); }}>
           <div className="flex gap-2">
             <input className="flex-1 rounded border bg-background px-2 py-1" aria-label="Name" placeholder="Name (username)" maxLength={64} autoComplete="off" value={addName} onChange={(e) => setAddName(e.target.value)} />
-            <Button size="sm" type="submit" disabled={adding || Boolean(issued) || addName.trim().length < 3} title={issued ? "Copy and close the key above first" : undefined}>Add agent</Button>
+            <Button size="sm" type="submit" disabled={adding || blocked || addName.trim().length < 3} title={blockedTitle}>Add agent</Button>
           </div>
           <p className="text-xs text-muted-foreground">3-64 letters, digits, '_', '.' or '-'; starts with a letter or digit.</p>
-          {issued && <p className="text-xs text-amber-500">Copy and close the key above first.</p>}
+          <label className="flex items-center gap-2"><input type="checkbox" checked={addCanInvite} onChange={(e) => setAddCanInvite(e.target.checked)} />Can invite others</label>
+          {blocked && <p className="text-xs text-amber-500">Copy and close the secret above first.</p>}
           <details>
             <summary className="cursor-pointer text-muted-foreground">Advanced (optional)</summary>
             <div className="mt-2 space-y-2">
@@ -187,8 +259,58 @@ export default function AdminAgentsPage() {
             </div>
           </div>
         )}
+      </section>
+
+      <section className="space-y-3 rounded border border-border p-4 text-sm" data-testid="invites">
+        <h2 className="text-lg font-semibold">Invites</h2>
+        <p className="text-muted-foreground">Make a code and send it to an agent. It joins by itself with one call, so you do not have to add it.</p>
+        <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); void mintInvite(); }}>
+          <input className="w-full rounded border bg-background px-2 py-1" aria-label="Invite note" placeholder="Note (optional), e.g. who it is for" maxLength={200} value={inviteNote} onChange={(e) => setInviteNote(e.target.value)} />
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2">Uses<input type="number" min={1} max={50} className="w-20 rounded border bg-background px-2 py-1" value={inviteUses} onChange={(e) => setInviteUses(e.target.value)} /></label>
+            <label className="flex items-center gap-2">Expires in days<input type="number" min={1} max={30} className="w-20 rounded border bg-background px-2 py-1" value={inviteDays} onChange={(e) => setInviteDays(e.target.value)} /></label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={inviteGrants} onChange={(e) => setInviteGrants(e.target.checked)} />Can invite others</label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" type="submit" disabled={minting || blocked} title={blockedTitle}>Create invite</Button>
+            {blocked && <span className="text-xs text-amber-500">Copy and close the secret above first.</span>}
+          </div>
+        </form>
+        {inviteError && <p role="alert" className="text-rose-400">{inviteError}</p>}
+        {minted && (
+          <div className="space-y-2 rounded border border-amber-500 p-2" data-testid="invite-result">
+            <div role="status">Send this to the agent. You won't see the code again.</div>
+            <textarea readOnly rows={8} className="w-full rounded border bg-background p-2 font-mono text-xs" aria-label="Invite" data-testid="invite-text" value={minted.text} onFocus={(e) => e.currentTarget.select()} />
+            <div className="flex gap-2">
+              <Button size="sm" onClick={copyInvite}>{copiedInvite ? "Copied" : "Copy invite"}</Button>
+              <Button size="sm" variant="outline" onClick={dismissMinted}>Done</Button>
+            </div>
+          </div>
+        )}
+        <div className="space-y-1">
+          <h3 className="font-semibold">Your invites</h3>
+          {invites.isError && <p role="alert" className="text-rose-400">{apiErrorMessage(invites.error)}</p>}
+          {invites.data && invites.data.length === 0 && <p className="text-muted-foreground">No invites yet.</p>}
+          <ul className="space-y-1">
+            {(invites.data ?? []).map((i) => (
+              <li key={i.id} className="flex flex-wrap items-center gap-2" data-testid="invite-row">
+                <code className="text-xs">{i.prefix}…</code>
+                {i.note && <span>{i.note}</span>}
+                <span className="text-xs text-muted-foreground">used {i.uses} of {i.maxUses}</span>
+                <span className="text-xs text-muted-foreground">expires {i.expiresAt.slice(0, 10)}</span>
+                <span className="text-xs font-semibold">{inviteStatusLabel(i.status)}</span>
+                {i.status === "active" && <Button size="sm" variant="outline" onClick={() => void revokeInvite(i.id)}>Revoke</Button>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded border border-border p-4 text-sm" data-testid="agents-list">
         <div className="space-y-1">
           <h3 className="font-semibold">Agents</h3>
+          {listError && <p role="alert" className="text-rose-400">{listError}</p>}
+          {listNotice && <p role="status" className="text-emerald-400">{listNotice}</p>}
           {agents.isError && <p role="alert" className="text-rose-400">{apiErrorMessage(agents.error)}</p>}
           {agents.data && agents.data.length === 0 && <p className="text-muted-foreground">No agents yet.</p>}
           <ul className="space-y-1">
@@ -197,7 +319,10 @@ export default function AdminAgentsPage() {
                 <span className="font-semibold">{a.username}</span>
                 <span className="text-xs text-muted-foreground">{a.activeKeys} active {a.activeKeys === 1 ? "key" : "keys"}</span>
                 <span className="text-xs text-muted-foreground">last used {a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleString() : "never"}</span>
-                <Button size="sm" variant="outline" disabled={adding || Boolean(issued)} title={issued ? "Copy and close the key above first" : undefined} onClick={() => void addAgent(a.username)}>New key</Button>
+                {a.invitedBy && <span className="text-xs text-muted-foreground">Invited by {a.invitedBy}</span>}
+                <label className="flex items-center gap-1 text-xs"><Switch checked={a.canInvite} aria-label={`Can invite: ${a.username}`} onCheckedChange={(v) => void setCanInvite(a, v)} />Can invite</label>
+                <Button size="sm" variant="outline" disabled={adding || blocked} title={blockedTitle} onClick={() => void addAgent(a.username)}>New key</Button>
+                <Button size="sm" variant="destructive" onClick={() => void revokeChain(a)}>Revoke chain…</Button>
               </li>
             ))}
           </ul>
