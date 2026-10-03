@@ -3,7 +3,7 @@ import express from "express";
 import type { AddressInfo } from "node:net";
 import { AgentKeyService, agentKeyAuth, hashSecret } from "./agent-keys";
 import { MemoryAgentKeyStore } from "./memory-store";
-import { ledgerFileLimiter } from "./rate-limits";
+import { ledgerFileLimiter, limitFromEnv } from "./rate-limits";
 
 const users = new Map<string, any>([
   ["agent-1", { id: "agent-1", username: "kannaka", userType: "agent", role: "user" }],
@@ -98,5 +98,45 @@ describe("agent keys", () => {
     } finally {
       await close();
     }
+  });
+});
+
+describe("agent key hardening", () => {
+  afterEach(() => { delete process.env.LEDGER_FILE_LIMIT_PER_HOUR; users.set("agent-1", { id: "agent-1", username: "kannaka", userType: "agent", role: "user" }); });
+
+  it("any scl_-shaped credential authenticates or gets 401, never anonymous", async () => {
+    const svc = new AgentKeyService(new MemoryAgentKeyStore(), lookup);
+    const { secret } = await svc.issue("agent-1", "k");
+    const app = express();
+    app.use(agentKeyAuth(svc));
+    app.get("/who", (req, res) => res.json({ user: req.user?.username ?? null }));
+    const srv = await serve(app);
+    try {
+      const get = (auth: string) => fetch(`${srv.base}/who`, { headers: { authorization: auth } });
+      expect((await get("bearer scl_bad")).status).toBe(401);
+      expect((await get("BEARER   SCL_bad")).status).toBe(401);
+      expect((await get("Bearer  scl_bad extra")).status).toBe(401);
+      const ok = await get(`bearer   ${secret}`);
+      expect(ok.status).toBe(200);
+      expect((await ok.json()).user).toBe("kannaka");
+      expect((await get("Bearer legacy-token")).status).toBe(200); // non-scl tokens still pass through
+    } finally { await srv.close(); }
+  });
+
+  it("an admin-role account cannot authenticate or be issued a key", async () => {
+    const svc = new AgentKeyService(new MemoryAgentKeyStore(), lookup);
+    const { secret } = await svc.issue("agent-1", "k");
+    users.set("agent-1", { ...users.get("agent-1"), role: "admin" });
+    expect(await svc.authenticate(secret)).toEqual({ ok: false, error: "revoked_key" });
+    await expect(svc.issue("agent-1", "k2")).rejects.toMatchObject({ code: "forbidden", status: 409 });
+  });
+
+  it("a non-numeric, zero or negative env limit falls back to the default", () => {
+    for (const bad of ["abc", "0", "-5", "", "Infinity", "NaN"]) {
+      process.env.LEDGER_FILE_LIMIT_PER_HOUR = bad;
+      expect(limitFromEnv("LEDGER_FILE_LIMIT_PER_HOUR", 60), bad).toBe(60);
+    }
+    process.env.LEDGER_FILE_LIMIT_PER_HOUR = "7";
+    expect(limitFromEnv("LEDGER_FILE_LIMIT_PER_HOUR", 60)).toBe(7);
   });
 });

@@ -16,6 +16,7 @@ import { validateEnv } from "./config/env";
 import { loadUser, guardMutations } from "./middleware/auth";
 import { agentKeyAuth } from "./services/ledger/agent-keys";
 import { agentKeys } from "./services/ledger";
+import { apiLogger } from "./middleware/api-logger";
 import { pool } from "./db";
 import { aiKeyManager } from "./services/ai-key-manager";
 import { parallelResearchService } from "./services/parallel-research-service";
@@ -84,35 +85,8 @@ app.use(loadUser);
 app.use(agentKeyAuth(agentKeys));
 app.use(guardMutations);
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
+// Logs /api requests; never logs a response body that carries a secret (see middleware/api-logger).
+app.use(apiLogger(log));
 
 (async () => {
   await aiKeyManager.initialize();

@@ -13,6 +13,10 @@ import { createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { sanitizeUser, sanitizeUsers } from "./lib/sanitize";
 import { requireAuth, requireAdmin } from "./middleware/auth";
+import { createLedgerRouter } from "./routes/ledger";
+import { createLedgerAdminRouter } from "./routes/ledger-admin";
+import { agentKeys, ledgerService } from "./services/ledger";
+import { ledgerFileLimiter, ledgerReadLimiter } from "./services/ledger/rate-limits";
 import { registerHandler } from "./routes/register";
 import { createUserAsAdmin, deleteUserAsAdmin, resetUserSecret } from "./routes/admin-users";
 import { performAgentResearch, generatePaperTitle } from "./services/ai";
@@ -128,6 +132,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users", requireAdmin, createUserAsAdmin);
   app.post("/api/admin/users/:id/reset-password", requireAdmin, resetUserSecret);
   app.delete("/api/admin/users/:id", requireAdmin, deleteUserAsAdmin);
+
+  // ===== Research ledger (spec docs/superpowers/specs/2026-10-03-research-ledger-design.md) =====
+  app.use("/api/ledger", createLedgerRouter(ledgerService, { file: ledgerFileLimiter(), read: ledgerReadLimiter() }));
+  app.use("/api/admin", requireAdmin, createLedgerAdminRouter({ keys: agentKeys, users: storage }));
 
   // Get user by username
   app.get("/api/users/by-username/:username", async (req, res) => {

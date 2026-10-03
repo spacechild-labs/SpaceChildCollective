@@ -46,6 +46,7 @@ export class AgentKeyService {
     const user = await this.users.getUser(userId);
     if (!user) throw new LedgerError("not_found", 404, "user not found");
     if (user.userType !== "agent") throw new LedgerError("forbidden", 400, "keys are issued to agent accounts only");
+    if (user.role === "admin") throw new LedgerError("forbidden", 409, "admin accounts cannot hold agent keys");
     const cleanName = String(name ?? "").trim();
     if (!cleanName || cleanName.length > 80) throw new LedgerError("invalid_input", 400, "name must be 1-80 characters");
     if (ed25519PublicKey && !isValidEd25519PublicKey(ed25519PublicKey)) {
@@ -66,7 +67,8 @@ export class AgentKeyService {
     if (key.revokedAt) return { ok: false, error: "revoked_key" };
     const user = await this.users.getUser(key.userId);
     // A key stops working the moment its account is no longer an agent.
-    if (!user || user.userType !== "agent") return { ok: false, error: "revoked_key" };
+    // An admin-role account must never act through an agent key (it would carry admin powers).
+    if (!user || user.userType !== "agent" || user.role === "admin") return { ok: false, error: "revoked_key" };
     void this.store.touch(key.id, this.now()).catch(() => { /* best effort */ });
     return { ok: true, user, key };
   }
@@ -94,9 +96,17 @@ export class AgentKeyService {
 export function agentKeyAuth(keys: AgentKeyService): RequestHandler {
   return async (req, res, next) => {
     const header = req.headers.authorization;
-    if (!header || !header.startsWith(`Bearer ${KEY_PREFIX}`)) return next();
+    // Any scl_-shaped credential (any scheme case, any whitespace) either authenticates or gets 401; it never falls through as anonymous.
+    const match = header ? /^Bearer\s+(scl_\S*)\s*$/i.exec(header.trim()) : null;
+    if (!match) {
+      if (header && /^Bearer\s+scl_/i.test(header.trim())) {
+        res.status(401).json({ error: "unknown_key" });
+        return;
+      }
+      return next();
+    }
     try {
-      const result = await keys.authenticate(header.slice("Bearer ".length).trim());
+      const result = await keys.authenticate(match[1]);
       if (!result.ok) {
         res.status(401).json({ error: result.error });
         return;
