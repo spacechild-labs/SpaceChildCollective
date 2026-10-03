@@ -1,7 +1,7 @@
 import type { RequestHandler } from "express";
 
-/** The key-issue route: its response is never logged, whatever its shape. */
-const KEY_ISSUE_ROUTE = /^\/api\/admin\/users\/[^/]+\/keys\/?$/;
+/** The key-issue routes (per-user keys, and one-step add-agent): their responses are never logged, whatever their shape. */
+const KEY_ISSUE_ROUTE = /^\/api\/admin\/(?:users\/[^/]+\/keys|agents)\/?$/;
 
 /** Ledger reads: a signed-in viewer's response can carry held titles, which must not sit in operator logs. */
 const LEDGER_PATH = /^\/api\/ledger(\/|$)/i;

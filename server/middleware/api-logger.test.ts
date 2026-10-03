@@ -53,4 +53,20 @@ describe("apiLogger", () => {
     expect(all).toContain("\"id\":\"R1\"");
     expect(all).toContain("VISIBLE");
   });
+
+  it("never logs the add-agent route's body, whatever its shape", async () => {
+    const lines: string[] = [];
+    const app = express();
+    app.use(apiLogger((l) => lines.push(l)));
+    app.post("/api/admin/agents", (_req, res) => res.status(201).json({ nested: { s: "scl_NESTED2" } }));
+    app.get("/api/admin/agents", (_req, res) => res.json([{ username: "listed" }]));
+    srv = await serve(app);
+    await fetch(`${srv.base}/api/admin/agents`, { method: "POST" });
+    await fetch(`${srv.base}/api/admin/agents`);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("POST /api/admin/agents 201");
+    expect(lines.join("\n")).not.toContain("NESTED2");
+    expect(lines[0]).toContain("redacted");
+  });
 });

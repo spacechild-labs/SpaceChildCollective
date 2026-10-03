@@ -1,16 +1,21 @@
+import bcrypt from "bcryptjs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import express from "express";
 import { AgentKeyService } from "../services/ledger/agent-keys";
 import { MemoryAgentKeyStore } from "../services/ledger/memory-store";
 import { createLedgerAdminRouter } from "./ledger-admin";
+import { isValidEd25519PublicKey } from "../services/ledger/agent-keys";
 import { serve } from "../test-utils/serve";
 
 let users: Map<string, any>;
+let failIssue = false;
+let deleted: string[] = [];
 let srv: { base: string; close(): Promise<void> };
 
 beforeEach(async () => {
   users = new Map([
     ["u-q", { id: "u-q", username: "qe", userType: "human", role: "user", canRelease: true, zkpCommitment: "secret" }],
+    ["u-h", { id: "u-h", username: "alice", userType: "human", role: "user", canRelease: false, zkpCommitment: "h" }],
     ["u-a2", { id: "u-a2", username: "root2", userType: "human", role: "admin", canRelease: false }],
     ["u-bad", { id: "u-bad", username: "badagent", userType: "agent", role: "admin", canRelease: false }],
     ["u-n", { id: "u-n", username: "nick", userType: "human", role: "admin", canRelease: true }],
@@ -18,11 +23,20 @@ beforeEach(async () => {
   const userStore = {
     getUser: async (id: string) => users.get(id),
     updateUser: async (id: string, u: any) => { const next = { ...users.get(id), ...u }; users.set(id, next); return next; },
+    getUserByUsername: async (name: string) => [...users.values()].find((u) => u.username === name),
+    createUser: async (u: any) => { const row = { id: `u-new-${users.size}`, bio: null, ...u }; users.set(row.id, row); return row; },
+    deleteUser: async (id: string) => { deleted.push(id); users.delete(id); },
+    getAllUsers: async () => [...users.values()],
   };
+  failIssue = false;
+  deleted = [];
+  const keys = new AgentKeyService(new MemoryAgentKeyStore(), userStore);
+  const realIssue = keys.issue.bind(keys);
+  keys.issue = (async (...a: Parameters<typeof realIssue>) => { if (failIssue) throw new Error("boom"); return realIssue(...a); }) as typeof keys.issue;
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => { const who = req.header("x-test-user") ?? "u-n"; (req as any).user = who === "anon" ? undefined : users.get(who); next(); });
-  app.use("/api/admin", createLedgerAdminRouter({ keys: new AgentKeyService(new MemoryAgentKeyStore(), userStore), users: userStore }));
+  app.use("/api/admin", createLedgerAdminRouter({ keys, users: userStore }));
   srv = await serve(app);
 });
 afterEach(async () => { await srv.close(); });
@@ -88,5 +102,116 @@ describe("ledger admin routes", () => {
     expect(member.status).toBe(403);
     expect((await member.json()).error).toBe("forbidden");
     expect(users.get("u-q").userType).toBe("human");
+  });
+});
+
+const PUB = Buffer.alloc(32, 7).toString("base64");
+const byName = (name: string) => [...users.values()].find((u) => u.username === name);
+
+describe("POST /agents (one-step add agent)", () => {
+  it("creates an agent account with an unusable password and issues a key (201)", async () => {
+    expect(isValidEd25519PublicKey(PUB)).toBe(true);
+    const res = await call("POST", "/agents", { username: "  kannaka2 ", ed25519PublicKey: PUB });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.created).toBe(true);
+    expect(body.user).toMatchObject({ username: "kannaka2", displayName: "kannaka2" });
+    expect(body.key).toMatchObject({ name: "default", hasEd25519: true });
+    expect(body.secret).toMatch(/^scl_/);
+    expect(body.setup).toMatchObject({ keyId: body.key.id, baseUrl: expect.stringMatching(/^https?:\/\//), quickstartUrl: expect.stringContaining("ledger-quickstart.md") });
+    const row = users.get(body.user.id);
+    expect(row).toMatchObject({ userType: "agent", role: "user", canRelease: false });
+    expect(row.zkpCommitment).toMatch(/^\$2[aby]\$/);
+    // The commitment is a hash of random bytes: it never appears in the response and matches no obvious guess.
+    expect(JSON.stringify(body)).not.toContain(row.zkpCommitment);
+    expect(await bcrypt.compare("", row.zkpCommitment)).toBe(false);
+    expect(await bcrypt.compare("kannaka2", row.zkpCommitment)).toBe(false);
+    const list = await (await call("GET", `/users/${body.user.id}/keys`)).json();
+    expect(list).toHaveLength(1);
+  });
+
+  it("uses displayName and keyName when given", async () => {
+    const body = await (await call("POST", "/agents", { username: "ag-1", displayName: "Agent One", keyName: "laptop" })).json();
+    expect(body.user.displayName).toBe("Agent One");
+    expect(body.key).toMatchObject({ name: "laptop", hasEd25519: false });
+  });
+
+  it("issues an additional key for an existing agent (200) without creating a user", async () => {
+    const first = await (await call("POST", "/agents", { username: "ag-2" })).json();
+    const size = users.size;
+    const res = await call("POST", "/agents", { username: "ag-2", keyName: "second" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.created).toBe(false);
+    expect(body.user.id).toBe(first.user.id);
+    expect(body.secret).not.toBe(first.secret);
+    expect(users.size).toBe(size);
+    expect(await (await call("GET", `/users/${first.user.id}/keys`)).json()).toHaveLength(2);
+  });
+
+  it("refuses a human or admin account with 409 and changes nothing", async () => {
+    for (const name of ["alice", "root2", "badagent", "nick"]) {
+      const before = JSON.stringify(byName(name));
+      const res = await call("POST", "/agents", { username: name });
+      expect(res.status, name).toBe(409);
+      expect(await res.json()).toEqual({ error: "forbidden", message: `${name} is a human/admin account; agent keys can only belong to agent accounts` });
+      expect(JSON.stringify(byName(name))).toBe(before);
+    }
+  });
+
+  it("rejects bad input with invalid_input", async () => {
+    const bad = [{}, { username: "ab" }, { username: "-bad" }, { username: "has space" }, { username: "x".repeat(65) },
+      { username: "okname", displayName: "x" }, { username: "okname", keyName: "k".repeat(65) }, { username: "okname", ed25519PublicKey: "nope" }];
+    for (const body of bad) {
+      const res = await call("POST", "/agents", body);
+      expect(res.status, JSON.stringify(body)).toBe(400);
+      const j = await res.json();
+      expect(j.error).toBe("invalid_input");
+      expect(typeof j.message).toBe("string");
+    }
+    expect(byName("okname")).toBeUndefined();
+  });
+
+  it("deletes a newly created user when issuing the key fails", async () => {
+    failIssue = true;
+    const res = await call("POST", "/agents", { username: "doomed" });
+    expect(res.status).toBe(500);
+    expect(byName("doomed")).toBeUndefined();
+    expect(deleted).toHaveLength(1);
+  });
+
+  it("does not delete an existing agent when issuing an extra key fails", async () => {
+    await call("POST", "/agents", { username: "keeper" });
+    failIssue = true;
+    expect((await call("POST", "/agents", { username: "keeper" })).status).toBe(500);
+    expect(byName("keeper")).toBeDefined();
+    expect(deleted).toHaveLength(0);
+  });
+
+  it("is admin-only", async () => {
+    expect((await call("POST", "/agents", { username: "sneaky" }, "anon")).status).toBe(401);
+    expect((await call("POST", "/agents", { username: "sneaky" }, "u-q")).status).toBe(403);
+    expect(byName("sneaky")).toBeUndefined();
+  });
+});
+
+describe("GET /agents", () => {
+  it("lists agent accounts by username with key counts and no secrets", async () => {
+    await call("POST", "/agents", { username: "zed" });
+    const a = await (await call("POST", "/agents", { username: "alpha" })).json();
+    const second = await (await call("POST", "/agents", { username: "alpha", keyName: "two" })).json();
+    await call("DELETE", `/keys/${second.key.id}`);
+    const res = await call("GET", "/agents");
+    expect(res.status).toBe(200);
+    const list = await res.json();
+    expect(list.map((x: any) => x.username)).toEqual(["alpha", "zed"]);
+    expect(list[0]).toEqual({ id: a.user.id, username: "alpha", displayName: "alpha", canRelease: false, activeKeys: 1, lastUsedAt: null });
+    expect(list[1].activeKeys).toBe(1);
+    expect(JSON.stringify(list)).not.toMatch(/zkpCommitment|keyHash|scl_|\$2[aby]\$/);
+  });
+
+  it("is admin-only", async () => {
+    expect((await call("GET", "/agents", undefined, "anon")).status).toBe(401);
+    expect((await call("GET", "/agents", undefined, "u-q")).status).toBe(403);
   });
 });
