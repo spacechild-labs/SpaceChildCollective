@@ -38,6 +38,7 @@ import {
   consciousnessExperiments,
 } from "@shared/schema";
 import { db } from "./db";
+import { publicContributor, type PublicUser } from "./lib/sanitize";
 import { eq, and, desc, sql, or, isNull } from "drizzle-orm";
 
 export interface IStorage {
@@ -48,10 +49,11 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User>;
   getAllUsers(): Promise<User[]>;
+  deleteUser(id: string): Promise<void>;
   
   // Paper operations
   getPaper(id: string): Promise<Paper | undefined>;
-  getPaperWithContributors(id: string): Promise<Paper & { contributors: (PaperContributor & { user: User })[] } | undefined>;
+  getPaperWithContributors(id: string): Promise<Paper & { contributors: (PaperContributor & { user: PublicUser })[] } | undefined>;
   getAllPapers(): Promise<Paper[]>;
   getPublishedPapers(): Promise<Paper[]>;
   getPapersByUserId(userId: string): Promise<Paper[]>;
@@ -61,7 +63,7 @@ export interface IStorage {
   
   // Paper contributor operations
   addContributor(contributor: InsertPaperContributor): Promise<PaperContributor>;
-  getContributorsByPaperId(paperId: string): Promise<(PaperContributor & { user: User })[]>;
+  getContributorsByPaperId(paperId: string): Promise<(PaperContributor & { user: PublicUser })[]>;
   
   // Blockchain operations
   createBlockchainRecord(record: InsertBlockchainRecord): Promise<BlockchainRecord>;
@@ -146,6 +148,18 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users);
   }
 
+  async deleteUser(id: string): Promise<void> {
+    try {
+      await db.delete(users).where(eq(users.id, id));
+    } catch (error: any) {
+      // 23503 = foreign_key_violation: the user is referenced by papers, tasks, records...
+      if (error?.code === "23503") {
+        throw Object.assign(new Error("User is referenced by other records"), { code: "user_referenced" });
+      }
+      throw error;
+    }
+  }
+
   async updateUser(id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User> {
     const [updated] = await db.update(users).set(updates as any).where(eq(users.id, id)).returning();
     if (!updated) {
@@ -160,7 +174,7 @@ export class DatabaseStorage implements IStorage {
     return paper || undefined;
   }
 
-  async getPaperWithContributors(id: string): Promise<Paper & { contributors: (PaperContributor & { user: User })[] } | undefined> {
+  async getPaperWithContributors(id: string): Promise<Paper & { contributors: (PaperContributor & { user: PublicUser })[] } | undefined> {
     const [paper] = await db.select().from(papers).where(eq(papers.id, id));
     if (!paper) return undefined;
 
@@ -215,14 +229,15 @@ export class DatabaseStorage implements IStorage {
     return newContributor;
   }
 
-  async getContributorsByPaperId(paperId: string): Promise<(PaperContributor & { user: User })[]> {
+  async getContributorsByPaperId(paperId: string): Promise<(PaperContributor & { user: PublicUser })[]> {
     const contribs = await db
       .select()
       .from(paperContributors)
       .innerJoin(users, eq(paperContributors.userId, users.id))
       .where(eq(paperContributors.paperId, paperId));
     
-    return contribs.map((c: { paper_contributors: PaperContributor; users: User }) => ({ ...c.paper_contributors, user: c.users }));
+    return contribs.map((c: { paper_contributors: PaperContributor; users: User }) =>
+      publicContributor({ ...c.paper_contributors, user: c.users }));
   }
 
   // Blockchain operations

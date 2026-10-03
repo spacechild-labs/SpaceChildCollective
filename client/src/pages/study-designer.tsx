@@ -282,7 +282,7 @@ export default function StudyDesigner() {
             Prompt consciousness research studies into existence with AI assistance
           </p>
         </div>
-        <Link href="/experiments">
+        <Link href="/archive/experiments">
           <Button variant="outline">
             <FlaskConical className="h-4 w-4 mr-2" />
             View Experiments
@@ -877,7 +877,7 @@ export default function StudyDesigner() {
                 <Button variant="outline" onClick={() => setActiveTab("prompt")}>
                   Refine Design
                 </Button>
-                <Link href="/experiments">
+                <Link href="/archive/experiments">
                   <Button>
                     <ArrowRight className="h-4 w-4 mr-2" />
                     Go to Experiments

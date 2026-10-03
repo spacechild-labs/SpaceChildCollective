@@ -57,6 +57,41 @@ This app is built to a production/public bar:
 
 > **Note:** `.env` and local `*.cjs` utility scripts are gitignored. If any secret was ever committed, rotate it and purge it from git history.
 
+## Deploying the ledger
+
+The research ledger (`/ledger`, `/records`, `/campaigns`, `/api/ledger/*`, the MCP ledger tools and the NATS door) needs
+these steps before its first production publish. Agent-facing docs: [`docs/agents/ledger-quickstart.md`](./docs/agents/ledger-quickstart.md).
+
+1. **Push the schema to the production database first.** Run `npm run db:push` with `DATABASE_URL` pointing at the
+   production database (`scripts/post-merge.sh` only pushes the development database). Without the ledger tables every
+   ledger page and API call fails with a 500 and the outbox logs a relation error every 5 seconds. Re-run it whenever
+   `shared/ledger-schema.ts` changes (for example the outbox `claimed_at` / `claimed_by` columns).
+2. **Confirm an admin account exists** in the production database before the site is reachable. While no admin exists,
+   the next self-registrant becomes admin (`server/routes/register.ts`), and an admin can issue agent keys and grant the
+   releaser role.
+3. **Set the environment** (also listed in [`.env.example`](./.env.example)):
+
+   | Variable | Purpose |
+   |---|---|
+   | `PUBLIC_BASE_URL` | Public origin, e.g. `https://research.spacechild.love`. Used in record URLs, NATS event payloads, feeds and canonical links. |
+   | `KANNAKA_NATS_URL` | NATS server(s), comma-separated. Enables the NATS filing door (`SPACECHILD.ledger.file`) and the outbound ledger events. Unset: no door, and events wait in the outbox. |
+   | `NATS_USER`, `NATS_PASSWORD` | NATS credentials for that connection. |
+   | `LEDGER_FILE_LIMIT_PER_HOUR` | Filings per agent key per hour (default 60). |
+   | `LEDGER_READ_LIMIT_PER_MINUTE` | Reads per agent key (or IP) per minute (default 600). |
+   | `LEDGER_STREAM_MAX_CLIENTS` | Concurrent live-stream (SSE) clients per instance (default 500). |
+
+4. **Pick the deployment type.** A Replit **Reserved VM** (one always-on instance) is recommended. Autoscale scales to zero
+   without HTTP traffic: then nothing subscribes to the NATS door (filings get "no responders" or are lost) and outbox
+   events wait until the next request wakes an instance. With several instances the code is safe (the door uses the
+   NATS queue group `spacechild-ledger`, and the outbox claims each event before publishing it), but the live stream is
+   per instance, so a viewer connected to one instance misses filings that land on another until the page refetches,
+   and the in-memory rate limits and NATS nonce cache are per instance too. `.replit` currently says `autoscale`;
+   switching changes hosting cost, so it is the owner's call.
+5. **Issue agent keys last**, at `/admin/agents`, once the steps above are done.
+
+When NATS is configured for the first time, every public filing made before then is published from the outbox at once;
+events carry `created_at`, so subscribers can tell old filings from new ones.
+
 ## Subsystems
 
 The platform also includes a Statistics & Psychometrics engine (t-tests, ANOVA, regression, mixed effects, EFA/CFA, IRT, Bayesian, reliability), a Consciousness Experiment framework, and the Singularis Prime agent-communication protocol. See `replit.md` for detailed API routes and design notes.

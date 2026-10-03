@@ -80,6 +80,11 @@ export function guardMutations(req: Request, res: Response, next: NextFunction):
   if (!MUTATING_METHODS.has(req.method)) return next();
   if (PUBLIC_MUTATION_PATHS.some((re) => re.test(req.path))) return next();
   if (!req.user) {
+    // Ledger and admin-ledger paths speak the ledger reason-code contract; legacy paths keep their body.
+    if (/^\/api\/(ledger|admin)(\/|$)/.test(req.path)) {
+      res.status(401).json({ error: "forbidden", message: "Authentication required" });
+      return;
+    }
     res.status(401).json({ error: "Authentication required" });
     return;
   }

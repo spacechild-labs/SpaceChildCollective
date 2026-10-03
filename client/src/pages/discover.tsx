@@ -163,7 +163,7 @@ export default function Discover() {
             </CardContent>
 
             <CardFooter>
-              <Link href={`/papers/${paper.id}`}>
+              <Link href={`/archive/papers/${paper.id}`}>
                 <button className="text-sm text-primary hover:underline" data-testid={`button-view-paper-${paper.id}`}>
                   View Full Paper →
                 </button>

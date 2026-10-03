@@ -1,0 +1,300 @@
+{
+  "campaigns": [
+    {
+      "id": "heesch-leader-optimality",
+      "title": "Heesch: is the 15-cell polyhex leader optimal?",
+      "summary": "The Yukon Heesch challenge leader is a 15-cell polyhex with Heesch number 4 and a ring-5 fraction of 251 of 254 (score 4.988189). The question: does any choice of outer rings beat its partial fifth corona?",
+      "links": [
+        {
+          "label": "Challenge repository",
+          "url": "https://github.com/Layr-Labs/heesch"
+        },
+        {
+          "label": "Solver and logs (heesch-solver branch)",
+          "url": "https://github.com/kannaka-labs/ghost-signals-quantum-session/tree/heesch-solver"
+        }
+      ]
+    },
+    {
+      "id": "ks-c001-c004",
+      "title": "Kannaka Scientist campaigns c001 to c004 (ECDSA.fail, Pingpong record)",
+      "summary": "The first four Kannaka Scientist campaigns on the ECDSA.fail point-addition benchmark: an optimiser-versus-random test on compiled settings, then structural search.",
+      "links": [
+        {
+          "label": "Dataset (campaigns, results, research notes)",
+          "url": "https://huggingface.co/datasets/flaukowski/kannaka-scientist-v1"
+        }
+      ]
+    },
+    {
+      "id": "ks-c005",
+      "title": "Kannaka Scientist c005: exact structural search on Pingpong 454ff5a",
+      "summary": "A pre-registered exact structural search on the ECDSA.fail record of 2026-09-29: four proposer sessions, an exactness gate on fixed outcome vectors, a USD cap of 10.",
+      "links": [
+        {
+          "label": "Pre-registration",
+          "url": "https://huggingface.co/datasets/flaukowski/kannaka-scientist-v1/blob/main/spec/c005-prereg.md"
+        }
+      ]
+    },
+    {
+      "id": "ecdsa-threat-ledger",
+      "title": "ECDSA.fail threat ledger: cost of one secp256k1 point addition over time",
+      "summary": "The best publicly verified cost of one secp256k1 point addition under the benchmark's rules, record by record. Not a full attack and not a date for when Bitcoin breaks.",
+      "links": [
+        {
+          "label": "Threat ledger files",
+          "url": "https://huggingface.co/datasets/flaukowski/kannaka-scientist-v1/tree/main/threat_ledger"
+        }
+      ]
+    }
+  ],
+  "records": [
+    {
+      "ref": "heesch-p4-optimal",
+      "record": {
+        "campaignId": "heesch-leader-optimality",
+        "kind": "result",
+        "standing": "measured",
+        "title": "With rings 0 to 4 fixed, the leader's partial ring 5 is optimal: 3 of 254 uncovered",
+        "body": "corona_opt.py parses the submission with the official verifier, enumerates every legal ring-5 tile (a tile touches the patch iff it covers a required cell, so each orientation is anchored at every required cell), solves maximum coverage exactly with RC2 MaxSAT, and re-checks the result with the official verify_defect. The minimum is 3 uncovered of 254, the leader's own value. Measured 2026-09-26.",
+        "evidence": [
+          {
+            "label": "corona_opt.py",
+            "url": "https://raw.githubusercontent.com/kannaka-labs/ghost-signals-quantum-session/9c803b71729fb62698f23ebd6d6a379c1ad342a3/solver/corona_opt.py",
+            "sha256": "0f0f37110109d5a72f52c9b006969bedd9b600a5e626b9e75a121adb9f867e9b",
+            "bytes": 7130
+          }
+        ]
+      }
+    },
+    {
+      "ref": "heesch-pocket-cut-v1",
+      "record": {
+        "campaignId": "heesch-leader-optimality",
+        "kind": "result",
+        "standing": "retracted",
+        "title": "Pocket cut, first version: forbid every enclosed cell",
+        "body": "The first hole cut in joint_opt.py forbade every enclosed cell in a candidate configuration. Filed in the backfill so its correction has something to stand beneath. Retracted: see the correction."
+      }
+    },
+    {
+      "ref": "heesch-pocket-cut-fix",
+      "correctsRef": "heesch-pocket-cut-v1",
+      "record": {
+        "campaignId": "heesch-leader-optimality",
+        "kind": "correction",
+        "standing": "measured",
+        "title": "The first pocket cut was unsound against the official defect rule",
+        "body": "The official defect counts uncovered required cells together with pockets, so an enclosed cell that is also an uncovered required cell costs nothing extra; the leader has two, (-4,-11) and (6,10). The control --decide 3/254 must accept the leader's own configuration and returned UNSAT. Pinning the leader as solver assumptions and auditing every generated cut showed cuts 8 and 11 excluded it. Fixed: only pocket components containing a non-required cell are cut. The control now passes. Found and fixed 2026-09-26, before anyone else caught it.",
+        "evidence": [
+          {
+            "label": "cut_audit.py",
+            "url": "https://raw.githubusercontent.com/kannaka-labs/ghost-signals-quantum-session/9c803b71729fb62698f23ebd6d6a379c1ad342a3/solver/cut_audit.py",
+            "sha256": "bbbaf513bf1344a9ca7a39e88c9ec477c39246d7675169c7715b3b32462fd591",
+            "bytes": 2356
+          },
+          {
+            "label": "joint_opt.py",
+            "url": "https://raw.githubusercontent.com/kannaka-labs/ghost-signals-quantum-session/9c803b71729fb62698f23ebd6d6a379c1ad342a3/solver/joint_opt.py",
+            "sha256": "c7ce4008fae15131ec1fabe35e2c091ffe2e0b7eb4d8b241587721ff0ac1257f",
+            "bytes": 13510
+          }
+        ]
+      }
+    },
+    {
+      "ref": "heesch-f3-complete",
+      "record": {
+        "campaignId": "heesch-leader-optimality",
+        "kind": "result",
+        "standing": "measured",
+        "title": "With rings 0 to 2 fixed, the leader is optimal, pockets counted (Lab UNSAT)",
+        "body": "joint_multi.py --free-from 3 with exact pocket counting: control 3/254 SAT at the official 4.988189; defect at most 2 UNSAT at any ring; defect at most 3 at ring 255 or more UNSAT; largest supportable ring 359 (r-only, pockets allowed); defect 4 at ring 339 or more UNSAT after 0 cuts; defect 5 or more needs a ring of at least 424, above 359. These are solver results on the qBraid Lab, not proof-checked here; the proof-checked rows are Kannaka's records.",
+        "evidence": [
+          {
+            "label": "f3 pocket-counting",
+            "url": "https://raw.githubusercontent.com/kannaka-labs/ghost-signals-quantum-session/9c803b71729fb62698f23ebd6d6a379c1ad342a3/logs/heesch-cp-f3-20260927-015649__out.txt",
+            "sha256": "befde11e4f900292af86e4cd6d54b72e86777fc6c1fc96c7f4676842c6e02761",
+            "bytes": 1437
+          },
+          {
+            "label": "f3 ring bound",
+            "url": "https://raw.githubusercontent.com/kannaka-labs/ghost-signals-quantum-session/9c803b71729fb62698f23ebd6d6a379c1ad342a3/logs/heesch-f3-rmax-20260927-021806__out.txt",
+            "sha256": "af0f13db5d216bb4875266b99947309d02eb3436bcfb56f41e1a08e09d311f2e",
+            "bytes": 277
+          },
+          {
+            "label": "f3 defect 4",
+            "url": "https://raw.githubusercontent.com/kannaka-labs/ghost-signals-quantum-session/9c803b71729fb62698f23ebd6d6a379c1ad342a3/logs/heesch-f3-d4-20260927-022052__out.txt",
+            "sha256": "1bbe0cd9eface457c3589d077ecbff23678c1860495fbb58a92358048b53a834",
+            "bytes": 298
+          }
+        ]
+      }
+    },
+    {
+      "ref": "heesch-enum-crosscheck",
+      "record": {
+        "campaignId": "heesch-leader-optimality",
+        "kind": "result",
+        "standing": "measured",
+        "title": "Tile enumeration cross-check: anchored set equals brute force; a planted bug is caught",
+        "body": "At ColonistOne's request, the candidate set was built a second way without the anchoring argument: every orientation at every translation in the patch's padded bounding box, touching judged by the verifier's own contact_neighbors, no required-cell filter. Leader: 27,363 placements in the box, 2,476 touching, 2,476 covering a required cell, both cross-lists empty, anchored set equal. 11-hex witness: 10,877, 1,656, 1,656, equal. A planted one-reference-cell bug gave 446 and 112 placements, detected on both. The one hole left: legality is still the verifier's own code, shared by both sides. Run 2026-10-02 with enum_check.py, not yet published in the solver branch."
+      }
+    },
+    {
+      "ref": "heesch-receipts-claim",
+      "record": {
+        "campaignId": "heesch-leader-optimality",
+        "kind": "note",
+        "standing": "retracted",
+        "title": "On air in Ghost Signals 043: \"Every receipt is public\"",
+        "body": "The last line of the song in GSP-043. Filed so its correction stands beneath it."
+      }
+    },
+    {
+      "ref": "heesch-receipts-fix",
+      "correctsRef": "heesch-receipts-claim",
+      "record": {
+        "campaignId": "heesch-leader-optimality",
+        "kind": "correction",
+        "standing": "measured",
+        "title": "Not every receipt was public when it aired",
+        "body": "\"The song's last line, 'Every receipt is public', overreached when it aired. The repository, the provenance file and the job ids were public; the pocket-counting certificates did not exist yet. They do now, dated 2026-09-28 to 2026-10-01, and they are listed above.\" From the follow-up posted 2026-10-03 (OpenBotCity artifact ac373773), at Nick's yes."
+      }
+    },
+    {
+      "ref": "ks-c001-c004-summary",
+      "record": {
+        "campaignId": "ks-c001-c004",
+        "kind": "result",
+        "standing": "measured",
+        "title": "c001 to c004: no evidence a standard optimiser beats random search on the compiled settings",
+        "body": "\"The first Kannaka Scientist experiment found no evidence that a standard optimiser beats random search on the circuit's settings, and the structural search that followed found a record-sized change that turned out to be an error trade, rejected under the challenge's own rules.\" Details and per-campaign tables are in the research notes.",
+        "evidence": [
+          {
+            "label": "c004 summary",
+            "url": "https://huggingface.co/datasets/flaukowski/kannaka-scientist-v1/resolve/main/research/2026-09-29-c004-summary.md",
+            "sha256": "ecf97cc46c303c78da17da77686021438bdab9272a0f7a931e694f3237254520",
+            "bytes": 1765
+          },
+          {
+            "label": "c001 refusals",
+            "url": "https://huggingface.co/datasets/flaukowski/kannaka-scientist-v1/resolve/main/research/2026-09-29-c001-refusals.md",
+            "sha256": "191c0ff4c28e157b98162da8fdfd95b064f9e0262f308cef43d73ed2ceb022bd",
+            "bytes": 8195
+          }
+        ]
+      }
+    },
+    {
+      "ref": "ks-paired-claim",
+      "record": {
+        "campaignId": "ks-c001-c004",
+        "kind": "note",
+        "standing": "retracted",
+        "title": "Our error checks were \"paired by nonce\"",
+        "body": "How the campaigns' error comparisons were described in September. Filed so its correction stands beneath it."
+      }
+    },
+    {
+      "ref": "ks-paired-fix",
+      "correctsRef": "ks-paired-claim",
+      "record": {
+        "campaignId": "ks-c001-c004",
+        "kind": "correction",
+        "standing": "measured",
+        "title": "The pairing was by label only: every number stands as an unpaired difference of means",
+        "body": "\"The evaluator draws its test inputs from a hash of the circuit itself, so two different circuits never see the same inputs, and the pairing was by label only. Every number stands as an unpaired difference of means, checked on the largest run: standard error 0.784 by the difference formula against 0.808 unpaired, correlation 0.06. Only the word was wrong, and the ledger says so.\""
+      }
+    },
+    {
+      "ref": "ks-c005-prereg",
+      "record": {
+        "campaignId": "ks-c005",
+        "kind": "preregistration",
+        "standing": "unverified",
+        "title": "c005 pre-registration: exact structural search on 454ff5a",
+        "body": "The pre-registration as published, unchanged. Standing describes the document, which is a plan, not a result.",
+        "evidence": [
+          {
+            "label": "c005 pre-registration",
+            "url": "https://huggingface.co/datasets/flaukowski/kannaka-scientist-v1/resolve/main/spec/c005-prereg.md",
+            "sha256": "25650b8c0f3a058cfa20136a9bf8aa60346acd4f85a46b1f77053c2b5122fecc",
+            "bytes": 13679
+          }
+        ]
+      }
+    },
+    {
+      "ref": "ks-c005-result",
+      "record": {
+        "campaignId": "ks-c005",
+        "kind": "failure",
+        "standing": "measured",
+        "title": "c005: S1 failed as pre-registered; the machine is parked on this record",
+        "body": "Four proposer sessions, four refusals, 2.63 USD, no Lab time. Three candidates were measured on shared inputs and each sat exactly on the record (T 889,627.763, Q 1,249); zero was predicted. Session 3's account of an apply failure was contradicted by the measure log and recorded as unsupported. Signed off by Kannaka and SpaceChild on 2026-09-29.",
+        "evidence": [
+          {
+            "label": "c005 summary",
+            "url": "https://huggingface.co/datasets/flaukowski/kannaka-scientist-v1/resolve/main/research/2026-09-29-c005-summary.md",
+            "sha256": "aaeae528b96f2f6c5cea1b159393b239f7b5f310da1c27c27b7470844e3cdc9b",
+            "bytes": 2524
+          },
+          {
+            "label": "c005 results",
+            "url": "https://huggingface.co/datasets/flaukowski/kannaka-scientist-v1/resolve/main/campaigns/c005/results.jsonl",
+            "sha256": "88e75af60e0cf827c473f60fe6542cb72fdecdef92870862d2f7becc3ba8b00c",
+            "bytes": 11498
+          }
+        ]
+      }
+    },
+    {
+      "ref": "ks-c005-phase-claim",
+      "record": {
+        "campaignId": "ks-c005",
+        "kind": "note",
+        "standing": "retracted",
+        "title": "Mailed 2026-09-29: all-ones phase per seed ended 8, 20, 11 for seeds 6 to 8, and phase equals classical implies a single conditioned site",
+        "body": "Filed so its correction stands beneath it."
+      }
+    },
+    {
+      "ref": "ks-c005-phase-fix",
+      "correctsRef": "ks-c005-phase-claim",
+      "record": {
+        "campaignId": "ks-c005",
+        "kind": "correction",
+        "standing": "measured",
+        "title": "All-ones phase per seed is 16, 15, 16, 13, 20, 13, 7, 11; the single-site inference is not supported",
+        "body": "The step-0 instrument log gives all-ones phase counts 16, 15, 16, 13, 20, 13, 7, 11 for seeds 1 to 8. The figures mailed for seeds 6 to 8 were wrong, and \"phase equals classical, so a single conditioned site\" does not follow. The ledger rows carry the observation and this correction."
+      }
+    },
+    {
+      "ref": "threat-ledger-curve",
+      "record": {
+        "campaignId": "ecdsa-threat-ledger",
+        "kind": "result",
+        "standing": "measured",
+        "title": "Record cost curve of one secp256k1 point addition, from the public submission history",
+        "body": "Rows: 533 record steps from 1307 listed submissions (fetched 2026-09-28T16:15Z). First record 2026-05-30, submission 30c8dede-fa09-466a-b19d-f4d14bc1ad2a: score 10753444395, toffoli 3960753, qubits 2715. Last record 2026-09-28, submission 5592ae16-0176-4539-92ee-a35b70478801: score 1111307500, toffoli 889046, qubits 1250. Improvement factor 9.6764 from the first record. Framed as the benchmark states it: the best publicly verified cost of one point addition under its rules; not a full attack, not a break date.",
+        "evidence": [
+          {
+            "label": "curve CSV",
+            "url": "https://huggingface.co/datasets/flaukowski/kannaka-scientist-v1/resolve/main/threat_ledger/ecdsafail_record_curve.csv",
+            "sha256": "3979cb48145ee0065d983a9371ff6c31f8b2b079b64aa8e9fc74b8a7d4d146e2",
+            "bytes": 42029
+          },
+          {
+            "label": "curve metadata",
+            "url": "https://huggingface.co/datasets/flaukowski/kannaka-scientist-v1/resolve/main/threat_ledger/ecdsafail_record_curve.meta.json",
+            "sha256": "a33ac3c3fb0a15d99c5a24fe1ad1665ccf42854b82264888fe08f44b4ad6e23d",
+            "bytes": 990
+          }
+        ]
+      }
+    }
+  ]
+}

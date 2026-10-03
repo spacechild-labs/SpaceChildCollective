@@ -3,6 +3,10 @@ import { storage } from "./storage.js";
 import { taskDispatcher } from "./services/task-dispatcher.js";
 import { validateMcpToken } from "./services/agent-auth.js";
 import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
+import { LEDGER_TOOLS, callLedgerTool, isLedgerTool } from "./mcp-ledger-tools.js";
+import { ledgerService } from "./services/ledger/index.js";
+import { actorFromUser } from "./services/ledger/service.js";
+import { agentCanReadPaper, publishedOnly } from "./mcp-paper-access.js";
 
 /**
  * HTTP Streamable MCP endpoint for ElevenLabs and other HTTP-based MCP clients.
@@ -81,14 +85,15 @@ const TOOLS = [
     },
   },
   ...LOOP_TOOLS,
+  ...LEDGER_TOOLS,
 ];
 
 // Tool execution
-async function executeTool(name: string, args: Record<string, any>, auth: { agentId: string; paperId: string }): Promise<any> {
+export async function executeTool(name: string, args: Record<string, any>, auth: { agentId: string; paperId: string }): Promise<any> {
   switch (name) {
     case "search_papers": {
       const query = (args.query as string).toLowerCase();
-      const papers = await storage.getAllPapers();
+      const papers = publishedOnly(await storage.getPublishedPapers());
       const filtered = papers.filter(
         (p) =>
           p.title.toLowerCase().includes(query) ||
@@ -100,7 +105,7 @@ async function executeTool(name: string, args: Record<string, any>, auth: { agen
 
     case "get_paper_content": {
       const paper = await storage.getPaperWithContributors(args.paperId as string);
-      if (!paper) {
+      if (!paper || !agentCanReadPaper(paper, auth.agentId)) {
         return { content: [{ type: "text", text: JSON.stringify({ error: "Paper not found" }) }] };
       }
       return { content: [{ type: "text", text: JSON.stringify(paper, null, 2) }] };
@@ -118,8 +123,7 @@ async function executeTool(name: string, args: Record<string, any>, auth: { agen
     }
 
     case "list_papers": {
-      const papers = await storage.getAllPapers();
-      const published = papers.filter(p => p.status === "published");
+      const published = await storage.getPublishedPapers();
       return {
         content: [{
           type: "text",
@@ -202,15 +206,29 @@ export function registerMcpHttpRoutes(app: Express): void {
 
         case "tools/call": {
           if (sessionId) res.setHeader("Mcp-Session-Id", sessionId);
+          const { name, arguments: args } = params || {};
+          if (!name) {
+            return res.json({ jsonrpc: "2.0", id, error: { code: -32602, message: "Missing tool name" } });
+          }
+          // Ledger tools authenticate with an scl_ agent key only (spec 3.2), never the legacy HMAC token.
+          // agentKeyAuth (app-wide) already rejected unknown/revoked/admin-owned keys with a reason code.
+          if (isLedgerTool(name)) {
+            if (!req.user || !req.agentKey) {
+              return res.status(401).json({ jsonrpc: "2.0", id, error: { code: -32001, message: "Unauthorized: ledger tools need an scl_ agent key", data: { error: "unknown_key" } } });
+            }
+            try {
+              const result = await callLedgerTool(name, args || {}, { keyId: req.agentKey.id, actor: actorFromUser(req.user as any), svc: ledgerService });
+              return res.json({ jsonrpc: "2.0", id, result });
+            } catch (err) {
+              console.error("[MCP HTTP] ledger tool failed:", name, err instanceof Error ? err.name : "error");
+              return res.json({ jsonrpc: "2.0", id, error: { code: -32603, message: "Internal error" } });
+            }
+          }
           // Tool calls can read restricted content and create tasks — require a
           // valid MCP bearer token, and derive the agent identity from it.
           const auth = getMcpAuth(req);
           if (!auth) {
             return res.status(401).json({ jsonrpc: "2.0", id, error: { code: -32001, message: "Unauthorized: a valid MCP bearer token is required" } });
-          }
-          const { name, arguments: args } = params || {};
-          if (!name) {
-            return res.json({ jsonrpc: "2.0", id, error: { code: -32602, message: "Missing tool name" } });
           }
           try {
             const result = await executeTool(name, args || {}, auth);
@@ -221,7 +239,7 @@ export function registerMcpHttpRoutes(app: Express): void {
         }
 
         case "resources/list": {
-          const papers = await storage.getAllPapers();
+          const papers = await storage.getPublishedPapers();
           return res.json({
             jsonrpc: "2.0",
             id,

@@ -53,7 +53,7 @@ export default function Papers() {
   });
 
   const handleView = (paper: Paper) => {
-    setLocation(paper.status === "published" ? `/papers/${paper.id}` : `/papers/${paper.id}/edit`);
+    setLocation(paper.status === "published" ? `/archive/papers/${paper.id}` : `/archive/papers/${paper.id}/edit`);
   };
 
   const handleDelete = (paperId: string) => {
@@ -78,7 +78,7 @@ export default function Papers() {
             Manage your consciousness research papers and collaborations
           </p>
         </div>
-        <Link href="/papers/new">
+        <Link href="/archive/papers/new">
           <Button size="lg" className="w-full sm:w-auto" data-testid="button-new-paper">
             <Plus className="mr-2 h-5 w-5" />
             New Paper
@@ -98,7 +98,7 @@ export default function Papers() {
             <p className="text-muted-foreground mb-6">
               Start your research journey by creating your first paper
             </p>
-            <Link href="/papers/new">
+            <Link href="/archive/papers/new">
               <Button data-testid="button-create-first-paper">
                 <Plus className="mr-2 h-4 w-4" />
                 Create Your First Paper
@@ -146,7 +146,7 @@ export default function Papers() {
                     <span>Updated {new Date(paper.updatedAt).toLocaleDateString()}</span>
                   </div>
                   <div className="flex gap-2">
-                    <Link href={`/papers/${paper.id}/edit`}>
+                    <Link href={`/archive/papers/${paper.id}/edit`}>
                       <Button 
                         variant="outline" 
                         size="sm"

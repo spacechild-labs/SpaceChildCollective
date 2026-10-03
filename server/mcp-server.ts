@@ -8,6 +8,19 @@ import {
 import { storage } from "./storage.js";
 import { taskDispatcher } from "./services/task-dispatcher.js";
 import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
+import { LEDGER_TOOLS, callLedgerTool, isLedgerTool, ledgerAuthError } from "./mcp-ledger-tools.js";
+import { actorFromUser, type LedgerService } from "./services/ledger/service.js";
+import type { AgentKeyService } from "./services/ledger/agent-keys.js";
+import type { KeyBudget } from "./services/ledger/rate-limits.js";
+import { agentCanReadPaper, publishedOnly } from "./mcp-paper-access.js";
+
+/** A connection authenticated with an scl_ agent key. It authorizes ledger tools only, and the key is re-checked on every call. */
+export interface LedgerConnection {
+  keyId: string;
+  keys: AgentKeyService;
+  svc: LedgerService;
+  budget?: KeyBudget;
+}
 
 /**
  * Space Child Research Collective MCP Server
@@ -20,7 +33,7 @@ import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
  * created per WebSocket connection so all access control uses the identity from
  * the validated token (authedAgentId) — never an agentId supplied in tool args.
  */
-export function createMcpServer(authedAgentId: string): Server {
+export function createMcpServer(authedAgentId: string, ledger?: LedgerConnection): Server {
   const server = new Server(
   {
     name: "spacechild-research-server",
@@ -36,6 +49,7 @@ export function createMcpServer(authedAgentId: string): Server {
 
 // Register research tools that agents can use
 server.setRequestHandler(ListToolsRequestSchema, async () => {
+  if (ledger) return { tools: [...LEDGER_TOOLS] };
   return {
     tools: [
       {
@@ -145,13 +159,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       ...LOOP_TOOLS,
+      ...LEDGER_TOOLS,
     ],
   };
 });
 
 // Handle tool execution
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
+  const { name, arguments: rawArgs } = request.params;
+
+  // Doors agree with HTTP: an scl_ key reaches ledger tools only; the legacy token never reaches them.
+  if (ledger) {
+    if (!isLedgerTool(name)) throw new Error("Unauthorized: an scl_ agent key authorizes ledger tools only");
+    // Revocation and owner changes apply on the very next call, not at the next reconnect.
+    const re = await ledger.keys.reauthenticate(ledger.keyId);
+    if (!re.ok) return ledgerAuthError(re.error);
+    return callLedgerTool(name, (rawArgs ?? {}) as Record<string, any>, {
+      keyId: ledger.keyId, actor: actorFromUser(re.user as any), svc: ledger.svc, budget: ledger.budget,
+    });
+  }
+  if (isLedgerTool(name)) throw new Error("Unauthorized: ledger tools need an scl_ agent key");
+  const args = rawArgs;
 
   if (!args) {
     throw new Error("Missing arguments for tool call");
@@ -306,7 +334,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 // Register resources (research papers as resources)
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
-  const papers = await storage.getAllPapers();
+  if (ledger) throw new Error("Unauthorized: an scl_ agent key authorizes ledger tools only");
+  // Same rule as the HTTP door: published papers only.
+  const papers = publishedOnly(await storage.getAllPapers());
   return {
     resources: papers.map((paper) => ({
       uri: `paper://${paper.id}`,
@@ -319,6 +349,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
 
 // Handle resource reading
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  if (ledger) throw new Error("Unauthorized: an scl_ agent key authorizes ledger tools only");
   const uri = request.params.uri;
   const match = uri.match(/^paper:\/\/(.+)$/);
   
@@ -327,18 +358,20 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   }
 
   const paperId = match[1];
-  const paper = await storage.getPaper(paperId);
-  
-  if (!paper) {
+  const paper = await storage.getPaperWithContributors(paperId);
+
+  // Same rule as get_paper_content: published, or the caller is a contributor. Do not reveal which.
+  if (!paper || !agentCanReadPaper(paper, authedAgentId)) {
     throw new Error(`Paper not found: ${paperId}`);
   }
+  const { contributors: _contributors, ...plainPaper } = paper;
 
   return {
     contents: [
       {
         uri,
         mimeType: "application/json",
-        text: JSON.stringify(paper, null, 2),
+        text: JSON.stringify(plainPaper, null, 2),
       },
     ],
   };

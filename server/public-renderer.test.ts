@@ -31,12 +31,12 @@ describe("public route rendering", () => {
       publishedAt: new Date("2026-01-02"),
     };
     const draft = { ...published, id: "draft", title: "Secret Draft", status: "draft" };
-    const result = await renderPublicPage(template, "/discover", storageWith(undefined, [draft, published]));
+    const result = await renderPublicPage(template, "/archive/discover", storageWith(undefined, [draft, published]));
 
     expect(result?.status).toBe(200);
     expect(result?.html).toContain("<h1>Discover Research</h1>");
-    expect(result?.html).toContain('href="https://research.spacechild.love/discover"');
-    expect(result?.html).toContain('property="og:url" content="https://research.spacechild.love/discover"');
+    expect(result?.html).toContain('href="https://research.spacechild.love/archive/discover"');
+    expect(result?.html).toContain('property="og:url" content="https://research.spacechild.love/archive/discover"');
     expect(result?.html).toContain("A Published Finding");
     expect(result?.html).not.toContain("Secret Draft");
     expect(result?.html.match(/rel="canonical"/g)).toHaveLength(1);
@@ -59,7 +59,7 @@ describe("public route rendering", () => {
         user: { displayName: "Ada Researcher" },
       }],
     };
-    const result = await renderPublicPage(template, "/papers/paper-1", storageWith(paper));
+    const result = await renderPublicPage(template, "/archive/papers/paper-1", storageWith(paper));
 
     expect(result?.status).toBe(200);
     expect(result?.html).toContain("<h1>Machine Consciousness Evidence</h1>");
@@ -79,7 +79,7 @@ describe("public route rendering", () => {
       status: "draft",
       contributors: [],
     };
-    const result = await renderPublicPage(template, "/papers/draft", storageWith(draft));
+    const result = await renderPublicPage(template, "/archive/papers/draft", storageWith(draft));
 
     expect(result?.status).toBe(404);
     expect(result?.html).toContain('name="robots" content="noindex, nofollow"');
@@ -88,9 +88,36 @@ describe("public route rendering", () => {
   });
 
   it("marks editor URLs noindex", async () => {
-    const result = await renderPublicPage(template, "/papers/paper-1/edit", storageWith());
+    const result = await renderPublicPage(template, "/archive/papers/paper-1/edit", storageWith());
     expect(result?.status).toBe(200);
     expect(result?.html).toContain('name="robots" content="noindex, nofollow"');
     expect(result?.html).toContain("Private research workspace");
+  });
+
+  it("renders the home page with ledger metadata, indexable, not the old landing page", async () => {
+    const result = await renderPublicPage(template, "/", storageWith());
+    expect(result?.status).toBe(200);
+    expect(result?.html).toContain("<title>Research Ledger | SpaceChild Research Collective</title>");
+    expect(result?.html).not.toContain("Human-AI Consciousness Research");
+    expect(result?.html).not.toContain("noindex");
+    expect(result?.html).toContain('href="/archive"');
+  });
+
+  it("serves the archive index and the old landing page under /archive, indexable", async () => {
+    const index = await renderPublicPage(template, "/archive", storageWith());
+    expect(index?.html).toContain("<h1>Archive</h1>");
+    expect(index?.html).toContain("simulated");
+    expect(index?.html).not.toContain("noindex");
+    const about = await renderPublicPage(template, "/archive/about", storageWith());
+    expect(about?.html).toContain("Where Human and AI Consciousness Co-Create Knowledge");
+    expect(about?.html).toContain('href="https://research.spacechild.love/archive/about"');
+  });
+
+  it("no longer renders the old public paths (they are 301s now) and never serves drafts under the archive", async () => {
+    expect(await renderPublicPage(template, "/discover", storageWith())).toBeUndefined();
+    expect(await renderPublicPage(template, "/papers/paper-1", storageWith({ status: "published" }))).toBeUndefined();
+    const draft = await renderPublicPage(template, "/archive/papers/draft", storageWith({ id: "draft", status: "draft", title: "Secret Draft" }));
+    expect(draft?.status).toBe(404);
+    expect(draft?.html).not.toContain("Secret Draft");
   });
 });

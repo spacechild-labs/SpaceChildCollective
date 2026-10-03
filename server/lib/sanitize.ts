@@ -22,3 +22,8 @@ export function sanitizeUser<T extends Partial<User>>(
 export function sanitizeUsers(users: User[]): PublicUser[] {
   return users.map((u) => sanitizeUser(u));
 }
+
+/** Sanitize the nested user of a paper contributor row. */
+export function publicContributor<C extends { user: User }>(c: C): Omit<C, "user"> & { user: PublicUser } {
+  return { ...c, user: sanitizeUser(c.user) };
+}

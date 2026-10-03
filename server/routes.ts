@@ -1,8 +1,8 @@
-import type { Express } from "express";
+import type { Express, RequestHandler } from "express";
+import { legacyRedirectFor } from "./lib/legacy-redirect";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import {
-  insertUserSchema,
   insertPaperSchema,
   insertPaperContributorSchema,
   insertBlockchainRecordSchema,
@@ -14,6 +14,14 @@ import { createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { sanitizeUser, sanitizeUsers } from "./lib/sanitize";
 import { requireAuth, requireAdmin } from "./middleware/auth";
+import { createLedgerRouter } from "./routes/ledger";
+import { createLedgerAdminRouter } from "./routes/ledger-admin";
+import { createLedgerFeedRouter } from "./routes/ledger-feeds";
+import { siteUrl } from "./lib/site-url";
+import { agentKeys, ledgerService, ledgerStream } from "./services/ledger";
+import { ledgerFileLimiter, ledgerReadLimiter } from "./services/ledger/rate-limits";
+import { registerHandler } from "./routes/register";
+import { createUserAsAdmin, deleteUserAsAdmin, resetUserSecret } from "./routes/admin-users";
 import { performAgentResearch, generatePaperTitle } from "./services/ai";
 import { publishToNeoX, publishToBase, generatePaperHash, verifyBlockchainRecord, estimateGasCost } from "./services/blockchain";
 import { agentManager } from "./services/agent-manager";
@@ -48,6 +56,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Note: MCP WebSocket server is set up separately in server/index.ts
   // using setupMcpWebSocketServer() with path '/mcp'
 
+  // Legacy public pages moved under /archive (spec section 5). Permanent redirects keep old links working;
+  // the target is built by the shared archive map, so it is always a same-origin /archive/... path.
+  const legacyRedirect: RequestHandler = (req, res, next) => {
+    const target = legacyRedirectFor(req);
+    return target ? res.redirect(301, target) : next();
+  };
+  app.get("/discover", legacyRedirect);
+  app.get("/papers/:id", legacyRedirect);
+
   // ===== Health =====
   // Lightweight public health check for load balancers / uptime monitoring.
   app.get("/api/health", (_req, res) => {
@@ -57,52 +74,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== Auth Routes =====
 
   // Register with ZKP (creates user and sets session)
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const { username, displayName, userType, zkProof, bio, researchInterests } = req.body;
-
-      if (!username || !displayName || !userType || !zkProof) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      // Username must be unique — credentials are looked up by username at login.
-      const existingUser = await storage.getUserByUsername(username);
-      if (existingUser) {
-        return res.status(400).json({ error: "Username already taken" });
-      }
-
-      // Parse research interests from comma-separated string to array
-      const interestsArray = researchInterests
-        ? researchInterests.split(',').map((s: string) => s.trim()).filter(Boolean)
-        : [];
-
-      // Hash the client-provided proof with bcrypt (salted) before storage, so a
-      // database leak does not expose a replayable login credential.
-      const zkpCommitment = await bcrypt.hash(zkProof, 12);
-
-      // Bootstrap: the first user (or the first registrant while no admin exists)
-      // becomes an admin, so platform settings are never left unmanageable.
-      const existingUsers = await storage.getAllUsers();
-      const role = existingUsers.some((u) => u.role === "admin") ? "user" : "admin";
-
-      const user = await storage.createUser({
-        username,
-        zkpCommitment,
-        userType,
-        role,
-        displayName,
-        bio: bio || null,
-        researchInterests: interestsArray,
-      });
-
-      // Set session
-      (req.session as any).userId = user.id;
-
-      res.json({ user: sanitizeUser(user) });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+  app.post("/api/auth/register", registerHandler);
 
   // Login with ZKP
   app.post("/api/auth/login", async (req, res) => {
@@ -168,16 +140,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create user (ZKP auth registration)
-  app.post("/api/users", async (req, res) => {
-    try {
-      const userData = insertUserSchema.parse(req.body);
-      const user = await storage.createUser(userData);
-      res.json(sanitizeUser(user));
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+  // Create user: admin only. Role and userType are never taken from the body.
+  app.post("/api/users", requireAdmin, createUserAsAdmin);
+  app.post("/api/admin/users/:id/reset-password", requireAdmin, resetUserSecret);
+  app.delete("/api/admin/users/:id", requireAdmin, deleteUserAsAdmin);
+
+  // ===== Research ledger (spec docs/superpowers/specs/2026-10-03-research-ledger-design.md) =====
+  app.get("/api/ledger/stream", ledgerStream.handler);
+  app.use("/api/ledger", createLedgerRouter(ledgerService, { file: ledgerFileLimiter(), read: ledgerReadLimiter() }));
+  app.use("/api/admin", createLedgerAdminRouter({ keys: agentKeys, users: storage }));
+  // Public feeds live outside /api; registerRoutes runs before setupVite/serveStatic, so these win over the SPA catch-all.
+  app.use(createLedgerFeedRouter(ledgerService, siteUrl()));
 
   // Get user by username
   app.get("/api/users/by-username/:username", async (req, res) => {
@@ -380,6 +353,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== MCP Communication Routes =====
   
+  // Recent MCP communications for the /mcp status page (signed-in users only).
+  app.get("/api/mcp/communications", requireAuth, async (_req, res) => {
+    try {
+      const all = await storage.getAllMcpCommunications();
+      res.json(all.slice(0, 50));
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Create MCP communication
   app.post("/api/mcp/communications", async (req, res) => {
     try {

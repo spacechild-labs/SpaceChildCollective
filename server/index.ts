@@ -14,6 +14,12 @@ import { kannakaBridge } from "./services/kannaka/bridge";
 import { kannakaLoopEvents } from "./services/kannaka/events";
 import { validateEnv } from "./config/env";
 import { loadUser, guardMutations } from "./middleware/auth";
+import { agentKeyAuth } from "./services/ledger/agent-keys";
+import { agentKeys, ledgerStore, ledgerService } from "./services/ledger";
+import { NATS_FILE_QUEUE, NATS_FILE_SUBJECT, NonceCache, natsFileSubscriber } from "./services/ledger/nats-door";
+import { OutboxPublisher } from "./services/ledger/outbox-publisher";
+import { apiLogger } from "./middleware/api-logger";
+import { createAgentKeyFailureLimiter, createApiLimiter } from "./middleware/api-limiter";
 import { pool } from "./db";
 import { aiKeyManager } from "./services/ai-key-manager";
 import { parallelResearchService } from "./services/parallel-research-service";
@@ -46,8 +52,9 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
-// Rate limiting: a general API cap plus a strict cap on auth endpoints.
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, standardHeaders: true, legacyHeaders: false });
+// Rate limiting: a general API cap plus a strict cap on auth endpoints. Requests carrying an scl_ agent key skip the
+// general cap (they are limited per key downstream); failing scl_ keys have their own per-IP cap.
+const apiLimiter = createApiLimiter();
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
@@ -57,6 +64,7 @@ const authLimiter = rateLimit({
 });
 app.use("/api/auth", authLimiter);
 app.use("/api", apiLimiter);
+app.use(["/api", "/mcp"], createAgentKeyFailureLimiter());
 
 // Session: persistent Postgres-backed store (never an in-memory store in prod).
 const PgSession = connectPgSimple(session);
@@ -78,37 +86,14 @@ app.use(session({
 
 // Populate req.user from the session, then block anonymous state changes.
 app.use(loadUser);
+// Ledger agents authenticate with `Authorization: Bearer scl_...` (spec 3.2). Must run before guardMutations.
+app.use(agentKeyAuth(agentKeys));
 app.use(guardMutations);
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+// Logs /api requests; never logs a response body that carries a secret (see middleware/api-logger).
+app.use(apiLogger(log));
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
+let ledgerOutbox: OutboxPublisher | null = null;
 
 (async () => {
   await aiKeyManager.initialize();
@@ -155,6 +140,13 @@ app.use((req, res, next) => {
     const up = await kannakaBridge.start();
     // Wire events regardless: publishes connect lazily and subscriptions apply when the bus appears.
     await kannakaLoopEvents.start();
+    // Ledger NATS door (spec 4.3): signed filings in, ledger events out.
+    const ledgerNonces = new NonceCache();
+    // Queue group: with several instances, NATS hands each filing to one of them, not to all (ruling FI3).
+    await kannakaBridge.subscribe(NATS_FILE_SUBJECT, natsFileSubscriber({ svc: ledgerService, keys: agentKeys, nonces: ledgerNonces, log }), { queue: NATS_FILE_QUEUE });
+    ledgerOutbox = new OutboxPublisher(ledgerStore, (subject, payload) => kannakaBridge.publish(subject, payload), 5000, () => kannakaBridge.flush());
+    ledgerOutbox.start();
+    log(`Ledger NATS door listening on ${NATS_FILE_SUBJECT}`);
     log(up ? "Kannaka bridge connected (" + kannakaBridge.status().server + ")" : "Kannaka bridge configured but not reachable; will retry on demand");
   } else {
     log("Kannaka bridge disabled (set KANNAKA_NATS_URL to enable)");
@@ -192,6 +184,7 @@ app.use((req, res, next) => {
       
       deliveryWorker.stop();
       kannakaLoopEvents.stop();
+      await ledgerOutbox?.stop();
       await kannakaBridge.stop();
 
       // Stop agent manager

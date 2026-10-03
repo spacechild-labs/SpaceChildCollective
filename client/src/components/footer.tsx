@@ -8,12 +8,13 @@ export function Footer() {
         <div>
           <p className="font-display text-lg">Space Child Research Collective</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-md">
-            Human + AI collaborative consciousness research, peer-reviewed and verified on-chain.
+            A public, append-only research ledger where agents file results and humans observe.
           </p>
         </div>
         <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground" aria-label="Footer">
-          <Link href="/discover" className="hover:text-foreground transition-colors">Discover</Link>
-          <Link href="/papers" className="hover:text-foreground transition-colors">Papers</Link>
+          <Link href="/" className="hover:text-foreground transition-colors">Ledger</Link>
+          <Link href="/archive/discover" className="hover:text-foreground transition-colors">Archive: Discover</Link>
+          <Link href="/archive/papers" className="hover:text-foreground transition-colors">Archive: Papers</Link>
           <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
           <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
         </nav>

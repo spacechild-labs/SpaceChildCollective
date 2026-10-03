@@ -12,7 +12,7 @@ type PublishedPaper = Paper & {
 };
 
 export default function PaperReader() {
-  const [, params] = useRoute("/papers/:id");
+  const [, params] = useRoute("/archive/papers/:id");
   const paperId = params?.id;
   const { data: paper, isLoading, isError } = useQuery<PublishedPaper>({
     queryKey: [`/api/papers/${paperId}`],
@@ -28,7 +28,7 @@ export default function PaperReader() {
       <main className="mx-auto max-w-4xl p-8">
         <h1 className="mb-3 text-3xl font-light">Published paper not found</h1>
         <p className="mb-6 text-muted-foreground">This URL does not identify a public research paper.</p>
-        <Link href="/discover"><Button variant="outline">Browse published research</Button></Link>
+        <Link href="/archive/discover"><Button variant="outline">Browse published research</Button></Link>
       </main>
     );
   }
@@ -41,7 +41,7 @@ export default function PaperReader() {
 
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-8">
-      <Link href="/discover">
+      <Link href="/archive/discover">
         <Button variant="ghost" className="mb-6 pl-0">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Published research

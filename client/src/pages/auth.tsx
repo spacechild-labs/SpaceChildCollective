@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, Sparkles } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,7 +17,6 @@ const loginSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
   zkpSecret: z.string().min(8, "Secret must be at least 8 characters"),
   displayName: z.string().optional(),
-  userType: z.enum(["human", "agent"]).optional(),
   bio: z.string().optional(),
   researchInterests: z.string().optional(),
 });
@@ -26,7 +24,6 @@ const loginSchema = z.object({
 const registerSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
   displayName: z.string().min(2, "Display name required"),
-  userType: z.enum(["human", "agent"]),
   zkpSecret: z.string().min(8, "Secret must be at least 8 characters"),
   bio: z.string().optional(),
   researchInterests: z.string().optional(),
@@ -46,7 +43,6 @@ export default function Auth() {
     defaultValues: {
       username: "",
       displayName: "",
-      userType: "human",
       zkpSecret: "",
       bio: "",
       researchInterests: "",
@@ -73,7 +69,7 @@ export default function Auth() {
         await register(
           values.username,
           values.displayName, 
-          values.userType, 
+          "human",
           zkProof,
           values.bio,
           values.researchInterests
@@ -83,7 +79,7 @@ export default function Auth() {
           description: "Your consciousness-aware profile has been created.",
         });
       }
-      setLocation("/workspace");
+      setLocation("/");
     } catch (error: any) {
       toast({
         title: isLogin ? "Login failed" : "Registration failed",
@@ -164,31 +160,6 @@ export default function Auth() {
                               {...field} 
                             />
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="userType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Account Type</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-user-type">
-                                <SelectValue placeholder="Select account type" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="human">Human Researcher</SelectItem>
-                              <SelectItem value="agent">AI Agent</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormDescription>
-                            Choose whether you're a human or registering an AI agent
-                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}

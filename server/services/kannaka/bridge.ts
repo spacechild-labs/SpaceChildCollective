@@ -59,7 +59,7 @@ export interface BridgeStatus {
   startedAt: string | null;
 }
 
-type Handler = (payload: any, subject: string) => void | Promise<void>;
+type Handler = (payload: any, subject: string, reply?: (body: unknown) => void) => void | Promise<void>;
 
 export class KannakaBridge {
   private nc: NatsConnection | null = null;
@@ -119,7 +119,7 @@ export class KannakaBridge {
 
   private stopped = false;
   private retryTimer: NodeJS.Timeout | null = null;
-  private wanted: { subject: string; handler: Handler }[] = [];
+  private wanted: { subject: string; handler: Handler; queue?: string }[] = [];
   private applied = new WeakSet<NatsConnection>();
 
   private scheduleRetry(): void {
@@ -132,16 +132,16 @@ export class KannakaBridge {
   }
 
   /** Remember a subscription and apply it now if connected. */
-  private want(subject: string, handler: Handler): void {
-    this.wanted.push({ subject, handler });
-    if (this.nc && !this.nc.isClosed() && this.applied.has(this.nc)) this.subscribeInternal(subject, handler);
+  private want(subject: string, handler: Handler, queue?: string): void {
+    this.wanted.push({ subject, handler, queue });
+    if (this.nc && !this.nc.isClosed() && this.applied.has(this.nc)) this.subscribeInternal(subject, handler, queue);
   }
 
   /** Apply every wanted subscription to a fresh connection exactly once. */
   private applyWanted(nc: NatsConnection): void {
     if (this.applied.has(nc)) return;
     this.applied.add(nc);
-    for (const w of this.wanted) this.subscribeInternal(w.subject, w.handler);
+    for (const w of this.wanted) this.subscribeInternal(w.subject, w.handler, w.queue);
     void this.refreshConsciousnessFromKv();
   }
 
@@ -253,9 +253,16 @@ export class KannakaBridge {
     }
   }
 
+  /** Wait until buffered publishes have reached the server. Rejects when there is no connection. */
+  async flush(): Promise<void> {
+    const nc = await this.connection();
+    if (!nc) throw new Error("not connected");
+    await nc.flush();
+  }
+
   /** Subscribe now if connected; otherwise as soon as a connection exists. Returns whether it is live already. */
-  async subscribe(subject: string, handler: Handler): Promise<boolean> {
-    this.want(subject, handler);
+  async subscribe(subject: string, handler: Handler, opts: { queue?: string } = {}): Promise<boolean> {
+    this.want(subject, handler, opts.queue);
     const nc = await this.connection();
     return Boolean(nc);
   }
@@ -303,9 +310,10 @@ export class KannakaBridge {
     return this.connecting;
   }
 
-  private subscribeInternal(subject: string, handler: Handler): void {
+  /** With a queue group, NATS delivers each message to one member of the group (one instance), not to all. */
+  private subscribeInternal(subject: string, handler: Handler, queue?: string): void {
     if (!this.nc || !this.codec) return;
-    const sub = this.nc.subscribe(subject);
+    const sub = this.nc.subscribe(subject, queue ? { queue } : undefined);
     this.subs.push(sub);
     const codec = this.codec;
     void (async () => {
@@ -314,7 +322,10 @@ export class KannakaBridge {
         let payload: any;
         try { payload = JSON.parse(codec.decode(m.data)); } catch { payload = { raw: codec.decode(m.data) }; }
         try {
-          await handler(payload, m.subject);
+          const reply = m.reply
+            ? (body: unknown) => { try { this.nc?.publish(m.reply!, codec.encode(JSON.stringify(body))); } catch { /* requester gone */ } }
+            : undefined;
+          await handler(payload, m.subject, reply);
         } catch (err: any) {
           console.error(`[kannaka] handler for ${m.subject} failed: ${err?.message ?? err}`);
           // Deployed logs are not always reachable; put the failure where the operator can hear it.
