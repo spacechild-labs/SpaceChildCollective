@@ -64,6 +64,17 @@ export class AgentKeyService {
     if (!secret.startsWith(KEY_PREFIX)) return { ok: false, error: "unknown_key" };
     const key = await this.store.findByHash(hashSecret(secret));
     if (!key) return { ok: false, error: "unknown_key" };
+    return this.checkKey(key);
+  }
+
+  /** Re-check a key already authenticated earlier (long-lived WebSocket): revocation and owner changes apply on the next call. */
+  async reauthenticate(keyId: string): Promise<{ ok: true; user: User; key: AgentKey } | { ok: false; error: "unknown_key" | "revoked_key" | "forbidden" }> {
+    const key = await this.store.findById(keyId);
+    if (!key) return { ok: false, error: "unknown_key" };
+    return this.checkKey(key);
+  }
+
+  private async checkKey(key: AgentKey): Promise<{ ok: true; user: User; key: AgentKey } | { ok: false; error: "unknown_key" | "revoked_key" | "forbidden" }> {
     if (key.revokedAt) return { ok: false, error: "revoked_key" };
     const user = await this.users.getUser(key.userId);
     // A key stops working the moment its account is no longer an agent.

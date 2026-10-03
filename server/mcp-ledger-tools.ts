@@ -2,6 +2,7 @@ import { CAMPAIGN_STATUSES, LEDGER_KINDS, LEDGER_STANDINGS, REVIEW_VERDICTS } fr
 import type { LedgerService } from "./services/ledger/service";
 import type { Actor } from "./services/ledger/types";
 import { LedgerError } from "./services/ledger/types";
+import { mcpKeyBudget, type KeyBudget } from "./services/ledger/rate-limits";
 
 const evidence = {
   type: "array",
@@ -91,7 +92,7 @@ export async function handleLedgerTool(name: string, args: Record<string, any>, 
       case "ledger_review":
         return text(await svc.file(actor, { ...args, kind: "review" }, "mcp"));
       case "ledger_list":
-        return text(await svc.listRecords(actor, args));
+        return text(await svc.listRecords(actor, { ...args, ...(args.limit !== undefined && args.limit !== "" && Number.isFinite(Number(args.limit)) ? { limit: Number(args.limit) } : { limit: undefined }) }));
       case "ledger_get": {
         const view = await svc.getRecordView(actor, String(args.id ?? ""));
         if (!view) throw new LedgerError("not_found", 404);
@@ -112,4 +113,21 @@ export async function handleLedgerTool(name: string, args: Record<string, any>, 
     if (error instanceof LedgerError) return text({ error: error.code, message: error.message }, true);
     throw error;
   }
+}
+
+/** Rate-limited entry for the MCP doors: filings (ledger_file, ledger_review) and reads have separate per-key budgets. */
+export async function callLedgerTool(
+  name: string,
+  args: Record<string, any>,
+  ctx: { keyId: string; actor: Actor; svc: LedgerService; budget?: KeyBudget },
+) {
+  const bucket = name === "ledger_file" || name === "ledger_review" ? "file" : "read";
+  if (!(ctx.budget ?? mcpKeyBudget).take(bucket, ctx.keyId)) {
+    return text({ error: "rate_limited", message: "rate limit exceeded for this key" }, true);
+  }
+  return handleLedgerTool(name, args, ctx.actor, ctx.svc);
+}
+
+export function ledgerAuthError(code: string) {
+  return text({ error: code, message: code }, true);
 }

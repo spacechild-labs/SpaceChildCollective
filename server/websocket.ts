@@ -4,9 +4,15 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { validateMcpToken, updateAgentStatus } from "./services/agent-auth.js";
 import { createMcpServer } from "./mcp-server.js";
-import { agentKeys } from "./services/ledger/index.js";
-import { actorFromUser } from "./services/ledger/service.js";
-import type { Actor } from "./services/ledger/types.js";
+import { agentKeys as defaultKeys, ledgerService as defaultSvc } from "./services/ledger/index.js";
+import type { AgentKeyService } from "./services/ledger/agent-keys.js";
+import type { LedgerService } from "./services/ledger/service.js";
+import type { KeyBudget } from "./services/ledger/rate-limits.js";
+
+/** Strip anything secret-shaped from a request URL before it is logged. */
+export function redactUrl(url: string): string {
+  return url.replace(/([?&]token=)[^&#]*/gi, "$1[redacted]").replace(/scl_[A-Za-z0-9_-]*/gi, "[redacted]");
+}
 
 /**
  * Connection Registry for tracking connected agents
@@ -158,8 +164,11 @@ class WebSocketTransport implements Transport {
  * Set up WebSocket server for MCP connections
  */
 export function setupMcpWebSocketServer(
-  httpServer: HTTPServer
+  httpServer: HTTPServer,
+  deps: { keys?: AgentKeyService; svc?: LedgerService; budget?: KeyBudget } = {},
 ): WebSocketServer {
+  const agentKeys = deps.keys ?? defaultKeys;
+  const ledgerSvc = deps.svc ?? defaultSvc;
   const wss = new WebSocketServer({
     noServer: true,
     path: "/mcp",
@@ -169,9 +178,12 @@ export function setupMcpWebSocketServer(
   httpServer.on("upgrade", async (request, socket, head) => {
     const { pathname } = new URL(request.url || "", `http://${request.headers.host}`);
     
-    console.log(`[MCP WebSocket] Upgrade request: pathname="${pathname}", url="${request.url}"`);
+    console.log(`[MCP WebSocket] Upgrade request: pathname="${pathname}", url="${redactUrl(request.url || "")}"`);
 
     if (pathname === "/mcp") {
+      // Node removes its own socket error listener before 'upgrade'; keep one across the awaits below
+      // so a client reset during authentication cannot crash the process.
+      socket.on("error", () => socket.destroy());
       console.log(`[MCP WebSocket] Handling /mcp upgrade request`);
       // Extract token from query string or header
       const url = new URL(request.url || "", `http://${request.headers.host}`);
@@ -187,7 +199,7 @@ export function setupMcpWebSocketServer(
       // case-insensitive "Bearer" prefix, surrounding whitespace tolerated) or the legacy HMAC MCP token.
       const candidate = token.trim().replace(/^Bearer\s+/i, "");
       let agentId: string;
-      let ledgerActor: Actor | undefined;
+      let ledgerKeyId: string | undefined;
       if (candidate.toLowerCase().startsWith("scl_")) {
         let authed: Awaited<ReturnType<typeof agentKeys.authenticate>>;
         try {
@@ -205,7 +217,7 @@ export function setupMcpWebSocketServer(
           return;
         }
         agentId = authed.user.id;
-        ledgerActor = actorFromUser(authed.user as any);
+        ledgerKeyId = authed.key.id;
       } else {
         const payload = validateMcpToken(token);
         if (!payload) {
@@ -227,7 +239,7 @@ export function setupMcpWebSocketServer(
           // authenticated agent identity, so tool access control can't be
           // spoofed via a client-supplied agentId argument.
           const transport = new WebSocketTransport(ws, agentId);
-          const mcpServer = createMcpServer(agentId, ledgerActor);
+          const mcpServer = createMcpServer(agentId, ledgerKeyId ? { keyId: ledgerKeyId, keys: agentKeys, svc: ledgerSvc, budget: deps.budget } : undefined);
 
           // Connect the transport to this connection's MCP server
           await mcpServer.connect(transport);

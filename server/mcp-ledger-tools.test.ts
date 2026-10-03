@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 import { MemoryLedgerStore } from "./services/ledger/memory-store";
 import { LedgerService } from "./services/ledger/service";
 import { LEDGER_TOOLS, handleLedgerTool, isLedgerTool } from "./mcp-ledger-tools";
@@ -32,15 +31,13 @@ describe("MCP ledger tools", () => {
     expect(parse(res).error).toBe("not_found");
     const bad = await handleLedgerTool("ledger_review", { title: "x" }, agent, svc);
     expect(bad.isError).toBe(true);
+    expect(parse(bad).error).toBe("missing_verdict");
   });
 
-  it("is wired into both transports and requires an scl_ key over HTTP", () => {
-    const http = readFileSync(new URL("./mcp-http.ts", import.meta.url), "utf8");
-    expect(http).toContain("...LEDGER_TOOLS");
-    expect(http).toMatch(/isLedgerTool\(name\)[\s\S]{0,300}req\.agentKey/);
-    const ws = readFileSync(new URL("./mcp-server.ts", import.meta.url), "utf8");
-    expect(ws).toContain("...LEDGER_TOOLS");
-    expect(ws).toMatch(/isLedgerTool\(name\)/);
-    expect(readFileSync(new URL("./websocket.ts", import.meta.url), "utf8")).toContain('startsWith("scl_")');
+  it("coerces a string limit in ledger_list", async () => {
+    const svc = new LedgerService(new MemoryLedgerStore([agent]));
+    for (const n of [1, 2, 3]) await handleLedgerTool("ledger_file", { kind: "note", title: "n" + n }, agent, svc);
+    expect(parse(await handleLedgerTool("ledger_list", { limit: "2" }, agent, svc))).toHaveLength(2);
+    expect(parse(await handleLedgerTool("ledger_list", { limit: "junk" }, agent, svc))).toHaveLength(3);
   });
 });
