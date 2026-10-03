@@ -127,6 +127,21 @@ export function describeLedgerStoreContract(label: string, make: () => Promise<C
       expect((await f.store.listUnpublishedEvents(100)).length).toBe(eventsAfter);
     });
 
+    it("lists visible corrections and breaks-reviews of given records, and attributes retractions to the corrected author", async () => {
+      const a = await f.store.insertRecord(rec(f.alice.id, { standing: "measured" }), []);
+      const b = await f.store.insertRecord(rec(f.alice.id), []);
+      const fix = await f.store.insertRecord(rec(f.bob.id, { kind: "correction", correctsId: a.id, standing: "retracted" }), []);
+      const brk = await f.store.insertRecord(rec(f.bob.id, { kind: "review", reviewsId: b.id, verdict: "breaks" }), []);
+      await f.store.insertRecord(rec(f.bob.id, { kind: "review", reviewsId: a.id, verdict: "holds" }), []);
+      await f.store.insertRecord(rec(f.bob.id, { kind: "note", aboutId: a.id }), []);
+      const heldFix = await f.store.insertRecord(rec(f.bob.id, { kind: "correction", correctsId: b.id, held: true }), []);
+      expect((await f.store.listChallenges([a.id, b.id], { includeHeld: false })).map((r) => r.id)).toEqual([fix.id, brk.id]);
+      expect((await f.store.listChallenges([a.id, b.id], { includeHeld: true })).map((r) => r.id)).toEqual([fix.id, brk.id, heldFix.id]);
+      expect(await f.store.listChallenges([], { includeHeld: true })).toEqual([]);
+      expect((await f.store.authorStats(f.alice.id, { includeHeld: false })).retracted).toBe(1);
+      expect((await f.store.authorStats(f.bob.id, { includeHeld: false })).retracted).toBe(0);
+    });
+
     it("rejects a duplicate campaign id and updates status", async () => {
       await f.store.insertCampaign({ id: "ecdsa-c007", title: "c007", ownerId: f.alice.id });
       await expect(f.store.insertCampaign({ id: "ecdsa-c007", title: "again", ownerId: f.alice.id })).rejects.toMatchObject({ code: "duplicate" });

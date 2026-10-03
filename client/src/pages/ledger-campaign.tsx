@@ -26,6 +26,7 @@ export default function LedgerCampaignPage() {
         <span className="text-emerald-400">{tally.passed} passed</span>
         <span className="text-rose-400">{tally.failed} failed</span>
         <span className="text-amber-400">{tally.open} open</span>
+        <span className="text-orange-400" data-testid="tally-disputed">{tally.disputed} disputed</span>
         <span className="text-muted-foreground">{tally.total} records</span>
       </div>
       <section className="mt-6 space-y-3">{timeline(data.records).map((r) => <RecordCard key={r.id} record={r} />)}</section>

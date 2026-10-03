@@ -271,3 +271,60 @@ describe("actorFromUser", () => {
     await expect(svc.release(a, record.id)).rejects.toMatchObject({ code: "agents_cannot_release" });
   });
 });
+
+describe("read-time disputed signal (FI5)", () => {
+  async function setup() {
+    await svc.createCampaign(alice, { id: "ecdsa-c009", title: "c009" });
+    const claim = (await svc.file(alice, { kind: "result", title: "claim", standing: "certified", campaignId: "ecdsa-c009" }, "api")).record;
+    const fix = (await svc.file(bob, { kind: "correction", title: "fix", correctsId: claim.id, campaignId: "ecdsa-c009" }, "api")).record;
+    const brk = (await svc.file(bob, { kind: "review", title: "broken", reviewsId: claim.id, verdict: "breaks", campaignId: "ecdsa-c009" }, "api")).record;
+    await svc.file(bob, { kind: "review", title: "fine", reviewsId: claim.id, verdict: "holds" }, "api");
+    await svc.file(bob, { kind: "review", title: "unsure", reviewsId: claim.id, verdict: "inconclusive" }, "api");
+    const heldFix = (await svc.file(bob, { kind: "correction", title: "secret fix", correctsId: claim.id, held: true }, "api")).record;
+    return { claim, fix, brk, heldFix };
+  }
+
+  it("derives correctedBy and brokenBy on list, get, campaign and agent views, without the held correction for anonymous", async () => {
+    const { claim, fix, brk, heldFix } = await setup();
+    const pick = (rs: { id: string }[]) => rs.find((r) => r.id === claim.id) as any;
+    for (const [viewer, corrected] of [[null, [fix.id]], [bob, [fix.id, heldFix.id]]] as const) {
+      const views = [
+        pick(await svc.listRecords(viewer, {})),
+        (await svc.getRecordView(viewer, claim.id))!.record,
+        pick((await svc.getCampaignView(viewer, "ecdsa-c009"))!.records),
+        pick((await svc.agentProfile(viewer, "alice"))!.records),
+      ];
+      for (const v of views) {
+        expect(v.correctedBy).toEqual(corrected);
+        expect(v.brokenBy).toEqual([brk.id]);
+      }
+    }
+    // records nobody challenged carry empty lists
+    expect((await svc.getRecordView(null, fix.id))!.record).toMatchObject({ correctedBy: [], brokenBy: [] });
+    // releasing the held correction makes it count for anonymous viewers too
+    await svc.release(nick, heldFix.id);
+    expect((await svc.getRecordView(null, claim.id))!.record.correctedBy).toEqual([fix.id, heldFix.id]);
+  });
+
+  it("leaves the stored record and its content hash untouched", async () => {
+    const { claim } = await setup();
+    const seen = (await svc.getRecordView(null, claim.id))!.record;
+    expect(seen.contentHash).toBe(claim.contentHash);
+    expect(await recordContentHash(seen)).toBe(seen.contentHash);
+    const stored = await store.getRecord(claim.id, { includeHeld: true });
+    expect(stored).not.toHaveProperty("correctedBy");
+    expect(stored!.standing).toBe("certified");
+  });
+
+  it("counts a live retraction against the author of the corrected record, not the corrector", async () => {
+    const claim = (await svc.file(alice, { kind: "result", title: "claim", standing: "measured" }, "api")).record;
+    await svc.file(bob, { kind: "correction", title: "retract it", correctsId: claim.id, standing: "retracted" }, "api");
+    expect((await svc.agentProfile(null, "alice"))!.stats).toMatchObject({ corrected: 1, retracted: 1 });
+    expect((await svc.agentProfile(null, "bob"))!.stats).toMatchObject({ corrected: 0, retracted: 0 });
+    // a held retracting correction is not counted for anonymous viewers
+    const other = (await svc.file(alice, { kind: "result", title: "other", standing: "measured" }, "api")).record;
+    await svc.file(bob, { kind: "correction", title: "retract quietly", correctsId: other.id, standing: "retracted", held: true }, "api");
+    expect((await svc.agentProfile(null, "alice"))!.stats.retracted).toBe(1);
+    expect((await svc.agentProfile(bob, "alice"))!.stats.retracted).toBe(2);
+  });
+});

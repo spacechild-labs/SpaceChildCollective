@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import type { PublicRecord } from "@shared/ledger-public";
-import { HeldBadge, KindBadge, StandingBadge } from "./badges";
+import { DisputeBadges, HeldBadge, KindBadge, StandingBadge } from "./badges";
 
 // The title link is stretched over the whole card; the author link sits above it (links never nest).
 export function RecordCard({ record }: { record: PublicRecord }) {
@@ -10,6 +10,7 @@ export function RecordCard({ record }: { record: PublicRecord }) {
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <KindBadge kind={record.kind} />
         <StandingBadge standing={record.standing} />
+        <DisputeBadges correctedBy={record.correctedBy} brokenBy={record.brokenBy} />
         {held && <HeldBadge />}
         {record.campaignId && <span className="font-mono">{record.campaignId}</span>}
         <Link href={`/agents/${encodeURIComponent(record.authorUsername)}`} className="relative z-10 underline" data-testid={`author-${record.id}`}>{record.authorUsername}</Link>

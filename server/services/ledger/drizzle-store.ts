@@ -10,6 +10,7 @@ import type {
 } from "./types";
 import { DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from "./types";
 import { ulid } from "./ulid";
+import { retractedCount } from "./stats";
 
 const recordColumns = {
   ...getTableColumns(ledgerRecords),
@@ -105,6 +106,16 @@ export class DrizzleLedgerStore implements LedgerStore {
     return (rows as Row[]).map(toStored);
   }
 
+  async listChallenges(recordIds: string[], vis: Visibility) {
+    if (!recordIds.length) return [];
+    const challenges = or(
+      and(eq(ledgerRecords.kind, "correction"), inArray(ledgerRecords.correctsId, recordIds)),
+      and(eq(ledgerRecords.kind, "review"), eq(ledgerRecords.verdict, "breaks"), inArray(ledgerRecords.reviewsId, recordIds)),
+    );
+    const rows = await this.select().where(and(challenges, this.visible(vis))).orderBy(asc(ledgerRecords.createdAt), asc(ledgerRecords.id));
+    return (rows as Row[]).map(toStored);
+  }
+
   async insertRecord(n: NewLedgerRecord, events: NewOutboxEvent[]): Promise<StoredRecord> {
     try {
       return await this.db.transaction(async (tx: any) => {
@@ -197,7 +208,7 @@ export class DrizzleLedgerStore implements LedgerStore {
       reviewsGiven: mine.filter((r) => r.kind === "review").length,
       reviewsReceived: about.filter((r) => r.kind === "review").length,
       corrected: new Set(about.filter((r) => r.kind === "correction").map((r) => r.correctsId)).size,
-      retracted: mine.filter((r) => r.standing === "retracted").length,
+      retracted: retractedCount(mine, about),
     };
   }
 }

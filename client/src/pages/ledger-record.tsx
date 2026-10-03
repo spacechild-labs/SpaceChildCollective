@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import type { RecordView } from "@shared/ledger-public";
 import { Button } from "@/components/ui/button";
-import { HeldBadge, KindBadge, StandingBadge } from "@/components/ledger/badges";
+import { DisputeBadges, HeldBadge, KindBadge, StandingBadge } from "@/components/ledger/badges";
 import { EvidenceLink } from "@/components/ledger/evidence-link";
 import { RecordCard } from "@/components/ledger/record-card";
 import { verifyRecordHash } from "@/lib/ledger-view";
@@ -29,6 +29,7 @@ export default function LedgerRecordPage() {
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <KindBadge kind={r.kind} /><StandingBadge standing={r.standing} />
+        <DisputeBadges correctedBy={r.correctedBy} brokenBy={r.brokenBy} />
         {held && <HeldBadge />}
         {r.campaignId && <Link href={`/campaigns/${r.campaignId}`} className="font-mono underline">{r.campaignId}</Link>}
         <Link href={`/agents/${encodeURIComponent(r.authorUsername)}`} className="underline">{r.authorUsername}</Link>
@@ -37,6 +38,13 @@ export default function LedgerRecordPage() {
         {r.verdict && <span>verdict: {r.verdict}</span>}
       </div>
       <h1 className="mt-2 text-2xl font-semibold">{r.title}</h1>
+      {(r.correctedBy.length > 0 || r.brokenBy.length > 0) && (
+        <div className="mt-3 rounded border border-orange-500/50 bg-orange-500/10 p-3 text-sm" role="note" data-testid="disputed-banner">
+          This record was filed as <strong>{r.standing}</strong> and is unchanged, but later records dispute it:
+          {r.correctedBy.map((cid) => <Link key={cid} href={`/records/${cid}`} className="ml-2 font-mono text-xs underline">correction {cid}</Link>)}
+          {r.brokenBy.map((bid) => <Link key={bid} href={`/records/${bid}`} className="ml-2 font-mono text-xs underline">review (breaks) {bid}</Link>)}
+        </div>
+      )}
       <article className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{r.body}</article>
 
       {r.evidence.length > 0 && (

@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from "./types";
 import { ulid } from "./ulid";
+import { retractedCount } from "./stats";
 
 const LINK_FIELDS = ["correctsId", "reviewsId", "amendsId", "aboutId"] as const;
 
@@ -96,6 +97,16 @@ export class MemoryLedgerStore implements LedgerStore {
       .map((r) => this.stored(r));
   }
 
+  async listChallenges(recordIds: string[], vis: Visibility) {
+    const ids = new Set(recordIds);
+    return [...this.records.values()]
+      .filter((r) => (r.kind === "correction" && r.correctsId && ids.has(r.correctsId))
+        || (r.kind === "review" && r.verdict === "breaks" && r.reviewsId && ids.has(r.reviewsId)))
+      .filter((r) => this.visible(r, vis))
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1))
+      .map((r) => this.stored(r));
+  }
+
   async insertRecord(n: NewLedgerRecord, events: NewOutboxEvent[]): Promise<StoredRecord> {
     if (this.records.has(n.id)) throw Object.assign(new Error("duplicate id"), { code: "duplicate" });
     if (n.clientRef && [...this.records.values()].some((r) => r.authorId === n.authorId && r.clientRef === n.clientRef)) {
@@ -159,7 +170,7 @@ export class MemoryLedgerStore implements LedgerStore {
       reviewsGiven: mine.filter((r) => r.kind === "review").length,
       reviewsReceived: all.filter((r) => r.kind === "review" && r.reviewsId && mineIds.has(r.reviewsId)).length,
       corrected: new Set(all.filter((r) => r.kind === "correction" && r.correctsId && mineIds.has(r.correctsId)).map((r) => r.correctsId)).size,
-      retracted: mine.filter((r) => r.standing === "retracted").length,
+      retracted: retractedCount(mine, all),
     };
   }
 }

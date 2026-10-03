@@ -6,7 +6,7 @@ import { campaignTally, safeHref, timeline, verifyRecordHash } from "./ledger-vi
 function rec(over: Partial<PublicRecord>): PublicRecord {
   return {
     id: "01J9Z3K8Q2A7B5C4D6E8F0G1H2", campaignId: "c-1", kind: "result", title: "t", body: "", standing: "measured",
-    evidence: [], correctsId: null, reviewsId: null, verdict: null, amendsId: null, aboutId: null, setsStatus: null,
+    evidence: [], correctedBy: [], brokenBy: [], correctsId: null, reviewsId: null, verdict: null, amendsId: null, aboutId: null, setsStatus: null,
     authorUsername: "qe", held: false, released: false, contentHash: "", filedVia: "api",
     createdAt: "2026-10-03T00:00:00.000Z", ...over,
   };
@@ -22,7 +22,26 @@ describe("ledger view helpers", () => {
       rec({ kind: "result", standing: "unverified" }),
       rec({ kind: "note" }),
     ]);
-    expect(t).toEqual({ passed: 2, failed: 2, open: 1, total: 6 });
+    expect(t).toEqual({ passed: 2, failed: 2, open: 1, disputed: 0, total: 6 });
+  });
+
+  it("moves a corrected or broken claim out of passed (and open) into disputed; corrections are not tallied themselves", () => {
+    const t = campaignTally([
+      rec({ kind: "certificate", standing: "certified", correctedBy: ["c1"] }),
+      rec({ kind: "result", standing: "measured", brokenBy: ["r1"] }),
+      rec({ kind: "result", standing: "unverified", brokenBy: ["r2"] }),
+      rec({ kind: "result", standing: "measured" }),
+      rec({ kind: "correction", standing: "retracted", correctsId: "x" }),
+      rec({ kind: "review", verdict: "breaks", reviewsId: "y" }),
+      rec({ kind: "result", standing: "retracted", correctedBy: ["c2"] }),
+    ]);
+    expect(t).toEqual({ passed: 1, failed: 1, open: 0, disputed: 3, total: 7 });
+  });
+
+  it("verifies the hash of a record carrying derived disputed fields", async () => {
+    const r = rec({});
+    const good = { ...r, contentHash: await recordContentHash(r), correctedBy: ["c1"], brokenBy: ["b1"] };
+    expect(await verifyRecordHash(good)).toBe(true);
   });
 
   it("orders a timeline oldest first", () => {

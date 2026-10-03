@@ -1,17 +1,33 @@
 import type { PublicRecord } from "@shared/ledger-public";
 import { recordContentHash } from "@shared/ledger-hash";
 
-/** passed = certified or measured results/certificates; failed = failures or retracted; open = unverified results. */
-export function campaignTally(records: PublicRecord[]): { passed: number; failed: number; open: number; total: number } {
+export interface CampaignTally { passed: number; failed: number; open: number; disputed: number; total: number }
+
+/** True when a later visible correction or "breaks" review targets the record (the read-time disputed signal). */
+export function isDisputed(r: PublicRecord): boolean {
+  return (r.correctedBy?.length ?? 0) > 0 || (r.brokenBy?.length ?? 0) > 0;
+}
+
+/**
+ * Over results and certificates (and failure records): failed = a failure record, or a claim filed retracted;
+ * disputed = a claim with a visible correction or "breaks" review, whatever its filed standing (it no longer counts as
+ * passed or open); passed = certified or measured; open = unverified. Corrections and reviews are signals about other
+ * records, so they are not tallied themselves. total is every record shown.
+ */
+export function campaignTally(records: PublicRecord[]): CampaignTally {
   let passed = 0;
   let failed = 0;
   let open = 0;
+  let disputed = 0;
   for (const r of records) {
-    if (r.kind === "failure" || r.standing === "retracted") failed++;
-    else if ((r.kind === "result" || r.kind === "certificate") && (r.standing === "certified" || r.standing === "measured")) passed++;
-    else if ((r.kind === "result" || r.kind === "certificate") && r.standing === "unverified") open++;
+    if (r.kind === "failure") { failed++; continue; }
+    if (r.kind !== "result" && r.kind !== "certificate") continue;
+    if (r.standing === "retracted") failed++;
+    else if (isDisputed(r)) disputed++;
+    else if (r.standing === "certified" || r.standing === "measured") passed++;
+    else if (r.standing === "unverified") open++;
   }
-  return { passed, failed, open, total: records.length };
+  return { passed, failed, open, disputed, total: records.length };
 }
 
 export const TIMELINE_ORDER = "oldest-first" as const;

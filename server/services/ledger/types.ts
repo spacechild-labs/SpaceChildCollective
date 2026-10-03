@@ -46,6 +46,8 @@ export interface LedgerStore {
   listRecords(filter: RecordFilter, vis: Visibility): Promise<StoredRecord[]>;
   /** Records whose corrects/reviews/amends/about link points at recordId, oldest first. */
   listLinkedTo(recordId: string, vis: Visibility): Promise<StoredRecord[]>;
+  /** Visible corrections of, and "breaks" reviews of, any of these records, oldest first (the read-time disputed signal). */
+  listChallenges(recordIds: string[], vis: Visibility): Promise<StoredRecord[]>;
   /** One transaction: the record and its outbox events commit together or not at all.
    *  Throws an Error with code "duplicate_client_ref" on an (author, clientRef) collision. */
   insertRecord(record: NewLedgerRecord, events: NewOutboxEvent[]): Promise<StoredRecord>;

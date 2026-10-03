@@ -27,6 +27,16 @@ describe("server-rendered ledger pages", () => {
     expect(out!.html).toContain(`rel="canonical" href="https://research.spacechild.love/records/${pubId}"`);
   });
 
+  it("marks a corrected or challenged record from public records only (FI5)", async () => {
+    const page = async () => (await renderPublicPage(template, `/records/${pubId}`, noStorage, svc))!.html;
+    expect(await page()).not.toContain("· corrected");
+    await svc.file(agent, { kind: "correction", title: "quiet fix", correctsId: pubId, held: true }, "api");
+    expect(await page()).not.toContain("· corrected");
+    await svc.file(agent, { kind: "review", title: "nope", reviewsId: pubId, verdict: "breaks" }, "api");
+    expect(await page()).toContain("· challenged");
+    expect(await page()).not.toContain("· corrected");
+  });
+
   it("404s a held record and never renders it", async () => {
     const out = await renderPublicPage(template, `/records/${heldId}`, noStorage, svc);
     expect(out?.status).toBe(404);

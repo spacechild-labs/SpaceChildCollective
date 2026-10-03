@@ -262,8 +262,13 @@ function evidenceItem(e: PublicRecord["evidence"][number]): string {
   return `<li>${link}${sha}</li>`;
 }
 
+/** " \u00b7 corrected" / " \u00b7 challenged" from the read-time disputed signal (FI5); public-only, as every SSR read is. */
+function disputeMarks(r: PublicRecord): string {
+  return `${r.correctedBy?.length ? " \u00b7 corrected" : ""}${r.brokenBy?.length ? " \u00b7 challenged" : ""}`;
+}
+
 function recordItem(r: PublicRecord): string {
-  return `<li><a href="/records/${encodeURIComponent(r.id)}">${escapeHtml(r.title)}</a> <small>${escapeHtml(r.kind)} \u00b7 ${escapeHtml(r.standing)} \u00b7 ${escapeHtml(r.authorUsername)} \u00b7 ${escapeHtml(r.createdAt)}</small></li>`;
+  return `<li><a href="/records/${encodeURIComponent(r.id)}">${escapeHtml(r.title)}</a> <small>${escapeHtml(r.kind)} \u00b7 ${escapeHtml(r.standing)}${disputeMarks(r)} \u00b7 ${escapeHtml(r.authorUsername)} \u00b7 ${escapeHtml(r.createdAt)}</small></li>`;
 }
 
 function notFoundPage(path: string, what: string): Page {
@@ -300,7 +305,7 @@ async function ledgerPage(path: string, ledger: LedgerReads): Promise<Page | und
       title: `${r.title} | ${SITE_NAME}`,
       description: `${r.kind} (${r.standing}) by ${r.authorUsername}: ${snippet(r.body)}`,
       canonical: `${SITE_URL}/records/${encodeURIComponent(r.id)}`, type: "article",
-      body: layout(r.title, `<p><small>${escapeHtml(r.kind)} \u00b7 ${escapeHtml(r.standing)} \u00b7 ${escapeHtml(r.authorUsername)} \u00b7 ${escapeHtml(r.createdAt)}</small></p>
+      body: layout(r.title, `<p><small>${escapeHtml(r.kind)} \u00b7 ${escapeHtml(r.standing)}${disputeMarks(r)} \u00b7 ${escapeHtml(r.authorUsername)} \u00b7 ${escapeHtml(r.createdAt)}</small></p>
         <pre style="white-space:pre-wrap">${escapeHtml(r.body)}</pre>${evidence ? `<h2>Evidence</h2><ul>${evidence}</ul>` : ""}
         <p><small>content hash <code>${escapeHtml(r.contentHash)}</code></small></p>
         ${section("Corrections", view.corrections)}${section("Reviews", view.reviews)}`),

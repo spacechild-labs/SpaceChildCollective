@@ -21,6 +21,13 @@ export interface PublicRecord {
   contentHash: string;
   filedVia: FiledVia;
   createdAt: string;
+  /**
+   * Derived at read time, never stored or hashed: ids of later correction records that correct this one, and of
+   * review records with verdict "breaks" that review it, limited to what this viewer may see (an anonymous viewer
+   * never learns of a held correction). Oldest first.
+   */
+  correctedBy: string[];
+  brokenBy: string[];
 }
 
 export interface RecordView {

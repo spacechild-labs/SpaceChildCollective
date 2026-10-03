@@ -15,12 +15,17 @@ export type PublicEvent = { type: "filed" | "released"; id: string; kind: string
 import type { AgentProfile, PublicRecord, RecordView } from "@shared/ledger-public";
 export type { AgentProfile, PublicRecord, RecordView };
 
-export function toPublicRecord(r: StoredRecord): PublicRecord {
+export interface Disputes { correctedBy: string[]; brokenBy: string[] }
+const NO_DISPUTES: Disputes = { correctedBy: [], brokenBy: [] };
+
+/** `d` is the read-time disputed signal (see LedgerService.withDisputes); a record that has none gets empty lists. */
+export function toPublicRecord(r: StoredRecord, d: Disputes = NO_DISPUTES): PublicRecord {
   return {
     id: r.id, campaignId: r.campaignId, kind: r.kind, title: r.title, body: r.body, standing: r.standing,
     evidence: r.evidence, correctsId: r.correctsId, reviewsId: r.reviewsId, verdict: r.verdict, amendsId: r.amendsId,
     aboutId: r.aboutId, setsStatus: r.setsStatus, authorUsername: r.authorUsername, held: r.held, released: r.released,
     contentHash: r.contentHash, filedVia: r.filedVia, createdAt: r.createdAt.toISOString(),
+    correctedBy: [...d.correctedBy], brokenBy: [...d.brokenBy],
   };
 }
 
@@ -91,7 +96,7 @@ export class LedgerService {
       const prior = await this.store.findByClientRef(actor.id, r.clientRef);
       if (prior) {
         await this.reapplyStatus(prior);
-        return { record: toPublicRecord(prior), created: false };
+        return { record: (await this.withDisputes([prior], { includeHeld: true }))[0], created: false };
       }
     }
     if (r.campaignId && !(await this.store.getCampaign(r.campaignId))) {
@@ -153,7 +158,7 @@ export class LedgerService {
         const prior = await this.store.findByClientRef(actor.id, r.clientRef);
         if (prior) {
           await this.reapplyStatus(prior);
-          return { record: toPublicRecord(prior), created: false };
+          return { record: (await this.withDisputes([prior], { includeHeld: true }))[0], created: false };
         }
       }
       throw error;
@@ -189,7 +194,23 @@ export class LedgerService {
       if (record.setsStatus && record.campaignId) await this.store.setCampaignStatus(record.campaignId, record.setsStatus);
     }
     const after = await this.store.getRecord(recordId, { includeHeld: true });
-    return toPublicRecord(after!);
+    return (await this.withDisputes([after!], { includeHeld: true }))[0];
+  }
+
+  /**
+   * The read-time disputed signal (ruling FI5): for each row, the ids of later corrections of it and of "breaks"
+   * reviews of it that this viewer may see. Stored rows and their hash input are untouched.
+   */
+  private async withDisputes(rows: StoredRecord[], vis: { includeHeld: boolean }): Promise<PublicRecord[]> {
+    if (!rows.length) return [];
+    const challenges = await this.store.listChallenges(rows.map((r) => r.id), vis);
+    const by = new Map<string, Disputes>();
+    const entry = (id: string) => { let d = by.get(id); if (!d) { d = { correctedBy: [], brokenBy: [] }; by.set(id, d); } return d; };
+    for (const c of challenges) {
+      if (c.kind === "correction" && c.correctsId) entry(c.correctsId).correctedBy.push(c.id);
+      else if (c.kind === "review" && c.verdict === "breaks" && c.reviewsId) entry(c.reviewsId).brokenBy.push(c.id);
+    }
+    return rows.map((r) => toPublicRecord(r, by.get(r.id)));
   }
 
   async getRecordView(viewer: Actor | null, id: string): Promise<RecordView | null> {
@@ -197,9 +218,11 @@ export class LedgerService {
     const record = await this.store.getRecord(id, vis);
     if (!record) return null;
     const linked = await this.store.listLinkedTo(id, vis);
-    const pick = (f: (r: StoredRecord) => boolean) => linked.filter(f).map(toPublicRecord);
+    const [self, ...rest] = await this.withDisputes([record, ...linked], vis);
+    const byId = new Map(rest.map((p) => [p.id, p]));
+    const pick = (f: (r: StoredRecord) => boolean) => linked.filter(f).map((r) => byId.get(r.id)!);
     return {
-      record: toPublicRecord(record),
+      record: self,
       corrections: pick((r) => r.correctsId === id),
       reviews: pick((r) => r.reviewsId === id),
       notes: pick((r) => r.aboutId === id),
@@ -225,7 +248,7 @@ export class LedgerService {
       { campaignId: q.campaignId, kind: q.kind as any, standing: q.standing as any, authorId, before, limit: q.limit },
       { includeHeld: viewer !== null },
     );
-    return rows.map(toPublicRecord);
+    return this.withDisputes(rows, { includeHeld: viewer !== null });
   }
 
   async createCampaign(actor: Actor, input: unknown): Promise<LedgerCampaign> {
@@ -246,8 +269,9 @@ export class LedgerService {
   async getCampaignView(viewer: Actor | null, id: string): Promise<{ campaign: LedgerCampaign; records: PublicRecord[] } | null> {
     const campaign = await this.store.getCampaign(id);
     if (!campaign) return null;
-    const records = await this.store.listRecords({ campaignId: id, limit: 200 }, { includeHeld: viewer !== null });
-    return { campaign, records: records.map(toPublicRecord) };
+    const vis = { includeHeld: viewer !== null };
+    const records = await this.store.listRecords({ campaignId: id, limit: 200 }, vis);
+    return { campaign, records: await this.withDisputes(records, vis) };
   }
 
   async agentProfile(viewer: Actor | null, username: string): Promise<AgentProfile | null> {
@@ -258,11 +282,11 @@ export class LedgerService {
       this.store.authorStats(u.id, vis),
       this.store.listRecords({ authorId: u.id, limit: 100 }, vis),
     ]);
-    return { username: u.username, stats, records: records.map(toPublicRecord) };
+    return { username: u.username, stats, records: await this.withDisputes(records, vis) };
   }
 
   async pendingReleases(actor: Actor): Promise<PublicRecord[]> {
     this.assertReleaser(actor);
-    return (await this.store.listUnreleasedHeld()).map(toPublicRecord);
+    return this.withDisputes(await this.store.listUnreleasedHeld(), { includeHeld: true });
   }
 }
