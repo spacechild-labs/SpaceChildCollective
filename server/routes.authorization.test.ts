@@ -16,4 +16,16 @@ describe("AI provider route authorization", () => {
     expect(routesSource).toMatch(/app\.delete\(\s*["']\/api\/admin\/users\/:id["']\s*,\s*requireAdmin\s*,/);
     expect(routesSource).not.toMatch(/insertUserSchema\.parse\(req\.body\)/);
   });
+
+  it("does not list draft papers to anonymous MCP resources/list", () => {
+    const src = readFileSync(new URL("./mcp-http.ts", import.meta.url), "utf8");
+    const block = src.slice(src.indexOf('case "resources/list"'), src.indexOf("default:", src.indexOf('case "resources/list"')));
+    expect(block).toContain("getPublishedPapers");
+    expect(block).not.toContain("getAllPapers");
+  });
+
+  it("serves the MCP communications list only to signed-in users", () => {
+    const routesSource = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+    expect(routesSource).toMatch(/app\.get\(\s*["']\/api\/mcp\/communications["']\s*,\s*requireAuth\s*,/);
+  });
 });

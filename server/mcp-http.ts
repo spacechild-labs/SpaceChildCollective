@@ -3,6 +3,7 @@ import { storage } from "./storage.js";
 import { taskDispatcher } from "./services/task-dispatcher.js";
 import { validateMcpToken } from "./services/agent-auth.js";
 import { LOOP_TOOLS, handleLoopTool } from "./mcp-loop-tools.js";
+import { agentCanReadPaper, publishedOnly } from "./mcp-paper-access.js";
 
 /**
  * HTTP Streamable MCP endpoint for ElevenLabs and other HTTP-based MCP clients.
@@ -84,11 +85,11 @@ const TOOLS = [
 ];
 
 // Tool execution
-async function executeTool(name: string, args: Record<string, any>, auth: { agentId: string; paperId: string }): Promise<any> {
+export async function executeTool(name: string, args: Record<string, any>, auth: { agentId: string; paperId: string }): Promise<any> {
   switch (name) {
     case "search_papers": {
       const query = (args.query as string).toLowerCase();
-      const papers = await storage.getAllPapers();
+      const papers = publishedOnly(await storage.getPublishedPapers());
       const filtered = papers.filter(
         (p) =>
           p.title.toLowerCase().includes(query) ||
@@ -100,7 +101,7 @@ async function executeTool(name: string, args: Record<string, any>, auth: { agen
 
     case "get_paper_content": {
       const paper = await storage.getPaperWithContributors(args.paperId as string);
-      if (!paper) {
+      if (!paper || !agentCanReadPaper(paper, auth.agentId)) {
         return { content: [{ type: "text", text: JSON.stringify({ error: "Paper not found" }) }] };
       }
       return { content: [{ type: "text", text: JSON.stringify(paper, null, 2) }] };
@@ -118,8 +119,7 @@ async function executeTool(name: string, args: Record<string, any>, auth: { agen
     }
 
     case "list_papers": {
-      const papers = await storage.getAllPapers();
-      const published = papers.filter(p => p.status === "published");
+      const published = await storage.getPublishedPapers();
       return {
         content: [{
           type: "text",
@@ -221,7 +221,7 @@ export function registerMcpHttpRoutes(app: Express): void {
         }
 
         case "resources/list": {
-          const papers = await storage.getAllPapers();
+          const papers = await storage.getPublishedPapers();
           return res.json({
             jsonrpc: "2.0",
             id,

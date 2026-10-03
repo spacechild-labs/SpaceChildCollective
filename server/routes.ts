@@ -330,6 +330,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== MCP Communication Routes =====
   
+  // Recent MCP communications for the /mcp status page (signed-in users only).
+  app.get("/api/mcp/communications", requireAuth, async (_req, res) => {
+    try {
+      const all = await storage.getAllMcpCommunications();
+      res.json(all.slice(0, 50));
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Create MCP communication
   app.post("/api/mcp/communications", async (req, res) => {
     try {
