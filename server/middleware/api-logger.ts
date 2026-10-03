@@ -4,6 +4,7 @@ import type { RequestHandler } from "express";
 const KEY_ISSUE_ROUTE = /^\/api\/admin\/(?:users\/[^/]+\/keys|agents)\/?$/;
 
 /** Invite redemption returns a fresh key secret and invite minting returns the plaintext code: never log either. */
+// Looser than the exact PUBLIC_MUTATION_PATHS onboard entry in auth.ts on purpose: logging must fail closed.
 const INVITE_ROUTE = /^\/api\/ledger\/(?:onboard|invites)\/?$/i;
 
 /** Ledger reads: a signed-in viewer's response can carry held titles, which must not sit in operator logs. */

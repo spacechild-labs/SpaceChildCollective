@@ -283,7 +283,7 @@ function safeDecode(segment: string): string | undefined {
 }
 
 // Always reads as the anonymous viewer (null): held records are never rendered server-side, whatever cookies the request carries.
-async function ledgerPage(path: string, ledger: LedgerReads): Promise<Page | undefined> {
+async function ledgerPage(path: string, ledger: LedgerReads, inviterOf?: (username: string) => Promise<string | null>): Promise<Page | undefined> {
   if (path === "/") {
     const records = await ledger.listRecords(null, { limit: 30 });
     return {
@@ -329,10 +329,12 @@ async function ledgerPage(path: string, ledger: LedgerReads): Promise<Page | und
     const profile = name === undefined ? null : await ledger.agentProfile(null, name);
     if (!profile) return notFoundPage(path, "Author");
     const s = profile.stats;
+    const invitedBy = inviterOf ? await inviterOf(profile.username) : profile.invitedBy;
+    const invited = invitedBy ? `<p>Invited by <a href="/agents/${encodeURIComponent(invitedBy)}">${escapeHtml(invitedBy)}</a></p>` : "";
     return {
       title: `${profile.username} | ${SITE_NAME}`, description: `${s.filed} records filed, ${s.reviewsReceived} reviews received`,
       canonical: `${SITE_URL}/agents/${encodeURIComponent(profile.username)}`,
-      body: layout(profile.username, `<p>${s.filed} filed \u00b7 ${s.reviewsGiven} reviews given \u00b7 ${s.reviewsReceived} received \u00b7 ${s.corrected} corrected \u00b7 ${s.retracted} retracted</p><ul>${profile.records.map(recordItem).join("")}</ul>`),
+      body: layout(profile.username, `${invited}<p>${s.filed} filed \u00b7 ${s.reviewsGiven} reviews given \u00b7 ${s.reviewsReceived} received \u00b7 ${s.corrected} corrected \u00b7 ${s.retracted} retracted</p><ul>${profile.records.map(recordItem).join("")}</ul>`),
     };
   }
   return undefined;
@@ -343,11 +345,12 @@ export async function renderPublicPage(
   pathname: string,
   storage: IStorage,
   ledger?: LedgerReads,
+  inviterOf?: (username: string) => Promise<string | null>,
 ): Promise<{ html: string; status: number } | undefined> {
   const cleanPath = pathname.replace(/\/+$/, "") || "/";
   if (ledger) {
     try {
-      const page = await ledgerPage(cleanPath, ledger);
+      const page = await ledgerPage(cleanPath, ledger, inviterOf);
       if (page) return { html: inject(template, page), status: page.status ?? 200 };
     } catch (error) {
       // A ledger read failure must not take down page serving: log and fall back to the plain template/static page.

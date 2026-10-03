@@ -20,7 +20,7 @@ import { createLedgerInviteRouter } from "./routes/ledger-invites";
 import { createLedgerFeedRouter } from "./routes/ledger-feeds";
 import { createLedgerGuideRouter } from "./routes/ledger-guide";
 import { siteUrl } from "./lib/site-url";
-import { agentKeys, invites, ledgerService, ledgerStream } from "./services/ledger";
+import { agentKeys, invites, inviterOfUsername, ledgerService, ledgerStream } from "./services/ledger";
 import { ledgerFileLimiter, ledgerReadLimiter, onboardIpLimiter } from "./services/ledger/rate-limits";
 import { registerHandler } from "./routes/register";
 import { createUserAsAdmin, deleteUserAsAdmin, resetUserSecret } from "./routes/admin-users";
@@ -151,7 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/ledger/stream", ledgerStream.handler);
   app.use("/api/ledger", createLedgerInviteRouter(invites, { onboard: onboardIpLimiter() }));
   app.use("/api/ledger", createLedgerRouter(ledgerService, { file: ledgerFileLimiter(), read: ledgerReadLimiter() }, {
-    inviterOf: async (name) => { const u = await storage.getUserByUsername(name); return u ? invites.inviterOf(u.id) : null; },
+    inviterOf: inviterOfUsername,
   }));
   app.use("/api/admin", createLedgerAdminRouter({ keys: agentKeys, users: storage, invites }));
   // Public feeds live outside /api; registerRoutes runs before setupVite/serveStatic, so these win over the SPA catch-all.

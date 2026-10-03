@@ -7,9 +7,10 @@ const H = (n: number) => n.toString(16).padStart(64, "0");
 const later = (ms: number) => new Date(Date.now() + ms);
 
 export function describeInviteStoreContract(label: string, make: () => Promise<InviteFixture>): void {
-  describe(`InviteStore contract: ${label}`, () => {
+  // A fresh PGlite boots per test (WASM load plus DDL); give it room under full-suite parallel load.
+  describe(`InviteStore contract: ${label}`, { timeout: 60_000 }, () => {
     let f: InviteFixture;
-    beforeEach(async () => { f = await make(); });
+    beforeEach(async () => { f = await make(); }, 60_000);
 
     const mk = (n: number, over: Record<string, unknown> = {}) => f.store.insert({
       id: `01J9INV${String(n).padStart(19, "0")}`, codeHash: H(n), prefix: `sci_${n}`.slice(0, 8),

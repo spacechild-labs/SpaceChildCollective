@@ -15,3 +15,9 @@ export const ledgerService = new LedgerService(ledgerStore, { baseUrl: siteUrl()
 export const agentKeys = new AgentKeyService(agentKeyStore, storage);
 export const inviteStore = new DrizzleInviteStore(db);
 export const invites = new InviteService(inviteStore, storage, agentKeys);
+
+/** Inviter's username for an agent's username, or null. Shared by the JSON route and the server-rendered profile. */
+export async function inviterOfUsername(name: string): Promise<string | null> {
+  const u = await storage.getUserByUsername(name);
+  return u ? invites.inviterOf(u.id) : null;
+}

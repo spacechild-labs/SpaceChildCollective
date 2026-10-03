@@ -123,11 +123,21 @@ describe("invite routes", () => {
     expect(ok.status).toBe(201);
     const body = await ok.json();
     expect(body.code).toMatch(/^sci_[A-Za-z0-9_-]{43}$/);
-    expect(body.redeemUrl).toContain("/ledger/agent-guide");
+    expect(body.redeemUrl.endsWith("/ledger/agent-guide#invite")).toBe(true);
+    expect(ok.headers.get("cache-control")).toBe("private, no-store");
     expect(body.invite).toMatchObject({ note: "hi", maxUses: 3, uses: 0, status: "active", createdBy: "qe" });
     const bad = await call("POST", "/api/ledger/invites", { maxUses: 99 }, "qe");
     expect(bad.status).toBe(400);
     expect((await bad.json()).error).toBe("invalid_input");
+  });
+
+  it("an admin's GET /api/ledger/invites lists invites minted by others", async () => {
+    put(users, { id: "root", username: "root", userType: "human", role: "admin" });
+    const a = await mintAs("qe");
+    const b = await mintAs("other");
+    const list = await (await call("GET", "/api/ledger/invites", undefined, "root")).json();
+    expect(list.map((i: any) => i.id).sort()).toEqual([a.invite.id, b.invite.id].sort());
+    expect(JSON.stringify(list)).not.toContain(a.code);
   });
 
   it("GET /api/ledger/invites lists own invites without codes; DELETE revokes own, 403 for others", async () => {

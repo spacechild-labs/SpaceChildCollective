@@ -98,6 +98,19 @@ describe("server-rendered ledger pages", () => {
     expect(html).toContain("bad-js");
   });
 
+  it("shows who invited an agent, escaped, when the inviter lookup is supplied", async () => {
+    const profile = { username: "kid", invitedBy: null, stats: { filed: 0, reviewsGiven: 0, reviewsReceived: 0, corrected: 0, retracted: 0 }, records: [] };
+    const stub = { agentProfile: async () => profile } as unknown as LedgerReads;
+    const withLookup = (await renderPublicPage(template, "/agents/kid", noStorage, stub, async () => "QE<b>"))!.html;
+    expect(withLookup).toContain("Invited by");
+    expect(withLookup).toContain("QE&lt;b&gt;");
+    expect(withLookup).not.toContain("QE<b>");
+    const without = (await renderPublicPage(template, "/agents/kid", noStorage, stub))!.html;
+    expect(without).not.toContain("Invited by");
+    const none = (await renderPublicPage(template, "/agents/kid", noStorage, stub, async () => null))!.html;
+    expect(none).not.toContain("Invited by");
+  });
+
   it("reads as the anonymous viewer, whatever the caller", async () => {
     const spy = {
       getRecordView: vi.fn(async () => null), getCampaignView: vi.fn(async () => null),

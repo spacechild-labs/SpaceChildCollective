@@ -20,9 +20,10 @@ function rec(authorId: string, over: Partial<NewLedgerRecord> = {}): NewLedgerRe
 
 /** Behaviour every LedgerStore must have. Run against the memory store always, Drizzle when a test DB is set. */
 export function describeLedgerStoreContract(label: string, make: () => Promise<ContractFixture>): void {
-  describe(`LedgerStore contract: ${label}`, () => {
+  // A fresh PGlite boots per test (WASM load plus DDL); give it room under full-suite parallel load.
+  describe(`LedgerStore contract: ${label}`, { timeout: 60_000 }, () => {
     let f: ContractFixture;
-    beforeEach(async () => { f = await make(); });
+    beforeEach(async () => { f = await make(); }, 60_000);
 
     it("hides a held record from public reads until it is released", async () => {
       const held = await f.store.insertRecord(rec(f.alice.id, { held: true }), []);
