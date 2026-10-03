@@ -253,6 +253,13 @@ export class KannakaBridge {
     }
   }
 
+  /** Wait until buffered publishes have reached the server. Rejects when there is no connection. */
+  async flush(): Promise<void> {
+    const nc = await this.connection();
+    if (!nc) throw new Error("not connected");
+    await nc.flush();
+  }
+
   /** Subscribe now if connected; otherwise as soon as a connection exists. Returns whether it is live already. */
   async subscribe(subject: string, handler: Handler): Promise<boolean> {
     this.want(subject, handler);

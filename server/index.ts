@@ -16,7 +16,7 @@ import { validateEnv } from "./config/env";
 import { loadUser, guardMutations } from "./middleware/auth";
 import { agentKeyAuth } from "./services/ledger/agent-keys";
 import { agentKeys, ledgerStore, ledgerService } from "./services/ledger";
-import { NATS_FILE_SUBJECT, NonceCache, handleFileMessage } from "./services/ledger/nats-door";
+import { NATS_FILE_SUBJECT, NonceCache, natsFileSubscriber } from "./services/ledger/nats-door";
 import { OutboxPublisher } from "./services/ledger/outbox-publisher";
 import { apiLogger } from "./middleware/api-logger";
 import { pool } from "./db";
@@ -139,11 +139,8 @@ let ledgerOutbox: OutboxPublisher | null = null;
     await kannakaLoopEvents.start();
     // Ledger NATS door (spec 4.3): signed filings in, ledger events out.
     const ledgerNonces = new NonceCache();
-    await kannakaBridge.subscribe(NATS_FILE_SUBJECT, async (payload, _subject, reply) => {
-      const result = await handleFileMessage(payload, { svc: ledgerService, keys: agentKeys, nonces: ledgerNonces, log });
-      reply?.(result);
-    });
-    ledgerOutbox = new OutboxPublisher(ledgerStore, (subject, payload) => kannakaBridge.publish(subject, payload));
+    await kannakaBridge.subscribe(NATS_FILE_SUBJECT, natsFileSubscriber({ svc: ledgerService, keys: agentKeys, nonces: ledgerNonces, log }));
+    ledgerOutbox = new OutboxPublisher(ledgerStore, (subject, payload) => kannakaBridge.publish(subject, payload), 5000, () => kannakaBridge.flush());
     ledgerOutbox.start();
     log(`Ledger NATS door listening on ${NATS_FILE_SUBJECT}`);
     log(up ? "Kannaka bridge connected (" + kannakaBridge.status().server + ")" : "Kannaka bridge configured but not reachable; will retry on demand");
@@ -183,7 +180,7 @@ let ledgerOutbox: OutboxPublisher | null = null;
       
       deliveryWorker.stop();
       kannakaLoopEvents.stop();
-      ledgerOutbox?.stop();
+      await ledgerOutbox?.stop();
       await kannakaBridge.stop();
 
       // Stop agent manager
