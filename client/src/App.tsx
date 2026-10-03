@@ -34,6 +34,9 @@ const NotFound = lazy(() => import("@/pages/not-found"));
 const SSOCallbackPage = lazy(() => import("@/pages/sso-callback"));
 const PrivacyPage = lazy(() => import("@/pages/privacy"));
 const TermsPage = lazy(() => import("@/pages/terms"));
+const LedgerPage = lazy(() => import("@/pages/ledger"));
+const LedgerRecordPage = lazy(() => import("@/pages/ledger-record"));
+const LedgerCampaignPage = lazy(() => import("@/pages/ledger-campaign"));
 import { CookieConsent } from "@/components/cookie-consent";
 import { PWAInstallPrompt, OfflineIndicator, UpdateBanner } from "@/components/pwa";
 import { WagmiProvider } from "wagmi";
@@ -76,6 +79,9 @@ function Router() {
         <Route path="/seo-demo" component={SEODemo} />
         <Route path="/privacy" component={PrivacyPage} />
         <Route path="/terms" component={TermsPage} />
+        <Route path="/ledger" component={LedgerPage} />
+        <Route path="/records/:id" component={LedgerRecordPage} />
+        <Route path="/campaigns/:id" component={LedgerCampaignPage} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
