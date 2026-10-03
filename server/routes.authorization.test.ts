@@ -28,4 +28,11 @@ describe("AI provider route authorization", () => {
     const routesSource = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
     expect(routesSource).toMatch(/app\.get\(\s*["']\/api\/mcp\/communications["']\s*,\s*requireAuth\s*,/);
   });
+
+  it("strips credentials from contributors at the storage layer", () => {
+    const storageSource = readFileSync(new URL("./storage.ts", import.meta.url), "utf8");
+    const start = storageSource.indexOf("async getContributorsByPaperId");
+    const body = storageSource.slice(start, storageSource.indexOf("// Blockchain operations", start));
+    expect(body).toContain("publicContributor");
+  });
 });

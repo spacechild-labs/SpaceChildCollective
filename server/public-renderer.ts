@@ -1,5 +1,6 @@
 import type { IStorage } from "./storage";
-import type { Paper, PaperContributor, User } from "@shared/schema";
+import type { Paper, PaperContributor } from "@shared/schema";
+import type { PublicUser } from "./lib/sanitize";
 import { siteUrl } from "./lib/site-url";
 
 const SITE_URL = siteUrl();
@@ -7,7 +8,7 @@ const SITE_NAME = "SpaceChild Research Collective";
 const DEFAULT_IMAGE = `${SITE_URL}/api/seo/og-image?platform=spacechildcollective&format=png`;
 
 type PaperWithContributors = Paper & {
-  contributors: (PaperContributor & { user: User })[];
+  contributors: (PaperContributor & { user: PublicUser })[];
 };
 
 type Page = {

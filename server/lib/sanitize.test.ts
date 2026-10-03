@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeUser, sanitizeUsers } from "./sanitize";
+import { publicContributor, sanitizeUser, sanitizeUsers } from "./sanitize";
 import type { User } from "@shared/schema";
 
 const fullUser = {
@@ -46,5 +46,16 @@ describe("sanitizeUser", () => {
     const arr = sanitizeUsers([fullUser]) as Record<string, unknown>[];
     expect(arr[0].mcpToken).toBeUndefined();
     expect(arr[0].username).toBe("alice");
+  });
+
+  it("publicContributor strips credentials from the nested user but keeps the rest", () => {
+    const c = publicContributor({ id: "c1", paperId: "p1", userId: "u1", role: "author", user: fullUser as User }) as any;
+    expect(c.user.zkpCommitment).toBeUndefined();
+    expect(c.user.mcpToken).toBeUndefined();
+    expect(c.user.mcpTokenExpiry).toBeUndefined();
+    expect(c.user.id).toBe("u1");
+    expect(c.user.username).toBe("alice");
+    expect(c.id).toBe("c1");
+    expect(c.role).toBe("author");
   });
 });
