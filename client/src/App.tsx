@@ -39,6 +39,9 @@ const LedgerAgentPage = lazy(() => import("@/pages/ledger-agent"));
 const LedgerPage = lazy(() => import("@/pages/ledger"));
 const LedgerRecordPage = lazy(() => import("@/pages/ledger-record"));
 const LedgerCampaignPage = lazy(() => import("@/pages/ledger-campaign"));
+const LedgerFilePage = lazy(() => import("@/pages/ledger-file"));
+const LedgerReleasesPage = lazy(() => import("@/pages/ledger-releases"));
+const AdminAgentsPage = lazy(() => import("@/pages/admin-agents"));
 import { CookieConsent } from "@/components/cookie-consent";
 import { PWAInstallPrompt, OfflineIndicator, UpdateBanner } from "@/components/pwa";
 import { WagmiProvider } from "wagmi";
@@ -85,6 +88,9 @@ function Router() {
         <Route path="/ledger" component={LedgerPage} />
         <Route path="/records/:id" component={LedgerRecordPage} />
         <Route path="/campaigns/:id" component={LedgerCampaignPage} />
+        <Route path="/file" component={LedgerFilePage} />
+        <Route path="/releases" component={LedgerReleasesPage} />
+        <Route path="/admin/agents" component={AdminAgentsPage} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
