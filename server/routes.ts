@@ -2,7 +2,6 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import {
-  insertUserSchema,
   insertPaperSchema,
   insertPaperContributorSchema,
   insertBlockchainRecordSchema,
@@ -14,6 +13,7 @@ import { createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { sanitizeUser, sanitizeUsers } from "./lib/sanitize";
 import { requireAuth, requireAdmin } from "./middleware/auth";
+import { createUserAsAdmin, deleteUserAsAdmin, resetUserSecret } from "./routes/admin-users";
 import { performAgentResearch, generatePaperTitle } from "./services/ai";
 import { publishToNeoX, publishToBase, generatePaperHash, verifyBlockchainRecord, estimateGasCost } from "./services/blockchain";
 import { agentManager } from "./services/agent-manager";
@@ -168,16 +168,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create user (ZKP auth registration)
-  app.post("/api/users", async (req, res) => {
-    try {
-      const userData = insertUserSchema.parse(req.body);
-      const user = await storage.createUser(userData);
-      res.json(sanitizeUser(user));
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+  // Create user: admin only. Role and userType are never taken from the body.
+  app.post("/api/users", requireAdmin, createUserAsAdmin);
+  app.post("/api/admin/users/:id/reset-password", requireAdmin, resetUserSecret);
+  app.delete("/api/admin/users/:id", requireAdmin, deleteUserAsAdmin);
 
   // Get user by username
   app.get("/api/users/by-username/:username", async (req, res) => {

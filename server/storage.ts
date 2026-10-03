@@ -48,6 +48,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User>;
   getAllUsers(): Promise<User[]>;
+  deleteUser(id: string): Promise<void>;
   
   // Paper operations
   getPaper(id: string): Promise<Paper | undefined>;
@@ -144,6 +145,18 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    try {
+      await db.delete(users).where(eq(users.id, id));
+    } catch (error: any) {
+      // 23503 = foreign_key_violation: the user is referenced by papers, tasks, records...
+      if (error?.code === "23503") {
+        throw Object.assign(new Error("User is referenced by other records"), { code: "user_referenced" });
+      }
+      throw error;
+    }
   }
 
   async updateUser(id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User> {
