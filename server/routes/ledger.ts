@@ -39,7 +39,11 @@ const str = (v: unknown) => (typeof v === "string" && v.length ? v : undefined);
 const viewer = (req: Request) => (req.user ? actorFromUser(req.user as any) : null);
 const actor = (req: Request) => actorFromUser(req.user as any);
 
-export function createLedgerRouter(svc: LedgerService, limits: { file?: RequestHandler; read?: RequestHandler } = {}): Router {
+export function createLedgerRouter(
+  svc: LedgerService,
+  limits: { file?: RequestHandler; read?: RequestHandler } = {},
+  extras: { inviterOf?: (username: string) => Promise<string | null> } = {},
+): Router {
   const r = Router();
   // A signed-in viewer's responses can include held records: never let a shared cache or the browser store them.
   r.use((req, res, next) => {
@@ -108,7 +112,7 @@ export function createLedgerRouter(svc: LedgerService, limits: { file?: RequestH
     try {
       const profile = await svc.agentProfile(viewer(req), req.params.username);
       if (!profile) { res.status(404).json({ error: "not_found" }); return; }
-      res.json(profile);
+      res.json({ ...profile, invitedBy: extras.inviterOf ? await extras.inviterOf(req.params.username) : null });
     } catch (e) { sendLedgerError(res, e, req); }
   });
 

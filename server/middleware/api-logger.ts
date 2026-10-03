@@ -3,6 +3,9 @@ import type { RequestHandler } from "express";
 /** The key-issue routes (per-user keys, and one-step add-agent): their responses are never logged, whatever their shape. */
 const KEY_ISSUE_ROUTE = /^\/api\/admin\/(?:users\/[^/]+\/keys|agents)\/?$/;
 
+/** Invite redemption returns a fresh key secret and invite minting returns the plaintext code: never log either. */
+const INVITE_ROUTE = /^\/api\/ledger\/(?:onboard|invites)\/?$/i;
+
 /** Ledger reads: a signed-in viewer's response can carry held titles, which must not sit in operator logs. */
 const LEDGER_PATH = /^\/api\/ledger(\/|$)/i;
 
@@ -19,7 +22,7 @@ export function apiLogger(write: (line: string) => void): RequestHandler {
   return (req, res, next) => {
     const start = Date.now();
     const path = req.path;
-    const neverLogBody = req.method === "POST" && KEY_ISSUE_ROUTE.test(path);
+    const neverLogBody = req.method === "POST" && (KEY_ISSUE_ROUTE.test(path) || INVITE_ROUTE.test(path));
     let captured: unknown;
 
     const originalResJson = res.json;

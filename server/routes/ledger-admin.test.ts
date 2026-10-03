@@ -2,7 +2,8 @@ import bcrypt from "bcryptjs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import express from "express";
 import { AgentKeyService } from "../services/ledger/agent-keys";
-import { MemoryAgentKeyStore } from "../services/ledger/memory-store";
+import { MemoryAgentKeyStore, MemoryInviteStore } from "../services/ledger/memory-store";
+import { InviteService } from "../services/ledger/invites";
 import { createLedgerAdminRouter } from "./ledger-admin";
 import { isValidEd25519PublicKey } from "../services/ledger/agent-keys";
 import { serve } from "../test-utils/serve";
@@ -38,7 +39,8 @@ beforeEach(async () => {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => { const who = req.header("x-test-user") ?? "u-n"; (req as any).user = who === "anon" ? undefined : users.get(who); next(); });
-  app.use("/api/admin", createLedgerAdminRouter({ keys, users: userStore }));
+  const inviteStore = new MemoryInviteStore();
+  app.use("/api/admin", createLedgerAdminRouter({ keys, users: userStore, invites: new InviteService(inviteStore, userStore as any, keys) }));
   srv = await serve(app);
 });
 afterEach(async () => { await srv.close(); });
@@ -223,7 +225,7 @@ describe("GET /agents", () => {
     expect(res.status).toBe(200);
     const list = await res.json();
     expect(list.map((x: any) => x.username)).toEqual(["alpha", "zed"]);
-    expect(list[0]).toEqual({ id: a.user.id, username: "alpha", displayName: "alpha", canRelease: false, activeKeys: 1, lastUsedAt: null });
+    expect(list[0]).toEqual({ id: a.user.id, username: "alpha", displayName: "alpha", canRelease: false, canInvite: false, invitedBy: null, activeKeys: 1, lastUsedAt: null });
     expect(list[1].activeKeys).toBe(1);
     expect(JSON.stringify(list)).not.toMatch(/zkpCommitment|keyHash|scl_|\$2[aby]\$/);
   });
@@ -231,5 +233,83 @@ describe("GET /agents", () => {
   it("is admin-only", async () => {
     expect((await call("GET", "/agents", undefined, "anon")).status).toBe(401);
     expect((await call("GET", "/agents", undefined, "u-q")).status).toBe(403);
+  });
+});
+
+describe("invite administration", () => {
+  const promote = (id: string) => call("POST", `/users/${id}/promote-agent`);
+
+  it("can-invite sets the right on an agent and returns the sanitized user", async () => {
+    await promote("u-q");
+    const res = await call("POST", "/users/u-q/can-invite", { canInvite: true });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ id: "u-q", canInvite: true });
+    expect(body).not.toHaveProperty("zkpCommitment");
+    expect(users.get("u-q").canInvite).toBe(true);
+    // Anything other than a literal true clears it.
+    expect((await (await call("POST", "/users/u-q/can-invite", { canInvite: "yes" })).json()).canInvite).toBe(false);
+    expect(users.get("u-q").canInvite).toBe(false);
+  });
+
+  it("can-invite refuses a human with 409 forbidden and an unknown user with 404", async () => {
+    const human = await call("POST", "/users/u-h/can-invite", { canInvite: true });
+    expect(human.status).toBe(409);
+    expect((await human.json()).error).toBe("forbidden");
+    expect(users.get("u-h").canInvite).toBeFalsy();
+    expect((await call("POST", "/users/nobody/can-invite", { canInvite: true })).status).toBe(404);
+  });
+
+  it("can-invite and revoke-chain are admin-only", async () => {
+    await promote("u-q");
+    for (const p of ["/users/u-q/can-invite", "/users/u-q/revoke-chain"]) {
+      expect((await call("POST", p, { canInvite: true }, "anon")).status).toBe(401);
+      const plain = await call("POST", p, { canInvite: true }, "u-h");
+      expect(plain.status).toBe(403);
+      expect((await plain.json()).error).toBe("forbidden");
+    }
+    expect(users.get("u-q").canInvite).toBeFalsy();
+  });
+
+  it("revoke-chain returns numeric {accounts, keys, invites} and cuts the whole descent", async () => {
+    await promote("u-q");
+    await call("POST", "/users/u-q/can-invite", { canInvite: true });
+    await call("POST", "/users/u-q/keys", { name: "k1" });
+    users.set("u-kid", { id: "u-kid", username: "kid", userType: "agent", role: "user", canRelease: false, canInvite: true, invitedBy: "u-q" });
+    await call("POST", "/users/u-kid/keys", { name: "k2" });
+    const res = await call("POST", "/users/u-q/revoke-chain");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ accounts: 2, keys: 2, invites: 0 });
+    expect(users.get("u-q").canInvite).toBe(false);
+    expect(users.get("u-kid").canInvite).toBe(false);
+    const keys = await (await call("GET", "/users/u-kid/keys")).json();
+    expect(keys.every((k: any) => k.revokedAt)).toBe(true);
+    // A human account has no chain to revoke.
+    expect((await call("POST", "/users/u-h/revoke-chain")).status).toBe(409);
+  });
+
+  it("add agent with canInvite:true creates the agent with the right; without it the right is false", async () => {
+    const res = await call("POST", "/agents", { username: "inviter", canInvite: true });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.user.canInvite).toBe(true);
+    expect(users.get(body.user.id).canInvite).toBe(true);
+    const plain = await (await call("POST", "/agents", { username: "plainagent" })).json();
+    expect(plain.user.canInvite).toBe(false);
+    // On an existing agent the flag grants the right too.
+    const again = await (await call("POST", "/agents", { username: "plainagent", canInvite: true })).json();
+    expect(again.created).toBe(false);
+    expect(again.user.canInvite).toBe(true);
+    expect(users.get(plain.user.id).canInvite).toBe(true);
+    expect((await call("POST", "/agents", { username: "badflag", canInvite: "yes" })).status).toBe(400);
+  });
+
+  it("agent list shows canInvite and the inviter's username", async () => {
+    await promote("u-q");
+    users.set("u-kid", { id: "u-kid", username: "kid", userType: "agent", role: "user", canRelease: false, canInvite: true, invitedBy: "u-q" });
+    const list = await (await call("GET", "/agents")).json();
+    const kid = list.find((x: any) => x.username === "kid");
+    expect(kid).toMatchObject({ canInvite: true, invitedBy: "qe" });
+    expect(list.find((x: any) => x.username === "qe")).toMatchObject({ canInvite: false, invitedBy: null });
   });
 });

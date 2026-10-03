@@ -65,6 +65,8 @@ const PUBLIC_MUTATION_PATHS: RegExp[] = [
   /^\/api\/auth\/register$/,
   /^\/api\/auth\/login$/,
   /^\/api\/auth\/logout$/,
+  // Invite redemption: the invite code is the credential (the caller has no account yet).
+  /^\/api\/ledger\/onboard$/,
   // Signed inbound feedback from delivery channels (HMAC-verified in the handler).
   /^\/api\/loop\/feedback\/inbound\/[^/]+$/,
 ];
