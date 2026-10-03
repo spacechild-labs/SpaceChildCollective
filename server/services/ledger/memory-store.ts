@@ -97,6 +97,7 @@ export class MemoryLedgerStore implements LedgerStore {
   }
 
   async insertRecord(n: NewLedgerRecord, events: NewOutboxEvent[]): Promise<StoredRecord> {
+    if (this.records.has(n.id)) throw Object.assign(new Error("duplicate id"), { code: "duplicate" });
     if (n.clientRef && [...this.records.values()].some((r) => r.authorId === n.authorId && r.clientRef === n.clientRef)) {
       throw Object.assign(new Error("duplicate client_ref"), { code: "duplicate_client_ref" });
     }

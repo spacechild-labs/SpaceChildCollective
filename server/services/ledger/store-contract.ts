@@ -87,6 +87,20 @@ export function describeLedgerStoreContract(label: string, make: () => Promise<C
       expect((await f.store.authorStats(f.alice.id, { includeHeld: true })).filed).toBe(2);
     });
 
+    it("refuses a second record with an existing id and leaves the original untouched", async () => {
+      const eventsBefore = (await f.store.listUnpublishedEvents(100)).length;
+      const held = await f.store.insertRecord(rec(f.alice.id, { held: true }), [{ subject: "test.event", payload: {} }]);
+      expect(held.title).toBe("t");
+      expect(held.held).toBe(true);
+      const eventsAfter = (await f.store.listUnpublishedEvents(100)).length;
+      expect(eventsAfter).toBe(eventsBefore + 1);
+      await expect(f.store.insertRecord(rec(f.alice.id, { id: held.id, held: false, title: "different" }), [{ subject: "other.event", payload: {} }])).rejects.toMatchObject({ code: "duplicate" });
+      const after = await f.store.getRecord(held.id, { includeHeld: true });
+      expect(after?.title).toBe("t");
+      expect(after?.held).toBe(true);
+      expect((await f.store.listUnpublishedEvents(100)).length).toBe(eventsAfter);
+    });
+
     it("rejects a duplicate campaign id and updates status", async () => {
       await f.store.insertCampaign({ id: "ecdsa-c007", title: "c007", ownerId: f.alice.id });
       await expect(f.store.insertCampaign({ id: "ecdsa-c007", title: "again", ownerId: f.alice.id })).rejects.toMatchObject({ code: "duplicate" });
