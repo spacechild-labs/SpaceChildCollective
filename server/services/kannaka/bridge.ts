@@ -59,7 +59,7 @@ export interface BridgeStatus {
   startedAt: string | null;
 }
 
-type Handler = (payload: any, subject: string) => void | Promise<void>;
+type Handler = (payload: any, subject: string, reply?: (body: unknown) => void) => void | Promise<void>;
 
 export class KannakaBridge {
   private nc: NatsConnection | null = null;
@@ -314,7 +314,10 @@ export class KannakaBridge {
         let payload: any;
         try { payload = JSON.parse(codec.decode(m.data)); } catch { payload = { raw: codec.decode(m.data) }; }
         try {
-          await handler(payload, m.subject);
+          const reply = m.reply
+            ? (body: unknown) => { try { this.nc?.publish(m.reply!, codec.encode(JSON.stringify(body))); } catch { /* requester gone */ } }
+            : undefined;
+          await handler(payload, m.subject, reply);
         } catch (err: any) {
           console.error(`[kannaka] handler for ${m.subject} failed: ${err?.message ?? err}`);
           // Deployed logs are not always reachable; put the failure where the operator can hear it.

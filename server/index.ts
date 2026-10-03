@@ -15,7 +15,9 @@ import { kannakaLoopEvents } from "./services/kannaka/events";
 import { validateEnv } from "./config/env";
 import { loadUser, guardMutations } from "./middleware/auth";
 import { agentKeyAuth } from "./services/ledger/agent-keys";
-import { agentKeys } from "./services/ledger";
+import { agentKeys, ledgerStore, ledgerService } from "./services/ledger";
+import { NATS_FILE_SUBJECT, NonceCache, handleFileMessage } from "./services/ledger/nats-door";
+import { OutboxPublisher } from "./services/ledger/outbox-publisher";
 import { apiLogger } from "./middleware/api-logger";
 import { pool } from "./db";
 import { aiKeyManager } from "./services/ai-key-manager";
@@ -88,6 +90,8 @@ app.use(guardMutations);
 // Logs /api requests; never logs a response body that carries a secret (see middleware/api-logger).
 app.use(apiLogger(log));
 
+let ledgerOutbox: OutboxPublisher | null = null;
+
 (async () => {
   await aiKeyManager.initialize();
   log("AI provider configurations loaded");
@@ -133,6 +137,15 @@ app.use(apiLogger(log));
     const up = await kannakaBridge.start();
     // Wire events regardless: publishes connect lazily and subscriptions apply when the bus appears.
     await kannakaLoopEvents.start();
+    // Ledger NATS door (spec 4.3): signed filings in, ledger events out.
+    const ledgerNonces = new NonceCache();
+    await kannakaBridge.subscribe(NATS_FILE_SUBJECT, async (payload, _subject, reply) => {
+      const result = await handleFileMessage(payload, { svc: ledgerService, keys: agentKeys, nonces: ledgerNonces, log });
+      reply?.(result);
+    });
+    ledgerOutbox = new OutboxPublisher(ledgerStore, (subject, payload) => kannakaBridge.publish(subject, payload));
+    ledgerOutbox.start();
+    log(`Ledger NATS door listening on ${NATS_FILE_SUBJECT}`);
     log(up ? "Kannaka bridge connected (" + kannakaBridge.status().server + ")" : "Kannaka bridge configured but not reachable; will retry on demand");
   } else {
     log("Kannaka bridge disabled (set KANNAKA_NATS_URL to enable)");
@@ -170,6 +183,7 @@ app.use(apiLogger(log));
       
       deliveryWorker.stop();
       kannakaLoopEvents.stop();
+      ledgerOutbox?.stop();
       await kannakaBridge.stop();
 
       // Stop agent manager
