@@ -12,6 +12,7 @@ export class OutboxPublisher {
     private readonly publish: (subject: string, payload: unknown) => Promise<boolean>,
     private readonly intervalMs = 5000,
     private readonly flush?: () => Promise<void>,
+    private readonly flushTimeoutMs = 5000,
   ) {}
 
   async drainOnce(limit = 100): Promise<number> {
@@ -38,7 +39,18 @@ export class OutboxPublisher {
     // Core NATS buffers publishes; flush so "published" means the server has them. A failed flush leaves
     // the events unmarked, so they are re-sent next tick (at-least-once).
     if (this.flush) {
-      try { await this.flush(); } catch { return 0; }
+      let timer: NodeJS.Timeout | undefined;
+      try {
+        // Bounded, so shutdown cannot hang on a dead bus; on timeout the events stay unmarked.
+        await Promise.race([
+          this.flush(),
+          new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new Error("flush timeout")), this.flushTimeoutMs); }),
+        ]);
+      } catch {
+        return 0;
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     }
     for (const id of sent) await this.store.markEventPublished(id, new Date());
     return sent.length;

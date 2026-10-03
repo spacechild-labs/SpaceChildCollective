@@ -211,4 +211,20 @@ describe("NATS ledger door", () => {
     expect(lines.join("\n")).toContain("bad_signature");
     expect(lines.join("\n")).not.toMatch(/SECRET-TITLE|AAAAAAAA/);
   });
+
+  it("replays never consume the key's filing budget", async () => {
+    const prev = process.env.LEDGER_FILE_LIMIT_PER_HOUR;
+    process.env.LEDGER_FILE_LIMIT_PER_HOUR = "2";
+    try {
+      const msg = signed({ kind: "result", title: "captured" });
+      expect((await handleFileMessage(msg, deps)).ok).toBe(true);
+      for (let i = 0; i < 10; i++) expect(await handleFileMessage(msg, deps)).toEqual({ ok: false, reason: "replayed_nonce" });
+      // one of two budget units used by the original; the replays took none
+      expect((await handleFileMessage(signed({ kind: "result", title: "fresh" }), deps)).ok).toBe(true);
+      expect(await handleFileMessage(signed({ kind: "result", title: "over" }), deps)).toMatchObject({ reason: "rate_limited" });
+    } finally {
+      if (prev === undefined) delete process.env.LEDGER_FILE_LIMIT_PER_HOUR;
+      else process.env.LEDGER_FILE_LIMIT_PER_HOUR = prev;
+    }
+  });
 });

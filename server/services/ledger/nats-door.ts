@@ -18,6 +18,12 @@ export class NonceCache {
   private seen = new Map<string, number>();
   constructor(private readonly ttlMs: number = NONCE_TTL_MS, private readonly maxEntries: number = MAX_NONCES) {}
 
+  /** Read-only: was this nonce seen within the TTL? */
+  has(nonce: string, now: number): boolean {
+    const t = this.seen.get(nonce);
+    return t !== undefined && now - t <= this.ttlMs;
+  }
+
   /** "new" (recorded), "replayed" (seen within the TTL) or "full" (cache at its cap; nothing recorded). */
   tryAdd(nonce: string, now: number): "new" | "replayed" | "full" {
     // Insertion order is time order, so the sweep stops at the first live entry.
@@ -90,9 +96,12 @@ export async function handleFileMessage(
   const ts = Date.parse(p.ts);
   if (!Number.isFinite(ts)) return reject("invalid_input", keyId, "ts is not a valid time");
   if (Math.abs(now - ts) > MAX_SKEW_MS) return reject("stale_timestamp", keyId);
-  // Budget before the nonce is stored: signed flooding cannot grow the cache faster than the key's budget.
+  // A replay must be refused before it can touch the budget (a bus listener could otherwise drain the key's
+  // budget with captured messages). Then budget, then record the nonce, so flooding is bounded by the budget.
+  const nonceKey = `${keyId}:${p.nonce}`;
+  if (deps.nonces.has(nonceKey, now)) return reject("replayed_nonce", keyId);
   if (!(deps.budget ?? mcpKeyBudget).take("file", keyId)) return reject("rate_limited", keyId);
-  const added = deps.nonces.tryAdd(`${keyId}:${p.nonce}`, now);
+  const added = deps.nonces.tryAdd(nonceKey, now);
   if (added === "replayed") return reject("replayed_nonce", keyId);
   if (added === "full") return reject("rate_limited", keyId, "nonce cache is full; retry later");
 

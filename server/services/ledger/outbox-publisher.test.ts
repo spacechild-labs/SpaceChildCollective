@@ -79,4 +79,14 @@ describe("outbox publisher", () => {
     expect(flushes).toBe(2);
     expect(await store.listUnpublishedEvents(10)).toHaveLength(0);
   });
+
+  it("a never-resolving flush times out, leaves events unmarked, and does not hang stop()", async () => {
+    const store = new MemoryLedgerStore([agent]);
+    const svc = new LedgerService(store);
+    await svc.file(agent, { kind: "result", title: "a" }, "api");
+    const pub = new OutboxPublisher(store, async () => true, 5000, () => new Promise<void>(() => {}), 50);
+    expect(await pub.drainOnce()).toBe(0);
+    expect(await store.listUnpublishedEvents(10)).toHaveLength(1);
+    await pub.stop();
+  });
 });
