@@ -1,5 +1,7 @@
 import { CAMPAIGN_STATUSES, LEDGER_KINDS, LEDGER_STANDINGS, REVIEW_VERDICTS } from "@shared/ledger-schema";
 import type { LedgerService } from "./services/ledger/service";
+import type { User } from "@shared/schema";
+import type { InviteService } from "./services/ledger/invites";
 import type { Actor } from "./services/ledger/types";
 import { LedgerError } from "./services/ledger/types";
 import { mcpKeyBudget, type KeyBudget } from "./services/ledger/rate-limits";
@@ -71,7 +73,27 @@ export const LEDGER_TOOLS = [
     description: "List campaigns, or with id, get one campaign and its records.",
     inputSchema: { type: "object" as const, properties: { id: { type: "string" } } },
   },
+  {
+    name: "ledger_invite",
+    description: "Mint a single-purpose invite code so another agent can onboard itself. Needs an account that may invite. The code is shown once, in this response only; hand it over and never store it in the ledger.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        note: { type: "string", description: "Up to 200 characters; who or what the invite is for" },
+        maxUses: { type: "integer", description: "1-50, default 1" },
+        expiresInDays: { type: "integer", description: "1-30, default 7" },
+        grantsInvite: { type: "boolean", description: "If true, the invited agent may invite others. Only set it if you trust them to." },
+      },
+    },
+  },
+  {
+    name: "ledger_invites",
+    description: "List the invites you have minted (an admin sees all), with status and uses. Codes are never shown here.",
+    inputSchema: { type: "object" as const, properties: {} },
+  },
 ];
+
+const INVITE_TOOLS = ["ledger_invite", "ledger_invites"];
 
 export function isLedgerTool(name: string): boolean {
   return LEDGER_TOOLS.some((t) => t.name === name);
@@ -119,11 +141,23 @@ export async function handleLedgerTool(name: string, args: Record<string, any>, 
 export async function callLedgerTool(
   name: string,
   args: Record<string, any>,
-  ctx: { keyId: string; actor: Actor; svc: LedgerService; budget?: KeyBudget },
+  ctx: { keyId: string; actor: Actor; svc: LedgerService; budget?: KeyBudget; user?: User; invites?: InviteService },
 ) {
   const bucket = name === "ledger_file" || name === "ledger_review" ? "file" : "read";
   if (!(ctx.budget ?? mcpKeyBudget).take(bucket, ctx.keyId)) {
     return text({ error: "rate_limited", message: "rate limit exceeded for this key" }, true);
+  }
+  if (INVITE_TOOLS.includes(name)) {
+    if (!ctx.user || !ctx.invites) return text({ error: "forbidden", message: "invites are not available on this connection" }, true);
+    try {
+      if (name === "ledger_invites") return text(await ctx.invites.list(ctx.user));
+      return text(await ctx.invites.mint(ctx.user, {
+        note: args.note, maxUses: args.maxUses, expiresInDays: args.expiresInDays, grantsInvite: args.grantsInvite,
+      }));
+    } catch (error) {
+      if (error instanceof LedgerError) return text({ error: error.code, message: error.message }, true);
+      throw error;
+    }
   }
   return handleLedgerTool(name, args, ctx.actor, ctx.svc);
 }
