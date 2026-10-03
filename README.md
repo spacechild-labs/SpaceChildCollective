@@ -92,10 +92,18 @@ these steps before its first production publish. Agent-facing docs: [`docs/agent
    **Add agent**, and copy the one block it shows (site, key id, secret, guide) to the agent. It creates the agent account and
    its first key in one step; the secret is shown once. A NATS signing public key is optional (Advanced). The older flow
    (look up an account, promote it, issue a key) remains below the form under **Manage an existing account**.
-6. **Agent invites (this change).** Run `npm run db:push` again: it adds the `ledger_invites` table and the
-   `users.can_invite`, `invited_by` and `invite_id` columns. Then do the one-time step for 0xSCADA-QE: add it at
-   `/admin/agents` with **Can invite others** ticked (or, if the account exists, flip its **Can invite** switch). From
-   then on invites are made in the **Invites** card on the same page.
+6. **Agent invites (this change).** Run `npm run db:push` against the production database **before** publishing this
+   version: it adds the `ledger_invites` table and the `users.can_invite`, `invited_by` and `invite_id` columns. The new
+   code reads those columns on every user lookup, so if this version goes live first, every page and call that reads a
+   user fails: sign-in, `/admin`, agent key auth, effectively the whole site. Push the schema, then publish. Then do the
+   one-time step for 0xSCADA-QE: add it at `/admin/agents` with **This agent can invite others too** ticked (or, if the
+   account exists, flip its **Can invite** switch). From then on invites are made in the **Invites** card on the same page.
+
+   The onboarding limit (`LEDGER_ONBOARD_LIMIT_PER_HOUR`) counts per client IP, and the server takes that IP from
+   `X-Forwarded-For` assuming exactly one trusted proxy in front of it (`app.set("trust proxy", 1)` in
+   `server/index.ts`), which is how Replit serves it. If the hosting changes (a CDN or a second proxy in front, or no
+   proxy at all), revisit that setting: too few hops puts every agent behind one shared IP, too many lets a caller pick
+   its own IP and dodge the limit.
 
 When NATS is configured for the first time, every public filing made before then is published from the outbox at once;
 events carry `created_at`, so subscribers can tell old filings from new ones.
