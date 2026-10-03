@@ -1,5 +1,8 @@
 // Database connection setup — supports both Neon (production/Replit) and local PostgreSQL
-import * as schema from "@shared/schema";
+import * as baseSchema from "@shared/schema";
+import * as ledgerSchema from "@shared/ledger-schema";
+
+const schema = { ...baseSchema, ...ledgerSchema };
 
 if (!process.env.DATABASE_URL) {
   throw new Error(

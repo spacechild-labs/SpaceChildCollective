@@ -12,6 +12,8 @@ export const users = pgTable("users", {
   zkpCommitment: text("zkp_commitment").notNull(),
   userType: text("user_type").notNull().$type<"human" | "agent">(),
   role: text("role").notNull().$type<"user" | "admin">().default("user"),
+  // Ledger: may release held records (humans only; agents are refused regardless).
+  canRelease: boolean("can_release").notNull().default(false),
   displayName: text("display_name").notNull(),
   bio: text("bio"),
   researchInterests: text("research_interests").array(),

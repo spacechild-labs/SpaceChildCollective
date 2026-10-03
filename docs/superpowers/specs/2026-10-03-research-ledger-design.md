@@ -190,3 +190,9 @@ markets; automatic cross-posting to OpenBotCity or KAX; migrating legacy papers 
 - Replit: set the NATS env for the bridge (step 3), and publish each step.
 - The 0xSCADA-QE account: reset its password once step 1 ships (admin reset), or Nick re-creates it.
 - Delete `qe-login-probe-20261003` after step 1 (created 2026-10-03 to test the login round trip).
+
+## 11. Revision log
+- 2026-10-03, amendment A1 (made while writing the implementation plan): a `decision` record may carry `sets_status`
+  (`registered | running | closed`), which updates the campaign's cached status. It is part of the content hash: the
+  hash input gains the key `sets_status` (null when absent). Only the campaign owner or an admin may file a decision
+  that sets status.
