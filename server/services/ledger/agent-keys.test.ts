@@ -66,15 +66,15 @@ describe("agent keys", () => {
     const { secret } = await svc.issue("agent-1", "k");
     const app = express();
     app.use(agentKeyAuth(svc));
-    app.get("/who", (req, res) => res.json({ user: req.user?.username ?? null, key: Boolean(req.agentKey) }));
+    app.get("/api/ledger/who", (req, res) => res.json({ user: req.user?.username ?? null, key: Boolean(req.agentKey) }));
     const { base, close } = await serve(app);
     try {
-      expect(await (await fetch(`${base}/who`, { headers: { authorization: `Bearer ${secret}` } })).json()).toEqual({ user: "kannaka", key: true });
-      const bad = await fetch(`${base}/who`, { headers: { authorization: "Bearer scl_wrong" } });
+      expect(await (await fetch(`${base}/api/ledger/who`, { headers: { authorization: `Bearer ${secret}` } })).json()).toEqual({ user: "kannaka", key: true });
+      const bad = await fetch(`${base}/api/ledger/who`, { headers: { authorization: "Bearer scl_wrong" } });
       expect(bad.status).toBe(401);
       expect(await bad.json()).toEqual({ error: "unknown_key" });
-      expect(await (await fetch(`${base}/who`, { headers: { authorization: "Bearer legacy.hmac-token" } })).json()).toEqual({ user: null, key: false });
-      expect(await (await fetch(`${base}/who`)).json()).toEqual({ user: null, key: false });
+      expect(await (await fetch(`${base}/api/ledger/who`, { headers: { authorization: "Bearer legacy.hmac-token" } })).json()).toEqual({ user: null, key: false });
+      expect(await (await fetch(`${base}/api/ledger/who`)).json()).toEqual({ user: null, key: false });
     } finally {
       await close();
     }
@@ -86,10 +86,10 @@ describe("agent keys", () => {
     const { secret } = await svc.issue("agent-1", "k");
     const app = express();
     app.use(agentKeyAuth(svc));
-    app.post("/file", ledgerFileLimiter(), (_req, res) => res.json({ ok: true }));
+    app.post("/api/ledger/file", ledgerFileLimiter(), (_req, res) => res.json({ ok: true }));
     const { base, close } = await serve(app);
     try {
-      const post = () => fetch(`${base}/file`, { method: "POST", headers: { authorization: `Bearer ${secret}` } });
+      const post = () => fetch(`${base}/api/ledger/file`, { method: "POST", headers: { authorization: `Bearer ${secret}` } });
       expect((await post()).status).toBe(200);
       expect((await post()).status).toBe(200);
       const third = await post();
@@ -109,10 +109,10 @@ describe("agent key hardening", () => {
     const { secret } = await svc.issue("agent-1", "k");
     const app = express();
     app.use(agentKeyAuth(svc));
-    app.get("/who", (req, res) => res.json({ user: req.user?.username ?? null }));
+    app.get("/api/ledger/who", (req, res) => res.json({ user: req.user?.username ?? null }));
     const srv = await serve(app);
     try {
-      const get = (auth: string) => fetch(`${srv.base}/who`, { headers: { authorization: auth } });
+      const get = (auth: string) => fetch(`${srv.base}/api/ledger/who`, { headers: { authorization: auth } });
       expect((await get("bearer scl_bad")).status).toBe(401);
       expect((await get("BEARER   SCL_bad")).status).toBe(401);
       expect((await get("Bearer  scl_bad extra")).status).toBe(401);
@@ -130,10 +130,10 @@ describe("agent key hardening", () => {
     expect(await svc.authenticate(secret)).toEqual({ ok: false, error: "forbidden" });
     const app = express();
     app.use(agentKeyAuth(svc));
-    app.get("/who", (_req, res) => res.json({ anonymous: true }));
+    app.get("/api/ledger/who", (_req, res) => res.json({ anonymous: true }));
     const srv = await serve(app);
     try {
-      const res = await fetch(`${srv.base}/who`, { headers: { authorization: `Bearer ${secret}` } });
+      const res = await fetch(`${srv.base}/api/ledger/who`, { headers: { authorization: `Bearer ${secret}` } });
       expect(res.status).toBe(401);
       expect(await res.json()).toEqual({ error: "forbidden" });
     } finally { await srv.close(); }

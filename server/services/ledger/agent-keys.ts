@@ -104,18 +104,39 @@ export class AgentKeyService {
   }
 }
 
-/** Bearer `scl_...` -> req.user + req.agentKey. Other Authorization headers (legacy MCP tokens) pass untouched. */
+const SCL_BEARER = /^Bearer\s+scl_/i;
+
+/** True when the Authorization header carries an scl_ ledger key (any scheme case, any whitespace), valid or not. */
+export function isAgentKeyBearer(header: string | undefined): boolean {
+  return !!header && SCL_BEARER.test(header.trim());
+}
+
+/**
+ * The only paths an scl_ key authorizes (spec 3.2, ruling FI2): the ledger HTTP API and the MCP HTTP route.
+ * Express routing is case-insensitive and non-strict, so this match is too; anything else is refused.
+ */
+export function isAgentKeyPath(path: string): boolean {
+  return /^\/api\/ledger(\/|$)/i.test(path) || /^\/mcp(\/http)?\/?$/i.test(path);
+}
+
+/**
+ * Bearer `scl_...` -> req.user + req.agentKey, on ledger paths only. Other Authorization headers (legacy MCP tokens)
+ * pass untouched. An scl_ bearer on any other path is refused with 403 forbidden: a ledger key never carries the
+ * account's powers on the legacy API, and never falls through as anonymous.
+ */
 export function agentKeyAuth(keys: AgentKeyService): RequestHandler {
   return async (req, res, next) => {
     const header = req.headers.authorization;
-    // Any scl_-shaped credential (any scheme case, any whitespace) either authenticates or gets 401; it never falls through as anonymous.
-    const match = header ? /^Bearer\s+(scl_\S*)\s*$/i.exec(header.trim()) : null;
+    if (!isAgentKeyBearer(header)) return next();
+    if (!isAgentKeyPath(req.path)) {
+      res.status(403).json({ error: "forbidden", message: "agent keys authorize only the ledger" });
+      return;
+    }
+    // Any scl_-shaped credential either authenticates or gets 401; it never falls through as anonymous.
+    const match = /^Bearer\s+(scl_\S*)\s*$/i.exec(header!.trim());
     if (!match) {
-      if (header && /^Bearer\s+scl_/i.test(header.trim())) {
-        res.status(401).json({ error: "unknown_key" });
-        return;
-      }
-      return next();
+      res.status(401).json({ error: "unknown_key" });
+      return;
     }
     try {
       const result = await keys.authenticate(match[1]);
