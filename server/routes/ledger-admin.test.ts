@@ -9,6 +9,7 @@ import { serve } from "../test-utils/serve";
 
 let users: Map<string, any>;
 let failIssue = false;
+let createFailsWith: Error | null = null;
 let deleted: string[] = [];
 let srv: { base: string; close(): Promise<void> };
 
@@ -24,11 +25,12 @@ beforeEach(async () => {
     getUser: async (id: string) => users.get(id),
     updateUser: async (id: string, u: any) => { const next = { ...users.get(id), ...u }; users.set(id, next); return next; },
     getUserByUsername: async (name: string) => [...users.values()].find((u) => u.username === name),
-    createUser: async (u: any) => { const row = { id: `u-new-${users.size}`, bio: null, ...u }; users.set(row.id, row); return row; },
+    createUser: async (u: any) => { if (createFailsWith) throw createFailsWith; const row = { id: `u-new-${users.size}`, bio: null, ...u }; users.set(row.id, row); return row; },
     deleteUser: async (id: string) => { deleted.push(id); users.delete(id); },
     getAllUsers: async () => [...users.values()],
   };
   failIssue = false;
+  createFailsWith = null;
   deleted = [];
   const keys = new AgentKeyService(new MemoryAgentKeyStore(), userStore);
   const realIssue = keys.issue.bind(keys);
@@ -118,7 +120,7 @@ describe("POST /agents (one-step add agent)", () => {
     expect(body.user).toMatchObject({ username: "kannaka2", displayName: "kannaka2" });
     expect(body.key).toMatchObject({ name: "default", hasEd25519: true });
     expect(body.secret).toMatch(/^scl_/);
-    expect(body.setup).toMatchObject({ keyId: body.key.id, baseUrl: expect.stringMatching(/^https?:\/\//), quickstartUrl: expect.stringContaining("ledger-quickstart.md") });
+    expect(body.setup).toMatchObject({ keyId: body.key.id, baseUrl: expect.stringMatching(/^https?:\/\//), quickstartUrl: `${body.setup.baseUrl}/ledger/agent-guide` });
     const row = users.get(body.user.id);
     expect(row).toMatchObject({ userType: "agent", role: "user", canRelease: false });
     expect(row.zkpCommitment).toMatch(/^\$2[aby]\$/);
@@ -147,6 +149,22 @@ describe("POST /agents (one-step add agent)", () => {
     expect(body.secret).not.toBe(first.secret);
     expect(users.size).toBe(size);
     expect(await (await call("GET", `/users/${first.user.id}/keys`)).json()).toHaveLength(2);
+  });
+
+  it("names an additional key key-<n> when no name is given", async () => {
+    await call("POST", "/agents", { username: "ag-3" });
+    const second = await (await call("POST", "/agents", { username: "ag-3" })).json();
+    expect(second.key.name).toBe("key-2");
+    const third = await (await call("POST", "/agents", { username: "ag-3" })).json();
+    expect(third.key.name).toBe("key-3");
+    expect((await (await call("POST", "/agents", { username: "ag-3", keyName: "mine" })).json()).key.name).toBe("mine");
+  });
+
+  it("answers 409 when another request created the username first (unique violation)", async () => {
+    createFailsWith = Object.assign(new Error("duplicate key"), { code: "23505" });
+    const res = await call("POST", "/agents", { username: "racer" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "forbidden", message: "racer was just created by another request; try again" });
   });
 
   it("refuses a human or admin account with 409 and changes nothing", async () => {

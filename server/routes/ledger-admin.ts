@@ -8,16 +8,14 @@ import { siteUrl } from "../lib/site-url";
 import { isValidEd25519PublicKey, type AgentKeyService } from "../services/ledger/agent-keys";
 import { requireLedgerAdmin, sendLedgerError } from "./ledger";
 
-export const QUICKSTART_URL = "https://github.com/spacechild-labs/SpaceChildCollective/blob/main/docs/agents/ledger-quickstart.md";
-
 /** Registration has no username rule of its own (any non-empty string), so the agent form uses this one. */
 const addAgentSchema = z.object({
-  username: z.string().trim().min(3, "username must be 3-64 characters").max(64, "username must be 3-64 characters")
-    .regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/, "username may use letters, digits, '_', '.' and '-', and must start with a letter or digit"),
-  displayName: z.string().trim().min(2, "displayName must be 2-120 characters").max(120, "displayName must be 2-120 characters").optional(),
-  keyName: z.string().trim().min(1, "keyName must be 1-64 characters").max(64, "keyName must be 1-64 characters").optional(),
+  username: z.string().trim().min(3, "The name must be 3-64 characters").max(64, "The name must be 3-64 characters")
+    .regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/, "The name may use letters, digits, '_', '.' and '-', and must start with a letter or digit"),
+  displayName: z.string().trim().min(2, "Display name must be 2-120 characters").max(120, "Display name must be 2-120 characters").optional(),
+  keyName: z.string().trim().min(1, "Key name must be 1-64 characters").max(64, "Key name must be 1-64 characters").optional(),
   ed25519PublicKey: z.string().trim().optional().transform((v) => v || undefined)
-    .refine((v) => v === undefined || isValidEd25519PublicKey(v), "ed25519PublicKey must be a raw 32-byte key in base64"),
+    .refine((v) => v === undefined || isValidEd25519PublicKey(v), "The NATS signing public key must be a 32-byte key in base64"),
 });
 
 export type LedgerAdminUsers = {
@@ -41,7 +39,7 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
         res.status(400).json({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "invalid input" });
         return;
       }
-      const { username, displayName, keyName = "default", ed25519PublicKey } = parsed.data;
+      const { username, displayName, keyName: givenKeyName, ed25519PublicKey } = parsed.data;
       const existing = await deps.users.getUserByUsername(username);
       if (existing && (existing.userType !== "agent" || existing.role === "admin")) {
         res.status(409).json({ error: "forbidden", message: `${username} is a human/admin account; agent keys can only belong to agent accounts` });
@@ -51,12 +49,24 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
       let created = false;
       if (!user) {
         // The password is unusable by construction: a hash of random bytes nobody ever sees. The agent signs in with its key only.
-        user = await deps.users.createUser({
-          username, displayName: displayName ?? username, userType: "agent", role: "user", canRelease: false,
-          zkpCommitment: await bcrypt.hash(randomBytes(32).toString("hex"), 12), bio: null, researchInterests: [],
-        } as InsertUser);
+        try {
+          user = await deps.users.createUser({
+            username, displayName: displayName ?? username, userType: "agent", role: "user", canRelease: false,
+            zkpCommitment: await bcrypt.hash(randomBytes(32).toString("hex"), 12), bio: null, researchInterests: [],
+          } as InsertUser);
+        } catch (e) {
+          // 23505 = unique_violation: another request created this username between our lookup and insert.
+          if ((e as { code?: string })?.code === "23505") {
+            res.status(409).json({ error: "forbidden", message: `${username} was just created by another request; try again` });
+            return;
+          }
+          throw e;
+        }
         created = true;
       }
+      // An agent that already has active keys gets "key-<n>" rather than another "default".
+      const activeKeys = created ? 0 : (await deps.keys.list(user.id)).filter((k) => !k.revokedAt).length;
+      const keyName = givenKeyName ?? (activeKeys > 0 ? `key-${activeKeys + 1}` : "default");
       let issued;
       try {
         issued = await deps.keys.issue(user.id, keyName, ed25519PublicKey ?? null);
@@ -73,7 +83,7 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
         user: { id: user.id, username: user.username, displayName: user.displayName },
         key: { id: key.id, name: key.name, prefix: key.prefix, hasEd25519: Boolean(key.ed25519PublicKey) },
         secret,
-        setup: { baseUrl: siteUrl(), keyId: key.id, quickstartUrl: QUICKSTART_URL },
+        setup: { baseUrl: siteUrl(), keyId: key.id, quickstartUrl: `${siteUrl()}/ledger/agent-guide` },
       });
     } catch (e) { sendLedgerError(res, e, req); }
   });

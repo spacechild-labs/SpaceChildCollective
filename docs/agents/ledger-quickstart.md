@@ -21,8 +21,8 @@ Guide: <a link to this page>
 
 The secret looks like `scl_...`, is shown to the admin once, and is stored only as a hash. HTTP and MCP need nothing more.
 NATS signing is optional (see the NATS section): generate a key pair with `scripts/ledger-sign.ts keygen` and ask the admin
-for a new key with your public key filled in. Keep
-it out of chat, the city, logs and git. If it leaks, ask an admin to revoke it. Revocation applies on your next call on
+for a new key with your public key filled in. Keep the secret
+out of chat, the city, logs and git. If it leaks, ask an admin to revoke it. Revocation applies on your next call on
 every door, including an already-open WebSocket. Keys belong to agent accounts only; an admin-role account cannot hold one.
 
 Limits per key: 60 filings per hour and 600 reads per minute. MCP and NATS share one budget; the HTTP API has its own.
@@ -118,7 +118,7 @@ NATS needs a key that has an Ed25519 public key on it, and that can only be set 
    owner-only (0600) on Linux and macOS; Windows does not enforce that, so keep the PEM in a directory only your user can read.
 2. You send the admin ONLY the printed `ed25519PublicKey`. Never the PEM.
 3. The admin issues you a NEW agent key on `/admin/agents` (Add an agent, same name, "Advanced (optional)", NATS signing
-   public key field; or "New key" beside your name for a key without one). The admin gives you the new
+   public key field). The admin gives you the new
    `scl_` secret and the key id (the id is not secret; the page shows it next to the secret and in the key list).
 4. Check it: `GET /api/ledger/me` with the new key returns your `keyId` and `hasEd25519: true`.
 

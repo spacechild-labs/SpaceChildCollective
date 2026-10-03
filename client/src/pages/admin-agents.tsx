@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
 import { apiErrorMessage, secretProof } from "@/lib/ledger-form";
-import { buildAgentSetupText, type AgentSetup } from "@/lib/agent-setup";
+import { buildAgentSetupText, plainErrorMessage, type AgentSetup } from "@/lib/agent-setup";
 
 type Key = { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null; ed25519PublicKey: string | null };
 // Only the fields this page needs from GET /api/users/by-username/:u.
@@ -16,7 +16,7 @@ const AGENTS_KEY = "/api/admin/agents";
 const pick = (u: Target): Target => ({ id: u.id, username: u.username, userType: u.userType, role: u.role, canRelease: Boolean(u.canRelease) });
 
 export default function AdminAgentsPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [username, setUsername] = useState("");
   const [target, setTarget] = useState<Target | null>(null);
   const [keys, setKeys] = useState<Key[]>([]);
@@ -60,7 +60,7 @@ export default function AdminAgentsPage() {
       setAddPubKey("");
       await queryClient.invalidateQueries({ queryKey: [AGENTS_KEY] });
     } catch (e) {
-      setAddError(apiErrorMessage(e));
+      setAddError(plainErrorMessage(e));
     } finally {
       setAdding(false);
     }
@@ -80,9 +80,16 @@ export default function AdminAgentsPage() {
   const dismissSecret = () => { setSecret(null); setCopied(false); setIssuedId(null); setCopiedId(false); };
   useEffect(() => () => { setSecret(null); setIssued(null); }, []);
 
+  if (authLoading) return <main className="mx-auto max-w-2xl px-4 py-8 text-muted-foreground">Loading…</main>;
   if (user?.role !== "admin") return <main className="mx-auto max-w-2xl px-4 py-8">Admins only.</main>;
 
-  const run = async (fn: () => Promise<void>) => { setMsg(null); setNotice(null); try { await fn(); } catch (e) { setMsg(apiErrorMessage(e)); } };
+  // Every lower-section action can change an agent's keys or role, so the Agents list is refetched after it.
+  const run = async (fn: () => Promise<void>) => {
+    setMsg(null);
+    setNotice(null);
+    try { await fn(); } catch (e) { setMsg(apiErrorMessage(e)); }
+    await queryClient.invalidateQueries({ queryKey: [AGENTS_KEY] });
+  };
   const loadKeys = async (id: string) => setKeys(await (await apiRequest("GET", `/api/admin/users/${id}/keys`)).json());
   const load = () => run(async () => {
     dismissSecret();
@@ -155,8 +162,10 @@ export default function AdminAgentsPage() {
         <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submitAdd(); }}>
           <div className="flex gap-2">
             <input className="flex-1 rounded border bg-background px-2 py-1" aria-label="Name" placeholder="Name (username)" maxLength={64} autoComplete="off" value={addName} onChange={(e) => setAddName(e.target.value)} />
-            <Button size="sm" type="submit" disabled={adding || addName.trim().length < 3}>Add agent</Button>
+            <Button size="sm" type="submit" disabled={adding || Boolean(issued) || addName.trim().length < 3} title={issued ? "Copy and close the key above first" : undefined}>Add agent</Button>
           </div>
+          <p className="text-xs text-muted-foreground">3-64 letters, digits, '_', '.' or '-'; starts with a letter or digit.</p>
+          {issued && <p className="text-xs text-amber-500">Copy and close the key above first.</p>}
           <details>
             <summary className="cursor-pointer text-muted-foreground">Advanced (optional)</summary>
             <div className="mt-2 space-y-2">
@@ -169,12 +178,12 @@ export default function AdminAgentsPage() {
         </form>
         {addError && <p role="alert" className="text-rose-400">{addError}</p>}
         {issued && (
-          <div className="space-y-2 rounded border border-amber-500 p-2" role="alert" data-testid="add-agent-result">
-            <div>Give this to {issued.username}. You won't see the secret again.</div>
+          <div className="space-y-2 rounded border border-amber-500 p-2" data-testid="add-agent-result">
+            <div role="status">Give this to {issued.username}. You won't see the secret again.</div>
             <textarea readOnly rows={5} className="w-full rounded border bg-background p-2 font-mono text-xs" aria-label="Agent setup" data-testid="agent-setup-text" value={buildAgentSetupText(issued.setup, issued.secret)} onFocus={(e) => e.currentTarget.select()} />
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={copyAll}>{copiedAll ? "Copied" : "Copy everything"}</Button>
-              <Button size="sm" onClick={dismissIssued}>Done</Button>
+              <Button size="sm" onClick={copyAll}>{copiedAll ? "Copied" : "Copy everything"}</Button>
+              <Button size="sm" variant="outline" onClick={dismissIssued}>Done</Button>
             </div>
           </div>
         )}
@@ -188,16 +197,18 @@ export default function AdminAgentsPage() {
                 <span className="font-semibold">{a.username}</span>
                 <span className="text-xs text-muted-foreground">{a.activeKeys} active {a.activeKeys === 1 ? "key" : "keys"}</span>
                 <span className="text-xs text-muted-foreground">last used {a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleString() : "never"}</span>
-                <Button size="sm" variant="outline" disabled={adding} onClick={() => void addAgent(a.username)}>New key</Button>
+                <Button size="sm" variant="outline" disabled={adding || Boolean(issued)} title={issued ? "Copy and close the key above first" : undefined} onClick={() => void addAgent(a.username)}>New key</Button>
               </li>
             ))}
           </ul>
         </div>
       </section>
 
-      <h2 className="pt-4 text-lg font-semibold">Manage an existing account</h2>
+      <details className="space-y-4 pt-4" data-testid="manage-existing">
+      <summary className="cursor-pointer text-lg font-semibold">Manage an existing account</summary>
+      <p className="text-sm text-muted-foreground">For changing accounts that already exist: promote, releaser, keys, reset password, delete. You do not need this to add an agent.</p>
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); void load(); }}>
-        <input className="flex-1 rounded border bg-background px-2 py-1 text-sm" placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} />
+        <input className="flex-1 rounded border bg-background px-2 py-1 text-sm" placeholder="Username of an existing account" value={username} onChange={(e) => setUsername(e.target.value)} />
         <Button size="sm" type="submit" disabled={!username.trim()}>Load</Button>
       </form>
       {msg && <p role="alert" className="text-sm text-rose-400">{msg}</p>}
@@ -258,6 +269,7 @@ export default function AdminAgentsPage() {
           </div>
         </section>
       )}
+      </details>
     </main>
   );
 }
