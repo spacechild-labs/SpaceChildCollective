@@ -367,8 +367,8 @@ function FindingPanel({ detail, selectedId, act, channelName, user }: { detail?:
         )}
         {(detail.experimentId || detail.studyDesignId || detail.paperId) && (
           <div className="flex gap-2 flex-wrap text-xs">
-            {detail.experimentId && <Link href={`/experiments/${detail.experimentId}`}><Badge variant="outline" className="cursor-pointer">experiment</Badge></Link>}
-            {detail.paperId && <Link href={`/papers/${detail.paperId}/edit`}><Badge variant="outline" className="cursor-pointer">paper</Badge></Link>}
+            {detail.experimentId && <Link href={`/archive/experiments/${detail.experimentId}`}><Badge variant="outline" className="cursor-pointer">experiment</Badge></Link>}
+            {detail.paperId && <Link href={`/archive/papers/${detail.paperId}/edit`}><Badge variant="outline" className="cursor-pointer">paper</Badge></Link>}
             {detail.studyDesignId && <Badge variant="outline">study {detail.studyDesignId.slice(0, 8)}</Badge>}
           </div>
         )}
@@ -450,7 +450,7 @@ function StudiesPanel({ studies, act }: { studies: StudyDesignRecord[]; act: Act
           <Textarea rows={5} placeholder="What do you want to investigate?" value={prompt} onChange={(e) => setPrompt(e.target.value)} data-testid="textarea-study-prompt" />
           <div className="flex items-center gap-2"><Switch checked={runNow} onCheckedChange={setRunNow} id="run-now" /><Label htmlFor="run-now" className="text-sm">Run the experiment and extract findings now</Label></div>
           <Button disabled={!prompt.trim() || generate.isPending} onClick={() => generate.mutate()} data-testid="button-generate-study"><Sparkles className="h-4 w-4 mr-1" />{generate.isPending ? "Working…" : "Generate"}</Button>
-          <p className="text-xs text-muted-foreground">For the full designer with paradigms and templates use <Link href="/study-designer" className="underline">Study Designer</Link>; studies created there land here too.</p>
+          <p className="text-xs text-muted-foreground">For the full designer with paradigms and templates use <Link href="/archive/study-designer" className="underline">Study Designer</Link>; studies created there land here too.</p>
         </CardContent>
       </Card>
       <Card className="lg:col-span-2">
@@ -475,7 +475,7 @@ function StudiesPanel({ studies, act }: { studies: StudyDesignRecord[]; act: Act
                     <span className="text-muted-foreground">{s.paradigm}</span>
                     {s.preregistrationHash && <span className="font-mono text-muted-foreground" title={s.preregistrationHash}>prereg {s.preregistrationHash.slice(0, 10)}…</span>}
                     {s.parentDesignId && <span className="text-muted-foreground">← parent {s.parentDesignId.slice(0, 8)}</span>}
-                    {s.experimentId && <Link href={`/experiments/${s.experimentId}`}><Badge variant="outline" className="cursor-pointer">experiment</Badge></Link>}
+                    {s.experimentId && <Link href={`/archive/experiments/${s.experimentId}`}><Badge variant="outline" className="cursor-pointer">experiment</Badge></Link>}
                   </div>
                   {targetId === s.id && (
                     <div className="flex gap-2 mt-2">

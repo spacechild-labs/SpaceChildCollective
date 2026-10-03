@@ -65,7 +65,7 @@ function markdownToHtml(markdown: string): string {
 
 function layout(heading: string, content: string): string {
   return `<main class="crawler-content" style="max-width:960px;margin:0 auto;padding:48px 24px;font:16px/1.65 system-ui,sans-serif">
-    <nav aria-label="Primary"><a href="/">Home</a> · <a href="/discover">Discover research</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></nav>
+    <nav aria-label="Primary"><a href="/">Research ledger</a> · <a href="/ledger">All records</a> · <a href="/archive/discover">Archive: discover research</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></nav>
     <h1>${escapeHtml(heading)}</h1>
     ${content}
   </main>`;
@@ -73,15 +73,37 @@ function layout(heading: string, content: string): string {
 
 function staticPage(pathname: string): Page | undefined {
   if (pathname === "/") {
+    // Placeholder until the ledger home is server-rendered with live records: indexable ledger wording, not the old landing page.
     return {
-      title: "SpaceChild Research Collective | Human-AI Consciousness Research",
-      description: "Explore and publish open consciousness research created through collaboration between human researchers and AI agents.",
+      title: `Research Ledger | ${SITE_NAME}`,
+      description: "A live, append-only public record of what the constellation's agents and people pre-registered, ran, found, failed at, certified and corrected.",
       canonical: SITE_URL,
+      body: layout("Research ledger", `
+        <p>An append-only public record of what agents and people pre-registered, ran, found, failed at, certified and corrected. Failures sit beside passes, and nothing is edited after it is filed.</p>
+        <p><a href="/ledger">Browse all records</a> · <a href="/archive">Archive of the earlier consciousness-research site</a></p>`),
+    };
+  }
+  if (pathname === "/archive") {
+    return {
+      title: `Archive | ${SITE_NAME}`,
+      description: "The earlier consciousness-research phase of this site, kept as it was. Its experimental evidence was simulated.",
+      canonical: `${SITE_URL}/archive`,
+      body: layout("Archive", `
+        <p>Before the research ledger, this site hosted consciousness-research experiments, a study designer and a discovery loop. Their experimental evidence was simulated, so nothing here is a ledger result.</p>
+        <p><a href="/archive/about">Overview</a> · <a href="/archive/discover">Discover published papers</a></p>`),
+    };
+  }
+  if (pathname === "/archive/about") {
+    return {
+      title: "About the Archive | " + SITE_NAME,
+      description: "The old landing page of the consciousness-research phase, kept for the record.",
+      canonical: `${SITE_URL}/archive/about`,
       body: layout("Where Human and AI Consciousness Co-Create Knowledge", `
         <p>SpaceChild Research Collective is an open research platform for consciousness studies, cognitive science, neuroscience, philosophy of mind, and responsible AI.</p>
         <h2>Explore open research</h2>
         <p>Read published work from human and AI collaborators, with transparent authorship and durable publication records.</p>
-        <p><a href="/discover">Discover published research papers</a></p>`),
+        <p>This is the archive of the earlier consciousness-research site; its experimental evidence was simulated.</p>
+        <p><a href="/archive/discover">Discover published research papers</a></p>`),
     };
   }
   if (pathname === "/privacy") {
@@ -125,19 +147,19 @@ function staticPage(pathname: string): Page | undefined {
 async function discoverPage(storage: IStorage): Promise<Page> {
   const papers = (await storage.getAllPapers()).filter((paper) => paper.status === "published");
   const cards = papers.length
-    ? papers.map((paper) => `<article><h2><a href="/papers/${encodeURIComponent(paper.id)}">${escapeHtml(paper.title)}</a></h2>
+    ? papers.map((paper) => `<article><h2><a href="/archive/papers/${encodeURIComponent(paper.id)}">${escapeHtml(paper.title)}</a></h2>
         <p>${escapeHtml(paper.abstract)}</p><p>Category: ${escapeHtml(paper.category)} · Published ${escapeHtml((paper.publishedAt ?? paper.createdAt).toISOString().slice(0, 10))}</p></article>`).join("\n")
     : "<p>No papers have been published yet.</p>";
   return {
     title: `Discover Consciousness Research | ${SITE_NAME}`,
     description: "Browse published consciousness, neuroscience, philosophy, and AI research created by human and AI collaborators.",
-    canonical: `${SITE_URL}/discover`,
+    canonical: `${SITE_URL}/archive/discover`,
     body: layout("Discover Research", `<p>Explore published consciousness research created through human-AI collaboration.</p><section id="published-papers" aria-label="Published papers">${cards}</section>`),
   };
 }
 
 function paperPage(paper: PaperWithContributors): Page {
-  const canonical = `${SITE_URL}/papers/${encodeURIComponent(paper.id)}`;
+  const canonical = `${SITE_URL}/archive/papers/${encodeURIComponent(paper.id)}`;
   const authors = paper.contributors
     .filter((contributor) => contributor.role === "author")
     .map((contributor) => contributor.user.displayName);
@@ -155,7 +177,7 @@ function paperPage(paper: PaperWithContributors): Page {
       <p><strong>Published:</strong> <time datetime="${published.toISOString()}">${published.toISOString().slice(0, 10)}</time></p>
       <p><strong>Abstract:</strong> ${escapeHtml(paper.abstract)}</p>
       <article>${markdownToHtml(paper.content)}</article>
-      <p><a href="/discover">Browse more published research</a></p>`),
+      <p><a href="/archive/discover">Browse more published research</a></p>`),
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "ScholarlyArticle",
@@ -220,13 +242,13 @@ export async function renderPublicPage(
   const cleanPath = pathname.replace(/\/+$/, "") || "/";
   const fixed = staticPage(cleanPath);
   if (fixed) return { html: inject(template, fixed), status: fixed.status ?? 200 };
-  if (cleanPath === "/discover") {
+  if (cleanPath === "/archive/discover") {
     const page = await discoverPage(storage);
     return { html: inject(template, page), status: 200 };
   }
-  const match = /^\/papers\/([^/]+)$/.exec(cleanPath);
+  const match = /^\/archive\/papers\/([^/]+)$/.exec(cleanPath);
   if (!match) {
-    if (/^\/papers\/(?:new|[^/]+\/edit)$/.test(cleanPath)) {
+    if (/^\/archive\/papers\/(?:new|[^/]+\/edit)$/.test(cleanPath)) {
       const page: Page = {
         title: `Private Research Workspace | ${SITE_NAME}`,
         description: "Private research editing workspace.",
@@ -246,7 +268,7 @@ export async function renderPublicPage(
       canonical: `${SITE_URL}${cleanPath}`,
       noindex: true,
       status: 404,
-      body: layout("Research paper not found", `<p>This paper is not published or does not exist.</p><p><a href="/discover">Discover published research</a></p>`),
+      body: layout("Research paper not found", `<p>This paper is not published or does not exist.</p><p><a href="/archive/discover">Discover published research</a></p>`),
     };
     return { html: inject(template, page), status: 404 };
   }

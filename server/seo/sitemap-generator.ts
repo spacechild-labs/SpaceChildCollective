@@ -164,7 +164,7 @@ export function generateEcosystemSitemap(
   });
 
   generator.addUrl({
-    url: `${canonicalBaseUrl}/discover`,
+    url: `${canonicalBaseUrl}/archive/discover`,
     lastmod: publishedPapers.length > 0
       ? publishedPapers.reduce((latest, paper) => {
           const modified = new Date(paper.updatedAt).toISOString().split('T')[0];
@@ -177,7 +177,7 @@ export function generateEcosystemSitemap(
 
   publishedPapers.forEach((paper) => {
     generator.addUrl({
-      url: `${canonicalBaseUrl}/papers/${encodeURIComponent(paper.id)}`,
+      url: `${canonicalBaseUrl}/archive/papers/${encodeURIComponent(paper.id)}`,
       lastmod: new Date(paper.updatedAt).toISOString().split('T')[0],
       changefreq: 'monthly',
       priority: 0.8,

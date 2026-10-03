@@ -1,4 +1,5 @@
-import type { Express } from "express";
+import type { Express, RequestHandler } from "express";
+import { legacyRedirectFor } from "./lib/legacy-redirect";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import {
@@ -54,6 +55,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Note: MCP WebSocket server is set up separately in server/index.ts
   // using setupMcpWebSocketServer() with path '/mcp'
+
+  // Legacy public pages moved under /archive (spec section 5). Permanent redirects keep old links working;
+  // the target is built by the shared archive map, so it is always a same-origin /archive/... path.
+  const legacyRedirect: RequestHandler = (req, res, next) => {
+    const target = legacyRedirectFor(req);
+    return target ? res.redirect(301, target) : next();
+  };
+  app.get("/discover", legacyRedirect);
+  app.get("/papers/:id", legacyRedirect);
 
   // ===== Health =====
   // Lightweight public health check for load balancers / uptime monitoring.

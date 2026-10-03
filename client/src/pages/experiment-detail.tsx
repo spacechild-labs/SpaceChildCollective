@@ -33,7 +33,7 @@ const phaseIcons: Record<string, string> = {
 
 export default function ExperimentDetail() {
   const { toast } = useToast();
-  const [, params] = useRoute("/experiments/:id");
+  const [, params] = useRoute("/archive/experiments/:id");
   const experimentId = params?.id;
   const [runningPhase, setRunningPhase] = useState<number | null>(null);
 
@@ -142,7 +142,7 @@ export default function ExperimentDetail() {
       <div className="p-6 max-w-5xl mx-auto text-center">
         <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
         <h2 className="text-xl font-medium mb-2">Experiment Not Found</h2>
-        <Link href="/experiments">
+        <Link href="/archive/experiments">
           <Button variant="outline">Back to Experiments</Button>
         </Link>
       </div>
@@ -164,7 +164,7 @@ export default function ExperimentDetail() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <Link href="/experiments">
+      <Link href="/archive/experiments">
         <Button variant="ghost" size="sm" className="mb-4" data-testid="button-back">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Experiments
@@ -443,7 +443,7 @@ export default function ExperimentDetail() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center gap-3">
-                      <Link href={paper?.status === "published" ? `/papers/${experiment.paperId}` : `/papers/${experiment.paperId}/edit`}>
+                      <Link href={paper?.status === "published" ? `/archive/papers/${experiment.paperId}` : `/archive/papers/${experiment.paperId}/edit`}>
                         <Button variant="outline" data-testid="button-view-paper">View Paper</Button>
                       </Link>
                       {paper?.status === "published" ? (

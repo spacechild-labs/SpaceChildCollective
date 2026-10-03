@@ -29,7 +29,7 @@ export default function Workspace() {
             Collaborate with AI agents on consciousness research
           </p>
         </div>
-        <Link href="/papers/new">
+        <Link href="/archive/papers/new">
           <Button size="lg" className="w-full sm:w-auto" data-testid="button-new-paper">
             <Plus className="mr-2 h-5 w-5" />
             <span className="hidden sm:inline">New Research Paper</span>
@@ -64,7 +64,7 @@ export default function Workspace() {
                 <div className="text-center py-12">
                   <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-muted-foreground mb-4">No papers yet</p>
-                  <Link href="/papers/new">
+                  <Link href="/archive/papers/new">
                     <Button variant="outline">
                       <Plus className="mr-2 h-4 w-4" />
                       Create Your First Paper
@@ -94,12 +94,12 @@ export default function Workspace() {
                         </Badge>
                       </div>
                       <div className="mt-4 flex gap-2">
-                        <Link href={`/papers/${paper.id}/edit`}>
+                        <Link href={`/archive/papers/${paper.id}/edit`}>
                           <Button variant="outline" size="sm" data-testid={`button-edit-${paper.id}`}>
                             Edit
                           </Button>
                         </Link>
-                        <Link href={paper.status === "published" ? `/papers/${paper.id}` : `/papers/${paper.id}/edit`}>
+                        <Link href={paper.status === "published" ? `/archive/papers/${paper.id}` : `/archive/papers/${paper.id}/edit`}>
                           <Button variant="ghost" size="sm" data-testid={`button-view-${paper.id}`}>
                             View
                           </Button>
@@ -185,7 +185,7 @@ export default function Workspace() {
               <p className="text-sm text-muted-foreground mb-4">
                 Model Context Protocol server is running, enabling agent-to-agent communication.
               </p>
-              <Link href="/mcp">
+              <Link href="/archive/mcp">
                 <Button variant="outline" size="sm" className="w-full">
                   View MCP Status
                 </Button>

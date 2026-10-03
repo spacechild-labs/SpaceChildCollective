@@ -53,9 +53,9 @@ function formatCategory(value: string) {
 
 export default function PaperEditor() {
   // Detect if we're in view mode (route is /papers/:id without /edit)
-  const [, viewParams] = useRoute("/papers/:id");
-  const [, editParams] = useRoute("/papers/:id/edit");
-  const [, newParams] = useRoute("/papers/new");
+  const [, viewParams] = useRoute("/archive/papers/:id");
+  const [, editParams] = useRoute("/archive/papers/:id/edit");
+  const [, newParams] = useRoute("/archive/papers/new");
   
   // View mode only if we have a valid UUID (not "new") and not in edit mode
   const paperId = viewParams?.id || editParams?.id;
@@ -89,7 +89,7 @@ export default function PaperEditor() {
       ? {
           title: `${paper.title} | SpaceChild Research Collective`,
           description: paper.abstract.slice(0, 300),
-          path: `/papers/${paper.id}`,
+          path: `/archive/papers/${paper.id}`,
           image: paper.featuredImageUrl || undefined,
           type: "article",
           jsonLd: {
@@ -106,7 +106,7 @@ export default function PaperEditor() {
         ? {
             title: "Research Paper Not Public | SpaceChild Research Collective",
             description: "This research paper is not publicly available.",
-            path: `/papers/${paper.id}`,
+            path: `/archive/papers/${paper.id}`,
             noindex: true,
           }
         : undefined,
@@ -346,7 +346,7 @@ export default function PaperEditor() {
           <div className="flex items-center gap-2">
             {isViewMode ? (
               viewParams && (
-                <Link href={`/papers/${viewParams.id}/edit`}>
+                <Link href={`/archive/papers/${viewParams.id}/edit`}>
                   <Button variant="default" size="sm" data-testid="button-edit-mode">
                     <Edit className="mr-2 h-4 w-4" />
                     Edit Paper

@@ -1,6 +1,5 @@
-import { Home, FileText, Search, User, Settings, Bot, Network, CheckCircle2, LogOut, FlaskConical, Wand2, BarChart3, Repeat } from "lucide-react";
-import { Link, useLocation, useRoute } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { LogIn, LogOut } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import {
   Sidebar,
   SidebarContent,
@@ -13,97 +12,19 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "./theme-toggle";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import type { AgentTask } from "@shared/schema";
+import { accountNavItems, ledgerNavItems, navItemActive, visibleNavItems } from "@/lib/nav-items";
 
-const menuItems = [
-  {
-    title: "Home",
-    url: "/workspace",
-    icon: Home,
-    testId: "nav-home",
-  },
-  {
-    title: "Discover",
-    url: "/discover",
-    icon: Search,
-    testId: "nav-discover",
-  },
-  {
-    title: "Agents",
-    url: "/agents",
-    icon: Bot,
-    testId: "nav-agents",
-  },
-  {
-    title: "Experiments",
-    url: "/experiments",
-    icon: FlaskConical,
-    testId: "nav-experiments",
-  },
-  {
-    title: "Study Designer",
-    url: "/study-designer",
-    icon: Wand2,
-    testId: "nav-study-designer",
-  },
-  {
-    title: "Statistics",
-    url: "/statistics",
-    icon: BarChart3,
-    testId: "nav-statistics",
-  },
-  {
-    title: "Discovery Loop",
-    url: "/loop",
-    icon: Repeat,
-    testId: "nav-loop",
-  },
-  {
-    title: "Approvals",
-    url: "/approvals",
-    icon: CheckCircle2,
-    testId: "nav-approvals",
-    showBadge: true,
-  },
-  {
-    title: "MCP Status",
-    url: "/mcp",
-    icon: Network,
-    testId: "nav-mcp",
-  },
-];
-
-const bottomItems = [
-  {
-    title: "Profile",
-    url: "/profile",
-    icon: User,
-    testId: "nav-profile",
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-    testId: "nav-settings",
-  },
-];
 
 export function AppSidebar() {
   const [location, setLocation] = useLocation();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { toast } = useToast();
 
-  // Get count of pending approvals
-  const { data: pendingTasks } = useQuery<AgentTask[]>({
-    queryKey: ["/api/tasks/pending-approvals"],
-    refetchInterval: 300000, // Refetch every 5 minutes to reduce database load
-  });
-
-  const pendingCount = pendingTasks?.length || 0;
+  const menuItems = visibleNavItems(ledgerNavItems, user);
+  const bottomItems = visibleNavItems(accountNavItems, user);
 
   const handleLogout = () => {
     logout();
@@ -130,19 +51,10 @@ export function AppSidebar() {
             <SidebarMenu>
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location === item.url}>
+                  <SidebarMenuButton asChild isActive={navItemActive(item.url, location)}>
                     <Link href={item.url} data-testid={item.testId}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
-                      {item.showBadge && pendingCount > 0 && (
-                        <Badge 
-                          variant="default" 
-                          className="ml-auto h-5 px-1.5 text-xs"
-                          data-testid="badge-pending-approvals"
-                        >
-                          {pendingCount}
-                        </Badge>
-                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -156,7 +68,7 @@ export function AppSidebar() {
         <SidebarMenu>
           {bottomItems.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild isActive={location === item.url}>
+              <SidebarMenuButton asChild isActive={navItemActive(item.url, location)}>
                 <Link href={item.url} data-testid={item.testId}>
                   <item.icon className="h-4 w-4" />
                   <span>{item.title}</span>
@@ -164,12 +76,23 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleLogout} data-testid="button-logout">
-              <LogOut className="h-4 w-4" />
-              <span>Log Out</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {user ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={handleLogout} data-testid="button-logout">
+                <LogOut className="h-4 w-4" />
+                <span>Log Out</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : (
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link href="/auth" data-testid="button-login">
+                  <LogIn className="h-4 w-4" />
+                  <span>Sign in</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>

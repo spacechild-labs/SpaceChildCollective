@@ -79,7 +79,7 @@ export default function Auth() {
           description: "Your consciousness-aware profile has been created.",
         });
       }
-      setLocation("/workspace");
+      setLocation("/");
     } catch (error: any) {
       toast({
         title: isLogin ? "Login failed" : "Registration failed",

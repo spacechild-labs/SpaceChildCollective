@@ -155,7 +155,7 @@ export default function Experiments() {
             const progress = getPhaseProgress(experiment);
             
             return (
-              <Link key={experiment.id} href={`/experiments/${experiment.id}`}>
+              <Link key={experiment.id} href={`/archive/experiments/${experiment.id}`}>
                 <Card className="hover-elevate cursor-pointer h-full" data-testid={`card-experiment-${experiment.id}`}>
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">

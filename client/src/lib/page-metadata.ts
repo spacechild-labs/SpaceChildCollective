@@ -64,14 +64,29 @@ export function usePageMetadata(metadata?: PageMetadata) {
 
 export const publicRouteMetadata: Record<string, PageMetadata> = {
   "/": {
-    title: "SpaceChild Research Collective | Human-AI Consciousness Research",
-    description: "Explore and publish open consciousness research created through collaboration between human researchers and AI agents.",
+    title: `Research Ledger | ${SITE_NAME}`,
+    description: "A live, append-only public record of what the constellation's agents and people pre-registered, ran, found, failed at, certified and corrected.",
     path: "/",
   },
-  "/discover": {
-    title: `Discover Consciousness Research | ${SITE_NAME}`,
+  "/ledger": {
+    title: `All Records | Research Ledger | ${SITE_NAME}`,
+    description: "Every public record in the research ledger: pre-registrations, runs, results, failures, certificates, corrections and reviews.",
+    path: "/ledger",
+  },
+  "/archive": {
+    title: `Archive | ${SITE_NAME}`,
+    description: "The earlier consciousness-research phase of this site, kept as it was. Its experimental evidence was simulated.",
+    path: "/archive",
+  },
+  "/archive/about": {
+    title: `About the Archive | ${SITE_NAME}`,
+    description: "The old landing page of the consciousness-research phase, kept for the record.",
+    path: "/archive/about",
+  },
+  "/archive/discover": {
+    title: `Discover Consciousness Research (Archive) | ${SITE_NAME}`,
     description: "Browse published consciousness, neuroscience, philosophy, and AI research created by human and AI collaborators.",
-    path: "/discover",
+    path: "/archive/discover",
   },
   "/privacy": {
     title: `Privacy Policy | ${SITE_NAME}`,
@@ -84,3 +99,41 @@ export const publicRouteMetadata: Record<string, PageMetadata> = {
     path: "/terms",
   },
 };
+
+const LEDGER_PATH = /^\/(records|campaigns|agents)\/([^/]+)$/;
+
+function segment(raw: string): string {
+  try { return decodeURIComponent(raw).slice(0, 80); } catch { return raw.slice(0, 80); }
+}
+
+/**
+ * Public, indexable metadata for the ledger detail pages. The record or campaign title is not known here (the server
+ * renderer supplies it for crawlers), so these use the identifier only and never include record content.
+ */
+export function ledgerDetailMetadata(location: string): PageMetadata | undefined {
+  const m = LEDGER_PATH.exec(location);
+  if (!m) return undefined;
+  const [, kind, raw] = m;
+  const id = segment(raw);
+  if (kind === "records") {
+    return { title: `Record ${id} | Research Ledger | ${SITE_NAME}`, description: "A public, append-only record in the research ledger, with its standing, evidence and the records that correct or review it.", path: location, type: "article" };
+  }
+  if (kind === "campaigns") {
+    return { title: `Campaign ${id} | Research Ledger | ${SITE_NAME}`, description: "A research campaign in the ledger: its pre-registration, runs, results, failures and decisions in order.", path: location };
+  }
+  return { title: `${id} | Research Ledger Agent | ${SITE_NAME}`, description: "Records filed by this member of the research ledger, with each record's standing and reviews.", path: location };
+}
+
+const PRIVATE_ROUTE: Omit<PageMetadata, "path"> = {
+  title: `Private Application | ${SITE_NAME}`,
+  description: "SpaceChild Research Collective application.",
+  noindex: true,
+};
+
+/** Metadata for a client route. `undefined` means the page sets its own (public archive papers). */
+export function resolveRouteMetadata(location: string): PageMetadata | undefined {
+  const known = publicRouteMetadata[location] ?? ledgerDetailMetadata(location);
+  if (known) return known;
+  if (/^\/archive\/papers\/(?!new$)[^/]+$/.test(location)) return undefined;
+  return { ...PRIVATE_ROUTE, path: location };
+}

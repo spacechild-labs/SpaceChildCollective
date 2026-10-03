@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, Redirect, useLocation, useSearch } from "wouter";
 import { Loader2 } from "lucide-react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import { MobileNav } from "@/components/mobile-nav";
 // Route pages are code-split so each route's JS (and heavy deps like
 // recharts/the paper editor) loads on demand instead of in the initial bundle.
 const Landing = lazy(() => import("@/pages/landing"));
+const ArchiveIndex = lazy(() => import("@/pages/archive"));
 const Auth = lazy(() => import("@/pages/auth"));
 const Workspace = lazy(() => import("@/pages/workspace"));
 const Discover = lazy(() => import("@/pages/discover"));
@@ -48,7 +49,26 @@ import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi-config";
 import { AuthProvider } from "@/contexts/auth-context";
 import { useAnalytics } from "@/hooks/use-analytics";
-import { publicRouteMetadata, usePageMetadata } from "@/lib/page-metadata";
+import { resolveRouteMetadata, usePageMetadata } from "@/lib/page-metadata";
+import { withArchiveBanner } from "@/components/archive-banner";
+import { archiveRedirectTarget } from "@/lib/archive-routes";
+
+// Legacy pages, wrapped once at module scope so their identity is stable across renders.
+const ArchivedLanding = withArchiveBanner(Landing);
+const ArchivedWorkspace = withArchiveBanner(Workspace);
+const ArchivedDiscover = withArchiveBanner(Discover);
+const ArchivedMcp = withArchiveBanner(McpStatus);
+const ArchivedPaperEditor = withArchiveBanner(PaperEditor);
+const ArchivedPaperReader = withArchiveBanner(PaperReader);
+const ArchivedPapers = withArchiveBanner(Papers);
+const ArchivedAgents = withArchiveBanner(Agents);
+const ArchivedApprovals = withArchiveBanner(Approvals);
+const ArchivedExperimentDetail = withArchiveBanner(ExperimentDetail);
+const ArchivedExperiments = withArchiveBanner(Experiments);
+const ArchivedStudyDesigner = withArchiveBanner(StudyDesigner);
+const ArchivedStatistics = withArchiveBanner(Statistics);
+const ArchivedDiscoveryLoop = withArchiveBanner(DiscoveryLoop);
+const ArchivedSEODemo = withArchiveBanner(SEODemo);
 
 function PageLoader() {
   return (
@@ -59,30 +79,37 @@ function PageLoader() {
 }
 
 function Router() {
+  const [location] = useLocation();
+  const search = useSearch();
+  // Old links keep working: legacy paths go to /archive (same-origin only, query kept). /agents/<username> is a ledger page and is never matched.
+  const legacyTarget = archiveRedirectTarget(location, search ? `?${search}` : "");
+  if (legacyTarget) return <Redirect to={legacyTarget} replace />;
   return (
     <Suspense fallback={<PageLoader />}>
       <Switch>
         <Route path="/" component={LedgerHome} />
         <Route path="/sso/callback" component={SSOCallbackPage} />
         <Route path="/auth" component={Auth} />
-        <Route path="/workspace" component={Workspace} />
-        <Route path="/discover" component={Discover} />
-        <Route path="/mcp" component={McpStatus} />
-        <Route path="/papers/new" component={PaperEditor} />
-        <Route path="/papers/:id/edit" component={PaperEditor} />
-        <Route path="/papers/:id" component={PaperReader} />
-        <Route path="/papers" component={Papers} />
         <Route path="/agents/:username" component={LedgerAgentPage} />
-        <Route path="/agents" component={Agents} />
-        <Route path="/approvals" component={Approvals} />
-        <Route path="/experiments/:id" component={ExperimentDetail} />
-        <Route path="/experiments" component={Experiments} />
-        <Route path="/study-designer" component={StudyDesigner} />
-        <Route path="/statistics" component={Statistics} />
-        <Route path="/loop" component={DiscoveryLoop} />
+        <Route path="/archive" component={ArchiveIndex} />
+        <Route path="/archive/about" component={ArchivedLanding} />
+        <Route path="/archive/workspace" component={ArchivedWorkspace} />
+        <Route path="/archive/discover" component={ArchivedDiscover} />
+        <Route path="/archive/mcp" component={ArchivedMcp} />
+        <Route path="/archive/papers/new" component={ArchivedPaperEditor} />
+        <Route path="/archive/papers/:id/edit" component={ArchivedPaperEditor} />
+        <Route path="/archive/papers/:id" component={ArchivedPaperReader} />
+        <Route path="/archive/papers" component={ArchivedPapers} />
+        <Route path="/archive/agents" component={ArchivedAgents} />
+        <Route path="/archive/approvals" component={ArchivedApprovals} />
+        <Route path="/archive/experiments/:id" component={ArchivedExperimentDetail} />
+        <Route path="/archive/experiments" component={ArchivedExperiments} />
+        <Route path="/archive/study-designer" component={ArchivedStudyDesigner} />
+        <Route path="/archive/statistics" component={ArchivedStatistics} />
+        <Route path="/archive/loop" component={ArchivedDiscoveryLoop} />
+        <Route path="/archive/seo-demo" component={ArchivedSEODemo} />
         <Route path="/profile" component={Profile} />
         <Route path="/settings" component={Settings} />
-        <Route path="/seo-demo" component={SEODemo} />
         <Route path="/privacy" component={PrivacyPage} />
         <Route path="/terms" component={TermsPage} />
         <Route path="/ledger" component={LedgerPage} />
@@ -98,28 +125,17 @@ function Router() {
 }
 
 // Routes that should show sidebar (authenticated routes only)
-const sidebarRoutes = ["/workspace", "/discover", "/papers", "/profile", "/settings", "/agents", "/mcp", "/approvals", "/experiments", "/study-designer", "/statistics"];
+const sidebarRoutes = ["/ledger", "/records", "/campaigns", "/agents", "/file", "/releases", "/admin", "/archive", "/profile", "/settings"];
 
 function AppContent() {
   const [location] = useLocation();
-  const isPublicPaper = /^\/papers\/[^/]+$/.test(location);
-  usePageMetadata(
-    publicRouteMetadata[location] ??
-      (isPublicPaper
-        ? undefined
-        : {
-            title: `Private Application | SpaceChild Research Collective`,
-            description: "SpaceChild Research Collective application.",
-            path: location,
-            noindex: true,
-          }),
-  );
+  usePageMetadata(resolveRouteMetadata(location));
   
   // Track page views for analytics
   useAnalytics();
   
   // Check if current route should show sidebar
-  const showSidebar = !location.startsWith("/agents/") && sidebarRoutes.some(route => location.startsWith(route));
+  const showSidebar = location !== "/archive/about" && (location === "/" || sidebarRoutes.some((route) => location === route || location.startsWith(`${route}/`)));
 
   const sidebarStyle = {
     "--sidebar-width": "16rem",
