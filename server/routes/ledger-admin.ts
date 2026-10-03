@@ -141,7 +141,12 @@ export function createLedgerAdminRouter(deps: { keys: AgentKeyService; users: Le
   });
 
   r.post("/users/:id/can-invite", async (req, res) => {
-    try { res.json(sanitizeUser(await deps.invites.setCanInvite(req.params.id, req.body?.canInvite === true))); } catch (e) { sendLedgerError(res, e, req); }
+    const canInvite = req.body?.canInvite;
+    if (typeof canInvite !== "boolean") {
+      res.status(400).json({ error: "invalid_input", message: "canInvite must be true or false" });
+      return;
+    }
+    try { res.json(sanitizeUser(await deps.invites.setCanInvite(req.params.id, canInvite))); } catch (e) { sendLedgerError(res, e, req); }
   });
 
   // Read-only: what a revoke-chain would cut right now, so the confirm can state the counts before anything happens.

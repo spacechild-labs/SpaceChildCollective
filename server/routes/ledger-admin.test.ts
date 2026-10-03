@@ -249,8 +249,14 @@ describe("invite administration", () => {
     expect(body).toMatchObject({ id: "u-q", canInvite: true });
     expect(body).not.toHaveProperty("zkpCommitment");
     expect(users.get("u-q").canInvite).toBe(true);
-    // Anything other than a literal true clears it.
-    expect((await (await call("POST", "/users/u-q/can-invite", { canInvite: "yes" })).json()).canInvite).toBe(false);
+    // Anything but a boolean is refused and changes nothing (it used to clear the right silently).
+    for (const body of [{ canInvite: "yes" }, { canInvite: 1 }, { canInvite: null }, {}]) {
+      const bad = await call("POST", "/users/u-q/can-invite", body);
+      expect(bad.status, JSON.stringify(body)).toBe(400);
+      expect((await bad.json()).error).toBe("invalid_input");
+    }
+    expect(users.get("u-q").canInvite).toBe(true);
+    expect((await (await call("POST", "/users/u-q/can-invite", { canInvite: false })).json()).canInvite).toBe(false);
     expect(users.get("u-q").canInvite).toBe(false);
   });
 

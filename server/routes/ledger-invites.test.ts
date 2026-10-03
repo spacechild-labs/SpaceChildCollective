@@ -45,6 +45,8 @@ beforeEach(async () => {
   app.use((req, _res, next) => { const who = req.header("x-test-user"); if (who) (req as any).user = users.m.get(who); next(); });
   app.use(guardMutations);
   app.use("/api/ledger", createLedgerInviteRouter(svc, { onboard: onboardIpLimiter() }));
+  // Stands in for the public ledger router, which is mounted after the invite router in routes.ts.
+  app.get("/api/ledger/records", (_req, res) => { res.json([]); });
   srv = await serve(app);
 });
 afterEach(async () => { await srv.close(); });
@@ -129,6 +131,19 @@ describe("invite routes", () => {
     const bad = await call("POST", "/api/ledger/invites", { maxUses: 99 }, "qe");
     expect(bad.status).toBe(400);
     expect((await bad.json()).error).toBe("invalid_input");
+  });
+
+  it("marks only the invite routes private, no-store; public ledger reads that pass through keep their caching", async () => {
+    const { code, invite } = await mintAs("qe");
+    const onboard = await call("POST", "/api/ledger/onboard", { invite: code, username: "cachecheck" });
+    expect(onboard.headers.get("cache-control")).toBe("private, no-store");
+    const failed = await call("POST", "/api/ledger/onboard", { invite: "sci_nope", username: "cachecheck2" });
+    expect(failed.headers.get("cache-control")).toBe("private, no-store");
+    expect((await call("GET", "/api/ledger/invites", undefined, "qe")).headers.get("cache-control")).toBe("private, no-store");
+    expect((await call("DELETE", `/api/ledger/invites/${invite.id}`, undefined, "qe")).headers.get("cache-control")).toBe("private, no-store");
+    const pub = await call("GET", "/api/ledger/records");
+    expect(pub.status).toBe(200);
+    expect(pub.headers.get("cache-control")).not.toBe("private, no-store");
   });
 
   it("an admin's GET /api/ledger/invites lists invites minted by others", async () => {

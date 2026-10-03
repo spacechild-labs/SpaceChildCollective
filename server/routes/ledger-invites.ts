@@ -5,8 +5,9 @@ import { requireLedgerAuth, sendLedgerError } from "./ledger";
 export function createLedgerInviteRouter(svc: InviteService, limits: { onboard?: RequestHandler } = {}): Router {
   const r = Router();
   const pass: RequestHandler = (_req, _res, next) => next();
-  // Mint and onboard responses carry secrets: never let a shared cache or the browser store them.
-  r.use((_req, res, next) => { res.set("Cache-Control", "private, no-store"); next(); });
+  // Mint and onboard responses carry secrets: never let a shared cache or the browser store them. Scoped to these
+  // paths: this router is mounted first at /api/ledger, and public ledger reads pass through it to keep their caching.
+  r.use(["/onboard", "/invites"], (_req, res, next) => { res.set("Cache-Control", "private, no-store"); next(); });
 
   // Public: the invite code is the credential. The response carries a fresh key secret and is never logged.
   r.post("/onboard", limits.onboard ?? pass, async (req, res) => {
