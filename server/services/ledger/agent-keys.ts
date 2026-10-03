@@ -60,7 +60,7 @@ export class AgentKeyService {
     return { key: publicKey(key), secret };
   }
 
-  async authenticate(secret: string): Promise<{ ok: true; user: User; key: AgentKey } | { ok: false; error: "unknown_key" | "revoked_key" }> {
+  async authenticate(secret: string): Promise<{ ok: true; user: User; key: AgentKey } | { ok: false; error: "unknown_key" | "revoked_key" | "forbidden" }> {
     if (!secret.startsWith(KEY_PREFIX)) return { ok: false, error: "unknown_key" };
     const key = await this.store.findByHash(hashSecret(secret));
     if (!key) return { ok: false, error: "unknown_key" };
@@ -68,7 +68,8 @@ export class AgentKeyService {
     const user = await this.users.getUser(key.userId);
     // A key stops working the moment its account is no longer an agent.
     // An admin-role account must never act through an agent key (it would carry admin powers).
-    if (!user || user.userType !== "agent" || user.role === "admin") return { ok: false, error: "revoked_key" };
+    if (!user || user.userType !== "agent") return { ok: false, error: "revoked_key" };
+    if (user.role === "admin") return { ok: false, error: "forbidden" };
     void this.store.touch(key.id, this.now()).catch(() => { /* best effort */ });
     return { ok: true, user, key };
   }

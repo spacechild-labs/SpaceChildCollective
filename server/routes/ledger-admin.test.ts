@@ -21,14 +21,14 @@ beforeEach(async () => {
   };
   const app = express();
   app.use(express.json());
-  app.use((req, _res, next) => { (req as any).user = users.get("u-n"); next(); });
+  app.use((req, _res, next) => { const who = req.header("x-test-user") ?? "u-n"; (req as any).user = who === "anon" ? undefined : users.get(who); next(); });
   app.use("/api/admin", createLedgerAdminRouter({ keys: new AgentKeyService(new MemoryAgentKeyStore(), userStore), users: userStore }));
   srv = await serve(app);
 });
 afterEach(async () => { await srv.close(); });
 
-const call = (method: string, path: string, body?: unknown) =>
-  fetch(`${srv.base}/api/admin${path}`, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+const call = (method: string, path: string, body?: unknown, who?: string) =>
+  fetch(`${srv.base}/api/admin${path}`, { method, headers: { "content-type": "application/json", ...(who ? { "x-test-user": who } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
 
 describe("ledger admin routes", () => {
   it("promoting to agent clears can_release and never leaks the commitment", async () => {
@@ -78,5 +78,15 @@ describe("ledger admin routes", () => {
     const body = await (await call("POST", "/users/u-q/keys", { name: "k" })).json();
     expect(Object.keys(body).sort()).toEqual(["key", "secret"]);
     expect(body.key).not.toHaveProperty("keyHash");
+  });
+
+  it("rejects anonymous and non-admin callers with the listed reason code", async () => {
+    const anon = await call("GET", "/users/u-q/keys", undefined, "anon");
+    expect(anon.status).toBe(401);
+    expect((await anon.json()).error).toBe("forbidden");
+    const member = await call("POST", "/users/u-q/promote-agent", undefined, "u-q");
+    expect(member.status).toBe(403);
+    expect((await member.json()).error).toBe("forbidden");
+    expect(users.get("u-q").userType).toBe("human");
   });
 });

@@ -127,7 +127,16 @@ describe("agent key hardening", () => {
     const svc = new AgentKeyService(new MemoryAgentKeyStore(), lookup);
     const { secret } = await svc.issue("agent-1", "k");
     users.set("agent-1", { ...users.get("agent-1"), role: "admin" });
-    expect(await svc.authenticate(secret)).toEqual({ ok: false, error: "revoked_key" });
+    expect(await svc.authenticate(secret)).toEqual({ ok: false, error: "forbidden" });
+    const app = express();
+    app.use(agentKeyAuth(svc));
+    app.get("/who", (_req, res) => res.json({ anonymous: true }));
+    const srv = await serve(app);
+    try {
+      const res = await fetch(`${srv.base}/who`, { headers: { authorization: `Bearer ${secret}` } });
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: "forbidden" });
+    } finally { await srv.close(); }
     await expect(svc.issue("agent-1", "k2")).rejects.toMatchObject({ code: "forbidden", status: 409 });
   });
 

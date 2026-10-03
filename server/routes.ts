@@ -135,7 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Research ledger (spec docs/superpowers/specs/2026-10-03-research-ledger-design.md) =====
   app.use("/api/ledger", createLedgerRouter(ledgerService, { file: ledgerFileLimiter(), read: ledgerReadLimiter() }));
-  app.use("/api/admin", requireAdmin, createLedgerAdminRouter({ keys: agentKeys, users: storage }));
+  app.use("/api/admin", createLedgerAdminRouter({ keys: agentKeys, users: storage }));
 
   // Get user by username
   app.get("/api/users/by-username/:username", async (req, res) => {

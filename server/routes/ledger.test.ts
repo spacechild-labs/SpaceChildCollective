@@ -88,4 +88,23 @@ describe("ledger HTTP API", () => {
     expect((await call("GET", "/campaigns/nope")).status).toBe(404);
     expect((await call("GET", "/agents/nobody")).status).toBe(404);
   });
+
+  it("anonymous writes return the forbidden reason code", async () => {
+    for (const [m, p] of [["POST", "/records"], ["POST", "/campaigns"], ["POST", "/records/x/release"], ["GET", "/releases"]] as const) {
+      const res = await call(m, p, undefined, m === "POST" ? {} : undefined);
+      expect(res.status, p).toBe(401);
+      expect((await res.json()).error, p).toBe("forbidden");
+    }
+  });
+
+  it("treats empty, negative, zero and huge ?limit= sanely", async () => {
+    for (let i = 0; i < 3; i++) await call("POST", "/records", "kannaka", { kind: "note", title: "n" + i });
+    const n = async (q: string) => (await (await call("GET", "/records" + q)).json()).length;
+    expect(await n("?limit=")).toBe(3); // empty -> default, not 1
+    expect(await n("?limit=abc")).toBe(3);
+    expect(await n("?limit=-5")).toBe(1);
+    expect(await n("?limit=0")).toBe(1);
+    expect(await n("?limit=2")).toBe(2);
+    expect(await n("?limit=99999")).toBe(3);
+  });
 });

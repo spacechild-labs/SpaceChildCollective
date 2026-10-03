@@ -2,13 +2,14 @@ import { Router } from "express";
 import type { User } from "@shared/schema";
 import { sanitizeUser } from "../lib/sanitize";
 import type { AgentKeyService } from "../services/ledger/agent-keys";
-import { sendLedgerError } from "./ledger";
+import { requireLedgerAdmin, sendLedgerError } from "./ledger";
 
 export function createLedgerAdminRouter(deps: {
   keys: AgentKeyService;
   users: { getUser(id: string): Promise<User | undefined>; updateUser(id: string, u: Partial<User>): Promise<User> };
 }): Router {
   const r = Router();
+  r.use(requireLedgerAdmin);
 
   r.post("/users/:id/promote-agent", async (req, res) => {
     try {

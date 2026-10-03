@@ -1,7 +1,25 @@
 import { Router, type Request, type RequestHandler, type Response } from "express";
-import { requireAuth } from "../middleware/auth";
-import { LedgerError } from "../services/ledger/types";
+import { LedgerError, MAX_LIST_LIMIT } from "../services/ledger/types";
 import { actorFromUser, type LedgerService } from "../services/ledger/service";
+
+/** Ledger-local guards: rejections carry a listed reason code (the shared middleware messages are not reason codes). */
+export const requireLedgerAuth: RequestHandler = (req, res, next) => {
+  if (!req.user) { res.status(401).json({ error: "forbidden", message: "authentication required" }); return; }
+  next();
+};
+export const requireLedgerAdmin: RequestHandler = (req, res, next) => {
+  if (!req.user) { res.status(401).json({ error: "forbidden", message: "authentication required" }); return; }
+  if (req.user.role !== "admin") { res.status(403).json({ error: "forbidden", message: "admin access required" }); return; }
+  next();
+};
+
+/** ?limit=: empty or non-numeric means the service default; below 1 becomes 1; above the max is capped. */
+export function parseLimit(raw: unknown): number | undefined {
+  if (typeof raw !== "string" || raw.trim() === "") return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.min(Math.max(Math.trunc(n), 1), MAX_LIST_LIMIT);
+}
 
 const passthrough: RequestHandler = (_req, _res, next) => next();
 
@@ -28,10 +46,9 @@ export function createLedgerRouter(svc: LedgerService, limits: { file?: RequestH
 
   r.get("/records", read, async (req, res) => {
     try {
-      const limit = Number(req.query.limit);
       res.json(await svc.listRecords(viewer(req), {
         campaignId: str(req.query.campaign), kind: str(req.query.kind), standing: str(req.query.standing),
-        author: str(req.query.author), before: str(req.query.before), limit: Number.isFinite(limit) ? limit : undefined,
+        author: str(req.query.author), before: str(req.query.before), limit: parseLimit(req.query.limit),
       }));
     } catch (e) { sendLedgerError(res, e, req); }
   });
@@ -44,14 +61,14 @@ export function createLedgerRouter(svc: LedgerService, limits: { file?: RequestH
     } catch (e) { sendLedgerError(res, e, req); }
   });
 
-  r.post("/records", requireAuth, file, async (req, res) => {
+  r.post("/records", requireLedgerAuth, file, async (req, res) => {
     try {
       const { record, created } = await svc.file(actor(req), req.body, req.agentKey ? "api" : "web");
       res.status(created ? 201 : 200).json({ record, created });
     } catch (e) { sendLedgerError(res, e, req); }
   });
 
-  r.post("/records/:id/release", requireAuth, async (req, res) => {
+  r.post("/records/:id/release", requireLedgerAuth, async (req, res) => {
     try {
       const note = typeof req.body?.note === "string" ? req.body.note.slice(0, 2000) : null;
       res.json({ record: await svc.release(actor(req), req.params.id, note) });
@@ -70,7 +87,7 @@ export function createLedgerRouter(svc: LedgerService, limits: { file?: RequestH
     } catch (e) { sendLedgerError(res, e, req); }
   });
 
-  r.post("/campaigns", requireAuth, file, async (req, res) => {
+  r.post("/campaigns", requireLedgerAuth, file, async (req, res) => {
     try { res.status(201).json(await svc.createCampaign(actor(req), req.body)); } catch (e) { sendLedgerError(res, e, req); }
   });
 
@@ -82,7 +99,7 @@ export function createLedgerRouter(svc: LedgerService, limits: { file?: RequestH
     } catch (e) { sendLedgerError(res, e, req); }
   });
 
-  r.get("/releases", requireAuth, async (req, res) => {
+  r.get("/releases", requireLedgerAuth, async (req, res) => {
     try { res.json(await svc.pendingReleases(actor(req))); } catch (e) { sendLedgerError(res, e, req); }
   });
 
