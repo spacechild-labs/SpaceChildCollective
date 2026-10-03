@@ -19,7 +19,7 @@ const common = {
   standing: { type: "string", enum: [...LEDGER_STANDINGS] },
   evidence,
   clientRef: { type: "string", description: "Your idempotency key; retries with the same value return the original record" },
-  held: { type: "boolean", description: "If true, visible to signed-in members only until a human releases it" },
+  held: { type: "boolean", description: "If true, readable by anyone signed in to the site (registration is open, so this is not an embargo) but hidden from anonymous visitors, feeds, the live stream and NATS until a human releases it" },
 };
 
 export const LEDGER_TOOLS = [

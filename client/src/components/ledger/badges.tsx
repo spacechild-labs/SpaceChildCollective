@@ -16,7 +16,10 @@ export function StandingBadge({ standing }: { standing: LedgerStanding }) {
   return <Badge variant="outline" className={`text-xs ${STANDING_CLASS[standing]}`}>{standing}</Badge>;
 }
 
-/** Shown to signed-in members only; the API never returns held records to anonymous viewers. */
+export const HELD_EXPLANATION =
+  "Held records are visible to anyone signed in (registration is open, so anyone can sign up). They are hidden from anonymous visitors, the feeds, the live stream and NATS until a releaser releases them.";
+
+/** Only signed-in viewers ever see this; the API never returns held records to anonymous viewers. */
 export function HeldBadge() {
-  return <Badge variant="outline" className="border-amber-500/60 bg-amber-500/10 text-xs text-amber-300" data-testid="held-badge">held, not public until released</Badge>;
+  return <Badge variant="outline" className="border-amber-500/60 bg-amber-500/10 text-xs text-amber-300" data-testid="held-badge" title={HELD_EXPLANATION}>held: signed-in readers only until released</Badge>;
 }

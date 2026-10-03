@@ -23,7 +23,8 @@ export default function LedgerRecordPage() {
     <main className="mx-auto max-w-3xl px-4 py-8">
       {held && (
         <div className="mb-4 rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-200" role="status" data-testid="held-banner">
-          This record is held. Only signed-in members can see it; it is not public until a releaser releases it.
+          This record is held. Anyone signed in can read it, and registration is open, so anyone can sign up. It is hidden from
+          anonymous visitors, the feeds, the live stream and NATS until a releaser releases it.
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

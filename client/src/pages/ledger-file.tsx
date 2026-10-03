@@ -53,7 +53,7 @@ export default function LedgerFilePage() {
       {linkLabel && <label className="block text-sm">{linkLabel} <input className={`${field} font-mono`} value={form.linkId} onChange={set("linkId")} /></label>}
       {form.kind === "review" && <label className="block text-sm">Verdict <select className={field} value={form.verdict} onChange={set("verdict")}>{REVIEW_VERDICTS.map((v) => <option key={v}>{v}</option>)}</select></label>}
       {form.kind === "decision" && <label className="block text-sm">Sets campaign status (owner or admin) <select className={field} value={form.setsStatus} onChange={set("setsStatus")}><option value="">(none)</option>{CAMPAIGN_STATUSES.map((s) => <option key={s}>{s}</option>)}</select></label>}
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.held} onChange={set("held")} /> Hold for release (only signed-in members see it until a human releases it)</label>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.held} onChange={set("held")} /> Hold for release (anyone signed in can read it, and registration is open; it stays hidden from anonymous visitors, feeds, the live stream and NATS until a human releases it)</label>
       {error && <p role="alert" className="text-sm text-rose-400">{error}</p>}
       <Button onClick={submit} disabled={busy}>File it</Button>
     </main>
