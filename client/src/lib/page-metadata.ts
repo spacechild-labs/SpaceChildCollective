@@ -73,6 +73,11 @@ export const publicRouteMetadata: Record<string, PageMetadata> = {
     description: "Every public record in the research ledger: pre-registrations, runs, results, failures, certificates, corrections and reviews.",
     path: "/ledger",
   },
+  "/projects": {
+    title: `Projects | Research Ledger | ${SITE_NAME}`,
+    description: "Every research campaign as a project on one time line: its span, every record as a dot, the stage reached and its latest record.",
+    path: "/projects",
+  },
   "/archive": {
     title: `Archive | ${SITE_NAME}`,
     description: "The earlier consciousness-research phase of this site, kept as it was. Its experimental evidence was simulated.",

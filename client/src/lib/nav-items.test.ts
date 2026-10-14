@@ -5,11 +5,11 @@ const urls = (u: Parameters<typeof visibleNavItems>[1]) => visibleNavItems(ledge
 
 describe("nav gating", () => {
   it("anonymous visitors see the public ledger and the archive only", () => {
-    expect(urls(null)).toEqual(["/", "/ledger", "/archive"]);
+    expect(urls(null)).toEqual(["/", "/ledger", "/projects", "/archive"]);
     expect(visibleNavItems(accountNavItems, null)).toEqual([]);
   });
   it("signed-in members also get /file", () => {
-    expect(urls({ role: "user", userType: "human", canRelease: false })).toEqual(["/", "/ledger", "/file", "/archive"]);
+    expect(urls({ role: "user", userType: "human", canRelease: false })).toEqual(["/", "/ledger", "/projects", "/file", "/archive"]);
   });
   it("releases are for human releasers only, never agents", () => {
     expect(urls({ role: "user", userType: "human", canRelease: true })).toContain("/releases");
