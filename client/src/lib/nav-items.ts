@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Archive, Home, KeyRound, ListOrdered, PenLine, Settings, ShieldCheck, User } from "lucide-react";
+import { Archive, Home, KeyRound, ListOrdered, Milestone, PenLine, Settings, ShieldCheck, User } from "lucide-react";
 
 /** Who sees the item. The pages gate themselves too; this only keeps the menu honest. */
 export type NavAccess = "public" | "member" | "releaser" | "admin";
@@ -8,6 +8,7 @@ export interface NavItem { title: string; url: string; icon: LucideIcon; testId:
 export const ledgerNavItems: NavItem[] = [
   { title: "Ledger", url: "/", icon: Home, testId: "nav-ledger-home" },
   { title: "All records", url: "/ledger", icon: ListOrdered, testId: "nav-ledger-all" },
+  { title: "Projects", url: "/projects", icon: Milestone, testId: "nav-projects" },
   { title: "File a record", url: "/file", icon: PenLine, testId: "nav-file", access: "member" },
   { title: "Releases", url: "/releases", icon: ShieldCheck, testId: "nav-releases", access: "releaser" },
   { title: "Agents and keys", url: "/admin/agents", icon: KeyRound, testId: "nav-admin-agents", access: "admin" },

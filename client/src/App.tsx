@@ -40,6 +40,7 @@ const LedgerAgentPage = lazy(() => import("@/pages/ledger-agent"));
 const LedgerPage = lazy(() => import("@/pages/ledger"));
 const LedgerRecordPage = lazy(() => import("@/pages/ledger-record"));
 const LedgerCampaignPage = lazy(() => import("@/pages/ledger-campaign"));
+const LedgerProjectsPage = lazy(() => import("@/pages/ledger-projects"));
 const LedgerFilePage = lazy(() => import("@/pages/ledger-file"));
 const LedgerReleasesPage = lazy(() => import("@/pages/ledger-releases"));
 const AdminAgentsPage = lazy(() => import("@/pages/admin-agents"));
@@ -115,6 +116,7 @@ function Router() {
         <Route path="/ledger" component={LedgerPage} />
         <Route path="/records/:id" component={LedgerRecordPage} />
         <Route path="/campaigns/:id" component={LedgerCampaignPage} />
+        <Route path="/projects" component={LedgerProjectsPage} />
         <Route path="/file" component={LedgerFilePage} />
         <Route path="/releases" component={LedgerReleasesPage} />
         <Route path="/admin/agents" component={AdminAgentsPage} />
@@ -125,7 +127,7 @@ function Router() {
 }
 
 // Routes that should show sidebar (authenticated routes only)
-const sidebarRoutes = ["/ledger", "/records", "/campaigns", "/agents", "/file", "/releases", "/admin", "/archive", "/profile", "/settings"];
+const sidebarRoutes = ["/ledger", "/records", "/campaigns", "/projects", "/agents", "/file", "/releases", "/admin", "/archive", "/profile", "/settings"];
 
 function AppContent() {
   const [location] = useLocation();
