@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import type { LedgerKind, LedgerStanding } from "@shared/ledger-schema";
+import type { TierOrUnchecked, VerificationSummary } from "@shared/ledger-public";
 
 const STANDING_CLASS: Record<LedgerStanding, string> = {
   certified: "bg-emerald-600/20 text-emerald-300 border-emerald-600/40",
@@ -49,4 +50,33 @@ export const HELD_EXPLANATION =
 /** Only signed-in viewers ever see this; the API never returns held records to anonymous viewers. */
 export function HeldBadge() {
   return <Badge variant="outline" className="border-amber-500/60 bg-amber-500/10 text-xs text-amber-300" data-testid="held-badge" title={HELD_EXPLANATION}>held: signed-in readers only until released</Badge>;
+}
+
+const TIER: Record<TierOrUnchecked, { label: string; cls: string; title: string }> = {
+  "PEER-REVIEWED": {
+    label: "peer-reviewed", cls: "border-emerald-500/60 bg-emerald-500/10 text-emerald-300",
+    title: "Machine-checked, and reviewed by someone other than its author with a verdict that is not a rejection",
+  },
+  "MACHINE-CHECKED": {
+    label: "machine-checked", cls: "border-sky-500/60 bg-sky-500/10 text-sky-300",
+    title: "Its evidence was fetched and every sha256 matched; its links exist; a result's pre-registration came first",
+  },
+  CLAIMED: {
+    label: "claimed", cls: "border-zinc-500/60 bg-zinc-500/10 text-zinc-300",
+    title: "Nothing machine-checkable backs the standing yet (no evidence), or a check failed: the standing rests on the author",
+  },
+  unchecked: {
+    label: "unchecked", cls: "border-zinc-600/40 bg-transparent text-zinc-400",
+    title: "The machine check has not run for this record yet, or could not run",
+  },
+};
+
+/**
+ * The derived tier next to the self-set standing ("measured · machine-checked"). Derived by the server from
+ * verify_record.py's rules; it never changes the standing. Renders nothing where the server sends no tier.
+ */
+export function TierBadge({ verification }: { verification?: VerificationSummary }) {
+  if (!verification) return null;
+  const t = TIER[verification.tier] ?? TIER.unchecked;
+  return <Badge variant="outline" className={`text-xs ${t.cls}`} title={t.title} data-testid="tier-badge">{t.label}</Badge>;
 }

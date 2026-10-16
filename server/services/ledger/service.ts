@@ -12,7 +12,7 @@ export const SUBJECT_REVIEW = "SPACECHILD.ledger.review.filed";
 
 export type PublicEvent = { type: "filed" | "released"; id: string; kind: string; campaignId: string | null };
 
-import type { AgentProfile, PublicCampaign, PublicRecord, RecordView } from "@shared/ledger-public";
+import type { AgentProfile, PublicCampaign, PublicRecord, RecordView, VerificationDetail, VerificationSummary } from "@shared/ledger-public";
 export type { AgentProfile, PublicCampaign, PublicRecord, RecordView };
 
 export function toPublicCampaign(c: LedgerCampaign, ownerUsername: string): PublicCampaign {
@@ -52,7 +52,14 @@ function inputError(error: { issues: Array<{ message: string }>; flatten: () => 
   return new LedgerError(code, 400, JSON.stringify(error.flatten()));
 }
 
+/** The derived-tier reader (server/services/ledger/verifications.ts). Optional: without it records carry no tier. */
+export interface TierReader {
+  summaries(records: PublicRecord[]): Promise<Map<string, VerificationSummary>>;
+  detail(view: RecordView): Promise<VerificationDetail>;
+}
+
 export class LedgerService {
+  private verifier?: TierReader;
   private readonly now: () => Date;
   private readonly newId: () => string;
   private readonly baseUrl: string;
@@ -66,6 +73,21 @@ export class LedgerService {
     this.now = opts.now ?? (() => new Date());
     this.newId = opts.newId ?? (() => ulid());
     this.baseUrl = (opts.baseUrl ?? "https://research.spacechild.love").replace(/\/+$/, "");
+  }
+
+  /** Wired after construction, because the verifier reads the ledger through this service. */
+  setVerifier(v: TierReader | undefined): void { this.verifier = v; }
+
+  /** Adds each record's derived tier. A verifier failure leaves the records as they were: it must never fail a read. */
+  private async withTiers(records: PublicRecord[]): Promise<PublicRecord[]> {
+    if (!this.verifier || !records.length) return records;
+    try {
+      const s = await this.verifier.summaries(records);
+      for (const r of records) { const v = s.get(r.id); if (v) r.verification = v; }
+    } catch (error) {
+      console.error("[ledger] tier lookup failed:", error);
+    }
+    return records;
   }
 
   // Called only after the write committed; a failing listener must never fail the filing.
@@ -222,7 +244,8 @@ export class LedgerService {
     return rows.map((r) => toPublicRecord(r, by.get(r.id)));
   }
 
-  async getRecordView(viewer: Actor | null, id: string): Promise<RecordView | null> {
+  /** `tiers: false` is for the verifier itself, which must read the ledger without decorating (or queueing) anything. */
+  async getRecordView(viewer: Actor | null, id: string, opts: { tiers?: boolean } = {}): Promise<RecordView | null> {
     const vis = { includeHeld: viewer !== null };
     const record = await this.store.getRecord(id, vis);
     if (!record) return null;
@@ -230,13 +253,22 @@ export class LedgerService {
     const [self, ...rest] = await this.withDisputes([record, ...linked], vis);
     const byId = new Map(rest.map((p) => [p.id, p]));
     const pick = (f: (r: StoredRecord) => boolean) => linked.filter(f).map((r) => byId.get(r.id)!);
-    return {
+    const view: RecordView = {
       record: self,
       corrections: pick((r) => r.correctsId === id),
       reviews: pick((r) => r.reviewsId === id),
       notes: pick((r) => r.aboutId === id),
       amendments: pick((r) => r.amendsId === id),
     };
+    if (this.verifier && opts.tiers !== false) {
+      await this.withTiers([self, ...rest]);
+      try {
+        view.verification = await this.verifier.detail(view);
+      } catch (error) {
+        console.error("[ledger] tier detail failed:", error);
+      }
+    }
+    return view;
   }
 
   async listRecords(
@@ -257,7 +289,7 @@ export class LedgerService {
       { campaignId: q.campaignId, kind: q.kind as any, standing: q.standing as any, authorId, before, limit: q.limit },
       { includeHeld: viewer !== null },
     );
-    return this.withDisputes(rows, { includeHeld: viewer !== null });
+    return this.withTiers(await this.withDisputes(rows, { includeHeld: viewer !== null }));
   }
 
   async createCampaign(actor: Actor, input: unknown): Promise<PublicCampaign> {
@@ -280,13 +312,14 @@ export class LedgerService {
     return this.publicCampaigns(await this.store.listCampaigns());
   }
 
-  async getCampaignView(viewer: Actor | null, id: string): Promise<{ campaign: PublicCampaign; records: PublicRecord[] } | null> {
+  async getCampaignView(viewer: Actor | null, id: string, opts: { tiers?: boolean } = {}): Promise<{ campaign: PublicCampaign; records: PublicRecord[] } | null> {
     const stored = await this.store.getCampaign(id);
     if (!stored) return null;
     const [campaign] = await this.publicCampaigns([stored]);
     const vis = { includeHeld: viewer !== null };
     const records = await this.store.listRecords({ campaignId: id, limit: 200 }, vis);
-    return { campaign, records: await this.withDisputes(records, vis) };
+    const pub = await this.withDisputes(records, vis);
+    return { campaign, records: opts.tiers === false ? pub : await this.withTiers(pub) };
   }
 
   async agentProfile(viewer: Actor | null, username: string): Promise<AgentProfile | null> {
@@ -297,7 +330,7 @@ export class LedgerService {
       this.store.authorStats(u.id, vis),
       this.store.listRecords({ authorId: u.id, limit: 100 }, vis),
     ]);
-    return { username: u.username, invitedBy: null, stats, records: await this.withDisputes(records, vis) };
+    return { username: u.username, invitedBy: null, stats, records: await this.withTiers(await this.withDisputes(records, vis)) };
   }
 
   async pendingReleases(actor: Actor): Promise<PublicRecord[]> {
