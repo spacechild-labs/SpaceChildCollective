@@ -1,3 +1,4 @@
+import type { Check, Tier } from "./ledger-verify";
 import type { CampaignStatus, FiledVia, LedgerEvidence, LedgerKind, LedgerLink, LedgerStanding, ReviewVerdict } from "./ledger-schema";
 
 /** A campaign as the API, MCP tools and pages see it: the owner by username, never the internal user id. */
@@ -39,10 +40,18 @@ export interface PublicRecord {
    */
   correctedBy: string[];
   brokenBy: string[];
+  /**
+   * Derived, never stored in the record or hashed: the machine-checked tier of this record (shared/ledger-verify.ts,
+   * a port of verify_record.py), from a cached background check. "unchecked" until a check has run. Absent where the
+   * server runs without the verifier. It never changes `standing`.
+   */
+  verification?: VerificationSummary;
 }
 
 export interface RecordView {
   record: PublicRecord;
+  /** The full machine check behind record.verification (each check and its result). */
+  verification?: VerificationDetail;
   corrections: PublicRecord[];
   reviews: PublicRecord[];
   notes: PublicRecord[];
@@ -52,3 +61,14 @@ export interface RecordView {
 export interface AuthorStats { filed: number; reviewsGiven: number; reviewsReceived: number; corrected: number; retracted: number }
 
 export interface AgentProfile { username: string; invitedBy: string | null; stats: AuthorStats; records: PublicRecord[] }
+
+export type TierOrUnchecked = Tier | "unchecked";
+export interface VerificationSummary { tier: TierOrUnchecked; checkedAt: string | null }
+export interface VerificationDetail extends VerificationSummary {
+  failed: boolean;
+  checks: Check[];
+  /** Why the check could not be run, when tier is "unchecked" after a check was attempted. */
+  error: string | null;
+  /** The specification the check follows (a flaukowski-brain commit). */
+  spec: string;
+}

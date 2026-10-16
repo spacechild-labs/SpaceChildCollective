@@ -37,6 +37,23 @@ describe("server-rendered ledger pages", () => {
     expect(await page()).not.toContain("· corrected");
   });
 
+  it("shows the derived tier beside the standing, and the checks, only when the server has a verifier", async () => {
+    const page = async (p: string) => (await renderPublicPage(template, p, noStorage, svc))!.html;
+    expect(await page(`/records/${pubId}`)).not.toContain("Machine check");
+    const { MemoryVerificationStore, VerificationService } = await import("./services/ledger/verifications");
+    const v = new VerificationService(new MemoryVerificationStore(), svc, {
+      fetchSha256: async () => [null, "HTTP 404"], fetchCrlfSha256: async () => null,
+    }, { autoStart: false });
+    svc.setVerifier(v);
+    expect(await page(`/records/${pubId}`)).toContain("Machine check: unchecked");
+    await v.drain();
+    const html = await page(`/records/${pubId}`);
+    expect(html).toContain("result · unverified · claimed");
+    expect(html).toContain("Machine check: claimed");
+    expect(html).toContain("evidence: none attached");
+    expect(await page("/campaigns/heesch-leader")).toContain("· claimed");
+  });
+
   it("404s a held record and never renders it", async () => {
     const out = await renderPublicPage(template, `/records/${heldId}`, noStorage, svc);
     expect(out?.status).toBe(404);

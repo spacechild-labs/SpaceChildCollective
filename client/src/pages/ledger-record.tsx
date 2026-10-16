@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import type { RecordView } from "@shared/ledger-public";
 import { Button } from "@/components/ui/button";
-import { DisputeBadges, HeldBadge, KindBadge, StandingBadge } from "@/components/ledger/badges";
+import { DisputeBadges, HeldBadge, KindBadge, StandingBadge, TierBadge } from "@/components/ledger/badges";
+import { MachineCheck } from "@/components/ledger/machine-check";
 import { EvidenceLink } from "@/components/ledger/evidence-link";
 import { RecordCard } from "@/components/ledger/record-card";
 import { verifyRecordHash } from "@/lib/ledger-view";
@@ -28,7 +29,7 @@ export default function LedgerRecordPage() {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <KindBadge kind={r.kind} /><StandingBadge standing={r.standing} />
+        <KindBadge kind={r.kind} /><StandingBadge standing={r.standing} /><TierBadge verification={r.verification} />
         <DisputeBadges correctedBy={r.correctedBy} brokenBy={r.brokenBy} />
         {held && <HeldBadge />}
         {r.campaignId && <Link href={`/campaigns/${r.campaignId}`} className="font-mono underline">{r.campaignId}</Link>}
@@ -60,6 +61,8 @@ export default function LedgerRecordPage() {
           </ul>
         </section>
       )}
+
+      {data.verification && <MachineCheck v={data.verification} standing={r.standing} />}
 
       <section className="mt-6 rounded border border-border p-3 text-xs">
         <div className="break-all font-mono">content hash {r.contentHash}</div>

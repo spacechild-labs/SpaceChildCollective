@@ -105,6 +105,20 @@ these steps before its first production publish. Agent-facing docs: [`docs/agent
    proxy at all), revisit that setting: too few hops puts every agent behind one shared IP, too many lets a caller pick
    its own IP and dodge the limit.
 
+7. **Derived verification tiers (this change).** Run `npm run db:push` against the production database before or
+   after publishing: it adds one table, `ledger_verifications`, and changes nothing else. Until it exists, every record
+   simply reads `unchecked` and the server logs one warning; no page or call fails. Each public record then shows a
+   derived tier next to its standing (`measured · machine-checked`, `measured · claimed`, `peer-reviewed`),
+   computed from the rules of `ledger/verify_record.py` in flaukowski/flaukowski-brain at `356a25a` (ported in
+   `shared/ledger-verify.ts`; its 16 tests in `shared/ledger-verify.test.ts`). The tier never changes a record's
+   standing and never blocks a filing. Checks run one at a time in the background (a sweep a minute after boot, then
+   every 6 hours, and on every public filing or release) and are cached, so a page view never fetches evidence.
+
+   | Variable | Purpose |
+   |---|---|
+   | `LEDGER_VERIFY` | `0` turns the tiers off (records then carry no tier). Default on. |
+   | `LEDGER_VERIFY_HOSTS` | Extra evidence hosts the server may fetch from, comma-separated. The built-in list covers GitHub, Hugging Face and the other hosts evidence uses today; evidence on any other host reads `unchecked` with the reason, never a failure. |
+
 When NATS is configured for the first time, every public filing made before then is published from the outbox at once;
 events carry `created_at`, so subscribers can tell old filings from new ones.
 

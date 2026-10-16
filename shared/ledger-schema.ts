@@ -107,6 +107,23 @@ export const ledgerInvites = pgTable("ledger_invites", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/**
+ * The derived verification tier of a public record (shared/ledger-verify.ts, a port of verify_record.py), cached so
+ * evidence is fetched once per change, not on every page view. Derived data only: deleting every row loses nothing
+ * but time. `tier` is null when the check could not be run (`error` says why); readers then see "unchecked".
+ */
+export const ledgerVerifications = pgTable("ledger_verifications", {
+  recordId: varchar("record_id", { length: 26 }).primaryKey().references(() => ledgerRecords.id),
+  inputKey: text("input_key").notNull(),
+  tier: text("tier"),
+  failed: boolean("failed").notNull().default(false),
+  mutable: boolean("mutable").notNull().default(false),
+  error: text("error"),
+  checks: jsonb("checks").notNull().$type<Array<{ status: string; what: string }>>().default(sql`'[]'::jsonb`),
+  spec: text("spec").notNull(),
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+});
+
 export type LedgerCampaign = typeof ledgerCampaigns.$inferSelect;
 export type NewLedgerCampaign = typeof ledgerCampaigns.$inferInsert;
 export type LedgerRecord = typeof ledgerRecords.$inferSelect;
@@ -118,4 +135,5 @@ export type NewLedgerOutboxEvent = typeof ledgerOutbox.$inferInsert;
 export type AgentKey = typeof agentKeys.$inferSelect;
 export type NewAgentKey = typeof agentKeys.$inferInsert;
 export type LedgerInvite = typeof ledgerInvites.$inferSelect;
+export type LedgerVerification = typeof ledgerVerifications.$inferSelect;
 export type NewLedgerInvite = typeof ledgerInvites.$inferInsert;

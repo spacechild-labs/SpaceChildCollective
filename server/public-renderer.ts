@@ -3,7 +3,8 @@ import type { Paper, PaperContributor } from "@shared/schema";
 import type { PublicUser } from "./lib/sanitize";
 import { siteUrl } from "./lib/site-url";
 import { httpUrl } from "@shared/ledger-validate";
-import type { PublicRecord } from "@shared/ledger-public";
+import type { PublicRecord, RecordView } from "@shared/ledger-public";
+import { SPEC_URL } from "@shared/ledger-verify";
 import type { LedgerService } from "./services/ledger/service";
 
 const SITE_URL = siteUrl();
@@ -267,8 +268,22 @@ function disputeMarks(r: PublicRecord): string {
   return `${r.correctedBy?.length ? " \u00b7 corrected" : ""}${r.brokenBy?.length ? " \u00b7 challenged" : ""}`;
 }
 
+/** " \u00b7 machine-checked" etc.: the derived tier beside the self-set standing; nothing when the server sent no tier. */
+function tierMark(r: PublicRecord): string {
+  return r.verification ? ` \u00b7 ${escapeHtml(r.verification.tier.toLowerCase())}` : "";
+}
+
+/** The derived tier's checks, in the script's words (shared/ledger-verify.ts); nothing when the server sent no tier. */
+function machineCheck(view: RecordView): string {
+  const v = view.verification;
+  if (!v) return "";
+  const rows = v.checks.map((c) => `<li><code>${escapeHtml(c.status)}</code> ${escapeHtml(c.what)}</li>`).join("");
+  const why = v.tier === "unchecked" ? `<p>${v.error ? `The check could not run: ${escapeHtml(v.error)}` : "The check has not run yet."}</p>` : "";
+  return `<h2>Machine check: ${escapeHtml(v.tier.toLowerCase())}</h2>${why}${rows ? `<ul>${rows}</ul>` : ""}<p><small>Derived from <a href="${escapeHtml(SPEC_URL)}" rel="noopener noreferrer nofollow">verify_record.py at ${escapeHtml(v.spec)}</a>; it never changes the standing.</small></p>`;
+}
+
 function recordItem(r: PublicRecord): string {
-  return `<li><a href="/records/${encodeURIComponent(r.id)}">${escapeHtml(r.title)}</a> <small>${escapeHtml(r.kind)} \u00b7 ${escapeHtml(r.standing)}${disputeMarks(r)} \u00b7 ${escapeHtml(r.authorUsername)} \u00b7 ${escapeHtml(r.createdAt)}</small></li>`;
+  return `<li><a href="/records/${encodeURIComponent(r.id)}">${escapeHtml(r.title)}</a> <small>${escapeHtml(r.kind)} \u00b7 ${escapeHtml(r.standing)}${tierMark(r)}${disputeMarks(r)} \u00b7 ${escapeHtml(r.authorUsername)} \u00b7 ${escapeHtml(r.createdAt)}</small></li>`;
 }
 
 function notFoundPage(path: string, what: string): Page {
@@ -305,9 +320,9 @@ async function ledgerPage(path: string, ledger: LedgerReads, inviterOf?: (userna
       title: `${r.title} | ${SITE_NAME}`,
       description: `${r.kind} (${r.standing}) by ${r.authorUsername}: ${snippet(r.body)}`,
       canonical: `${SITE_URL}/records/${encodeURIComponent(r.id)}`, type: "article",
-      body: layout(r.title, `<p><small>${escapeHtml(r.kind)} \u00b7 ${escapeHtml(r.standing)}${disputeMarks(r)} \u00b7 ${escapeHtml(r.authorUsername)} \u00b7 ${escapeHtml(r.createdAt)}</small></p>
+      body: layout(r.title, `<p><small>${escapeHtml(r.kind)} \u00b7 ${escapeHtml(r.standing)}${tierMark(r)}${disputeMarks(r)} \u00b7 ${escapeHtml(r.authorUsername)} \u00b7 ${escapeHtml(r.createdAt)}</small></p>
         <pre style="white-space:pre-wrap">${escapeHtml(r.body)}</pre>${evidence ? `<h2>Evidence</h2><ul>${evidence}</ul>` : ""}
-        <p><small>content hash <code>${escapeHtml(r.contentHash)}</code></small></p>
+        <p><small>content hash <code>${escapeHtml(r.contentHash)}</code></small></p>${machineCheck(view)}
         ${section("Corrections", view.corrections)}${section("Reviews", view.reviews)}`),
     };
   }
