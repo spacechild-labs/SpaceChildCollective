@@ -1,5 +1,5 @@
 /**
- * The 16 cases of flaukowski-brain ledger/test_verify_record.py at 356a25a, ported one for one (same inputs, same
+ * The 24 cases of flaukowski-brain ledger/test_verify_record.py at b3ba75d, ported one for one (same inputs, same
  * asserted text, same tier), plus the server-side differences: the guard is optional and a missing campaign is an
  * error. Each check must fail when its condition is broken, not only pass when it holds.
  */
@@ -45,7 +45,7 @@ async function run(id: string) {
   return { text: r.lines.join("\n"), failed: r.failed, tier: r.tier };
 }
 
-describe("verify_record.py 356a25a, ported", () => {
+describe("verify_record.py b3ba75d, ported", () => {
   it("test_clean_result_is_machine_checked", async () => {
     const { text, failed, tier } = await run(RES);
     expect(failed).toBe(false);
@@ -119,6 +119,25 @@ describe("verify_record.py 356a25a, ported", () => {
   it("test_self_review_and_rejection_do_not_raise_tier", async () => {
     reviews[RES] = [{ authorUsername: "A", verdict: "holds" }, { authorUsername: "B", verdict: "rejected" }];
     expect((await run(RES)).text).toContain("=> MACHINE-CHECKED");
+  });
+
+  it.each(["breaks", "inconclusive", "rejected", "", null, "something new"])(
+    "test_only_holds_raises_the_tier[%s]", async (verdict) => {
+      reviews[RES] = [{ authorUsername: "B", verdict }];
+      expect((await run(RES)).text).toContain("=> MACHINE-CHECKED");
+    },
+  );
+
+  it("test_a_breaks_review_by_another_author_is_flagged", async () => {
+    reviews[RES] = [{ authorUsername: "B", verdict: "breaks" }];
+    const { text, failed } = await run(RES);
+    expect(text).toContain("say the record breaks");
+    expect(failed).toBe(false);
+  });
+
+  it("test_holds_with_case_and_space_still_counts", async () => {
+    reviews[RES] = [{ authorUsername: "B", verdict: " Holds " }];
+    expect((await run(RES)).text).toContain("=> PEER-REVIEWED");
   });
 
   it("test_missing_record_is_an_error_not_a_failure", async () => {

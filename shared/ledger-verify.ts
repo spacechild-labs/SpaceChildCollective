@@ -1,13 +1,14 @@
 /**
  * The derived verification tier of a ledger record: a port of flaukowski-brain ledger/verify_record.py at commit
- * 356a25a (the specification; its 16 tests define each tier, and shared/ledger-verify.test.ts ports them case by
+ * b3ba75d (the specification; its 24 tests define each tier, and shared/ledger-verify.test.ts ports them case by
  * case). A record's standing is set by whoever files it, so on its own it is a self-report. This is the machine gate
  * ahead of that standing: it checks what a machine can check and says what is left for a peer. It never changes the
  * standing or any stored row.
  *
  * Tiers, in order: CLAIMED (filed; also any record with no evidence, since nothing could be checked),
  * MACHINE-CHECKED (it has evidence, and evidence, links and order all pass),
- * PEER-REVIEWED (also at least one review by another author whose verdict is not a rejection).
+ * PEER-REVIEWED (also at least one review by another author whose verdict is "holds"; "breaks", "inconclusive" and
+ * any unknown verdict do not raise it).
  *
  * A check that could not be run (network, a missing record) raises VerifyCheckError: an error is never reported as a
  * failure, nor a failure as an error. The server shows such a record as "unchecked", never a guessed tier.
@@ -19,8 +20,8 @@
  *    refused host is a VerifyCheckError (unchecked), not a failure.
  */
 
-export const SPEC_COMMIT = "356a25a";
-export const SPEC_URL = "https://github.com/flaukowski/flaukowski-brain/blob/356a25a/ledger/verify_record.py";
+export const SPEC_COMMIT = "b3ba75d";
+export const SPEC_URL = "https://github.com/flaukowski/flaukowski-brain/blob/b3ba75d/ledger/verify_record.py";
 
 export type Tier = "CLAIMED" | "MACHINE-CHECKED" | "PEER-REVIEWED";
 export type CheckStatus = "PASS" | "FAIL" | "WARN" | "INFO";
@@ -34,7 +35,10 @@ export class VerifyCheckError extends Error {
 const ID_RE = /\b01[0-9A-HJKMNP-TV-Z]{24}\b/g;
 const SHA_RE = /\b[0-9a-f]{64}\b/g;
 export const LINK_FIELDS = ["correctsId", "amendsId", "aboutId", "reviewsId"] as const;
-export const REJECTING = new Set(["rejected", "broken", "does_not_hold", "fails", "refuted"]);
+// a review raises a record only when it endorses it. The ledger's review verdicts are holds, breaks and
+// inconclusive; only "holds" endorses. Anything else, including a verdict this list has never seen, does not raise
+// the tier: an allowlist, so a new word cannot turn a rejection into an endorsement.
+export const ENDORSING = new Set(["holds"]);
 
 /** The parts of a record the checks read (the shape of the public API's record). */
 export interface VRecord {
@@ -91,7 +95,7 @@ export function pinned(url: string): boolean {
   return /\/[0-9a-f]{40}\//.test(url) || /\/(blob|raw|tree)\/[0-9a-f]{40}\//.test(url);
 }
 
-const lower = (s: unknown) => String(s ?? "").toLowerCase();
+const lower = (s: unknown) => String(s ?? "").trim().toLowerCase();
 
 export async function checkRecord(rid: string, deps: VerifyDeps, cache: Map<string, VView> = new Map()): Promise<VerifyResult> {
   const d = cache.get(rid) ?? (await deps.getView(rid));
@@ -184,11 +188,13 @@ export async function checkRecord(rid: string, deps: VerifyDeps, cache: Map<stri
   }
 
   const peers = (d.reviews ?? []).filter((v) => v.authorUsername !== r.authorUsername);
-  const holding = peers.filter((v) => !REJECTING.has(lower(v.verdict)));
+  const holding = peers.filter((v) => ENDORSING.has(lower(v.verdict)));
+  const against = peers.filter((v) => lower(v.verdict) === "breaks");
+  if (against.length) say("WARN", `peer: ${against.length} review(s) by another author say the record breaks`);
   if ((r.correctedBy && r.correctedBy.length) || (r.brokenBy && r.brokenBy.length)) {
     say("WARN", `corrected by ${JSON.stringify(r.correctedBy ?? [])} / broken by ${JSON.stringify(r.brokenBy ?? [])}`);
   }
-  say("INFO", `peer: ${peers.length} review(s) by another author` + (peers.length ? `, ${holding.length} not rejecting` : "; the standing rests on the author"));
+  say("INFO", `peer: ${peers.length} review(s) by another author` + (peers.length ? `, ${holding.length} saying it holds` : "; the standing rests on the author"));
 
   // with no evidence there is nothing for the machine to have checked, so nothing has been raised
   const tier: Tier = failed || !ev.length ? "CLAIMED" : holding.length ? "PEER-REVIEWED" : "MACHINE-CHECKED";

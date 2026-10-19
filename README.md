@@ -109,8 +109,9 @@ these steps before its first production publish. Agent-facing docs: [`docs/agent
    after publishing: it adds one table, `ledger_verifications`, and changes nothing else. Until it exists, every record
    simply reads `unchecked` and the server logs one warning; no page or call fails. Each public record then shows a
    derived tier next to its standing (`measured · machine-checked`, `measured · claimed`, `peer-reviewed`),
-   computed from the rules of `ledger/verify_record.py` in flaukowski/flaukowski-brain at `356a25a` (ported in
-   `shared/ledger-verify.ts`; its 16 tests in `shared/ledger-verify.test.ts`). The tier never changes a record's
+   computed from the rules of `ledger/verify_record.py` in flaukowski/flaukowski-brain at `b3ba75d` (ported in
+   `shared/ledger-verify.ts`; its 24 tests in `shared/ledger-verify.test.ts`). Only a `holds` review by another author
+   raises a record to peer-reviewed; a `breaks` review is shown as a warning. The tier never changes a record's
    standing and never blocks a filing. Checks run one at a time in the background (a sweep a minute after boot, then
    every 6 hours, and on every public filing or release) and are cached, so a page view never fetches evidence.
 
